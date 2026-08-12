@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Duplicates</string>
+
+    <string name="home">Home</string>
+    <string name="results">Results</string>
+    <string name="exclusions">Exclusions</string>
+    <string name="back">Back</string>
+    <string name="more_options">More options</string>
+    <string name="close">Close</string>
+    <string name="cancel">Cancel</string>
+    <string name="all">All</string>
+    <string name="photos">Photos</string>
+    <string name="videos">Videos</string>
+    <string name="audio">Audio</string>
+    <string name="documents">Documents</string>
+    <string name="recommended">Recommended</string>
+
+    <string name="storage_access_required">Storage access required</string>
+    <string name="storage_access_explanation">Duplicates needs access to shared storage to compare files across your phone.</string>
+    <string name="files_stay_on_phone">Files stay on this phone.</string>
+    <string name="scanning_never_deletes">Scanning never deletes anything.</string>
+    <string name="grant_storage_access">Grant storage access</string>
+    <string name="settings">Settings</string>
+    <string name="ready_to_scan">Ready to scan</string>
+    <string name="scan_locations">Scan locations</string>
+    <string name="types_to_scan">Types to scan</string>
+    <string name="scanning_does_not_delete">Scanning does not delete anything.</string>
+    <string name="start_scan">Start scan</string>
+    <string name="no_locations_selected">No storage locations selected</string>
+    <string name="no_file_types_selected">No file types selected</string>
+    <string name="space_you_can_reclaim">Space you can reclaim</string>
+    <string name="duplicate_files_value">%1$s duplicate files</string>
+    <string name="duplicate_groups_value">%1$s duplicate groups</string>
+    <string name="review_duplicates">Review duplicates</string>
+    <string name="duplicates_by_type">Duplicates by type</string>
+    <string name="duplicates_value">%1$s duplicates</string>
+    <string name="last_scan">Last scan</string>
+    <string name="last_scan_summary">%1$s duplicates / %2$s reclaimable</string>
+    <string name="scan_again">Scan again</string>
+    <string name="no_duplicates_found">No duplicates found</string>
+    <string name="no_duplicates_explanation">The scan completed without finding identical copies.</string>
+    <string name="no_matching_files">No files matching selected types</string>
+    <string name="no_matching_files_explanation">Check the selected file types and scan locations, then scan again.</string>
+    <string name="storage_chart_description">%1$s total storage. %2$s can be reclaimed. %3$s is free.</string>
+    <string name="other_used_storage">Other used storage</string>
+    <string name="reclaimable_storage">Reclaimable duplicate storage</string>
+    <string name="free_storage">Free storage</string>
+    <string name="scan_in_progress">Scan in progress</string>
+    <string name="view_scan">View scan</string>
+
+    <string name="scanning">Scanning</string>
+    <string name="scanning_for_duplicates">Scanning for duplicates</string>
+    <string name="finding_files">Finding files</string>
+    <string name="comparing_candidates">Comparing candidates</string>
+    <string name="verifying_duplicates">Verifying duplicates</string>
+    <string name="completed">Completed</string>
+    <string name="scan_step_in_progress">In progress</string>
+    <string name="pending">Pending</string>
+    <string name="files_indexed">files indexed</string>
+    <string name="candidate_groups_found">candidate groups found</string>
+    <string name="duplicate_groups_found">duplicate groups found</string>
+    <string name="reclaimable_so_far">reclaimable so far</string>
+    <string name="current_work">Current work</string>
+    <string name="stop_scan">Stop scan</string>
+    <string name="stop_scan_title">Stop this scan?</string>
+    <string name="stop_scan_message">The current scan will stop. Your previous completed results will remain available.</string>
+    <string name="scan_privacy_note">Duplicates only reviews your files.\nNothing is deleted automatically.</string>
+    <string name="scan_canceled">Scan canceled</string>
+    <string name="scan_canceled_message">The scan stopped safely. Previous completed results were not changed.</string>
+    <string name="scan_failed">Scan could not finish</string>
+    <string name="scan_failure_permission_revoked">Storage access was removed. Grant storage access, then start the scan again.</string>
+    <string name="scan_failure_volume_unavailable">A selected storage location became unavailable. Reconnect it or choose another location, then start the scan again.</string>
+    <string name="scan_failure_storage_full">There is not enough free storage to save scan progress. Free up space, then start the scan again.</string>
+    <string name="scan_failure_database">Scan results could not be saved. Close and reopen Duplicates, then start the scan again.</string>
+    <string name="scan_failure_generic">The scan could not finish. Start it again.</string>
+    <string name="scan_failure_foreground_worker">Android could not keep the scan running in the background. Open Duplicates and start the scan again.</string>
+    <string name="scan_complete">Scan complete</string>
+    <string name="scan_skipped_files">Some files were skipped because of scan settings, file state, or access problems.</string>
+    <string name="notification_channel_name">Duplicate scans</string>
+    <string name="notification_channel_description">Progress for scans started in Duplicates</string>
+    <string name="notification_stop">Stop</string>
+    <string name="notifications_disabled_scan_continues">Notifications are off. The scan will continue without a notification. You can enable notifications in system settings.</string>
+
+    <string name="scan_results">Scan results</string>
+    <string name="duplicate_files">Duplicate files</string>
+    <string name="duplicate_groups">Duplicate groups</string>
+    <string name="reclaimable">Reclaimable</string>
+    <string name="search_duplicates">Search duplicate groups</string>
+    <string name="sort">Sort</string>
+    <string name="sort_largest">Largest reclaimable space</string>
+    <string name="sort_most_copies">Most copies</string>
+    <string name="sort_file_name">File name</string>
+    <string name="sort_newest">Newest</string>
+    <string name="sort_oldest">Oldest</string>
+    <string name="clear_scan_results">Clear scan results</string>
+    <string name="clear_scan_results_title">Clear saved scan results?</string>
+    <string name="clear_scan_results_message">This removes saved scan metadata only. It does not delete any files.</string>
+    <string name="clear_results">Clear results</string>
+    <string name="review">Review</string>
+    <string name="group_metadata">%1$s / %2$s copies / %3$s reclaimable</string>
+    <string name="no_results_for_filter">No duplicate groups match this filter.</string>
+
+    <string name="identical_files_summary">%1$s identical files / %2$s reclaimable</string>
+    <string name="keep_at_least_one_copy">Keep at least one copy.</string>
+    <string name="kept">Kept</string>
+    <string name="selected_for_deletion">Selected for deletion</string>
+    <string name="delete_selected_duplicates">Delete selected duplicates (%1$d) / %2$s</string>
+    <string name="nothing_selected">No duplicate copies are selected.</string>
+    <string name="delete_confirmation_title">Delete selected duplicates?</string>
+    <plurals name="delete_confirmation_message">
+        <item quantity="one">%1$d file will be permanently deleted and %2$s will be reclaimed. At least one copy will remain in every group.</item>
+        <item quantity="other">%1$d files will be permanently deleted and %2$s will be reclaimed. At least one copy will remain in every group.</item>
+    </plurals>
+    <string name="delete_selected">Delete selected</string>
+    <string name="deletion_result">Deleted: %1$d / Not deleted: %2$d</string>
+    <string name="deletion_space_freed">Space freed: %1$s</string>
+    <string name="files_changed_before_delete">Some selected files changed since the scan and were kept.</string>
+    <string name="deletion_authorization_canceled">Deletion was canceled. No remaining files were deleted.</string>
+
+    <string name="scans_skip_excluded_items">Scans will skip excluded items</string>
+    <string name="exclusions_explanation">Files and folders you exclude will not be included in duplicate scans.</string>
+    <string name="excluded_folders">Excluded folders</string>
+    <string name="excluded_files">Excluded files</string>
+    <string name="section_count">%1$s (%2$d)</string>
+    <string name="add_exclusion">Add exclusion</string>
+    <string name="choose_folder">Choose folder</string>
+    <string name="choose_file">Choose file</string>
+    <string name="select_this_folder">Select this folder</string>
+    <string name="already_excluded">This item is already excluded.</string>
+    <string name="parent_already_excluded">A parent folder is already excluded.</string>
+    <string name="folder_not_accessible">This folder cannot be accessed.</string>
+    <string name="no_excluded_folders">No folders are excluded.</string>
+    <string name="no_excluded_files">No files are excluded.</string>
+
+    <string name="scanning_section">Scanning</string>
+    <string name="review_and_deletion">Review and deletion</string>
+    <string name="file_types">File types</string>
+    <string name="about">About</string>
+    <string name="internal_storage">Internal storage</string>
+    <string name="scan_hidden_folders">Scan hidden folders</string>
+    <string name="ignore_system_folders">Ignore system folders</string>
+    <string name="auto_select_duplicate_copies">Auto-select duplicate copies</string>
+    <string name="confirm_before_delete">Confirm before delete</string>
+    <string name="file_types_summary">Photos / Videos / Audio / Documents</string>
+    <string name="storage_permission">Storage permission</string>
+    <string name="granted">Granted</string>
+    <string name="required">Required</string>
+    <string name="app_version">App version</string>
+
+    <string name="photos_supporting">Images and screenshots</string>
+    <string name="videos_supporting">Videos and screen recordings</string>
+    <string name="audio_supporting">Music, recordings, and other audio</string>
+    <string name="documents_supporting">Documents, archives, installers, and other user files</string>
+    <string name="select_at_least_one_type">Select at least one file type.</string>
+
+    <string name="total_size">%1$s total</string>
+    <string name="free_size">%1$s free</string>
+    <string name="select_at_least_one_location">Select at least one storage location.</string>
+
+    <string name="photo_preview">Photo preview</string>
+    <string name="file_preview">File preview</string>
+    <string name="open_with_another_app">Open with another app</string>
+    <string name="no_compatible_viewer">No compatible viewer is installed for this file.</string>
+    <string name="preview_unavailable">A preview is not available for this file.</string>
+    <string name="file_missing">This file is no longer available.</string>
+
+    <string name="percent_value">%1$d%%</string>
+    <string name="files_indexed_value">%1$s files indexed</string>
+    <string name="no_saved_scan_results">No saved scan results</string>
+    <string name="no_saved_scan_results_message">Run a scan to see exact duplicate groups here.</string>
+    <string name="show_search">Show search</string>
+    <string name="hide_search">Hide search</string>
+    <string name="thumbnail_description">Preview of %1$s</string>
+    <string name="preview_item_description">Preview %1$s</string>
+    <string name="remove_item_description">Remove %1$s</string>
+    <plurals name="location_count_more">
+        <item quantity="one">%1$d more location</item>
+        <item quantity="other">%1$d more locations</item>
+    </plurals>
+    <string name="deletion_complete">Deletion complete</string>
+    <string name="kept_description">%1$s will be kept</string>
+    <string name="delete_description">%1$s is selected for deletion</string>
+    <string name="current_location">Current location</string>
+    <string name="summary_separator" translatable="false">\u0020/\u0020</string>
+    <plurals name="size_bytes">
+        <item quantity="one">%1$d byte</item>
+        <item quantity="other">%1$d bytes</item>
+    </plurals>
+    <string name="size_kilobytes">%1$s KB</string>
+    <string name="size_megabytes">%1$s MB</string>
+    <string name="size_gigabytes">%1$s GB</string>
+    <string name="size_terabytes">%1$s TB</string>
+    <string name="date_time_pattern" translatable="false">MMM d, yyyy, HH:mm</string>
+    <string name="empty_folder">This folder is empty.</string>
+    <string name="not_mounted">Not mounted</string>
+    <string name="file_size_label">Size: %1$s</string>
+    <string name="file_date_label">Date: %1$s</string>
+    <string name="file_path_label">Path: %1$s</string>
+    <string name="zoom_photo_description">Photo preview of %1$s. Pinch or double tap to zoom.</string>
+    <string name="total_storage">Total storage</string>
+</resources>

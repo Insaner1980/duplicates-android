@@ -1,0 +1,1 @@
+-keep class androidx.room.RoomDatabase_Impl { *; }

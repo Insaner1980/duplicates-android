@@ -1,0 +1,27 @@
+package com.emma.duplicates.core.designsystem
+
+import androidx.compose.ui.graphics.Color
+
+val Background = Color(0xFF000000)
+val Surface = Color(0xFF111111)
+val SurfaceContainerLow = Color(0xFF151515)
+val SurfaceContainer = Color(0xFF191919)
+val SurfaceContainerHigh = Color(0xFF202020)
+val SurfaceContainerHighest = Color(0xFF272727)
+val Primary = Color(0xFFD4AF37)
+val PrimaryPressed = Color(0xFFB8962F)
+val PrimaryFocus = Color(0xFFE0C45F)
+val OnPrimary = Color(0xFF171200)
+val PrimaryContainer = Color(0xFF3B300A)
+val OnPrimaryContainer = Color(0xFFF7DE8A)
+val PrimaryText = Color(0xFFF5F5F5)
+val SecondaryText = Color(0xFFB8B8B8)
+val DisabledText = Color(0xFF747474)
+val Outline = Color(0xFF3A3A3A)
+val OutlineVariant = Color(0xFF292929)
+val OtherUsedStorage = Color(0xFF5A5A5A)
+val FreeStorage = Color(0xFF242424)
+val Error = Color(0xFFFFB4AB)
+val OnError = Color(0xFF690005)
+val ErrorContainer = Color(0xFF93000A)
+val OnErrorContainer = Color(0xFFFFDAD6)
