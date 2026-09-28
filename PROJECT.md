@@ -32,8 +32,8 @@ Deletion is separate from scanning. It requires a user-reviewed selection, prese
 | Compile and target SDK | 37, Android 17 |
 | Java and Kotlin JVM target | 17 |
 | Gradle wrapper | 9.7.0 |
-| Android Gradle Plugin | 9.3.1 |
-| Kotlin | 2.4.10 |
+| Android Gradle Plugin | 9.4.1 |
+| Kotlin | 2.4.20 |
 
 The manifest enables edge-to-edge window handling through `MainActivity`, predictive back through `enableOnBackInvokedCallback`, a resizable activity, the Android splash screen theme, and a `dataSync` foreground service type for WorkManager. Orientation is not locked. Backup and device transfer are disabled.
 
@@ -41,13 +41,13 @@ The manifest enables edge-to-edge window handling through `MainActivity`, predic
 
 | Responsibility | Library |
 | --- | --- |
-| UI | Jetpack Compose BOM 2026.06.01, Material 3, Activity Compose 1.13.0 |
-| Navigation and state | Navigation Compose 2.9.8, Lifecycle 2.11.0, Kotlin Serialization 1.11.0 |
-| Persistence | Room 2.8.4, DataStore Preferences 1.2.1 |
-| Background work | WorkManager 2.11.2 |
+| UI | Jetpack Compose BOM 2026.09.00, Material 3, Activity Compose 1.13.0 |
+| Navigation and state | Navigation Compose 2.10.2, Lifecycle 2.11.0, Kotlin Serialization 1.11.0 |
+| Persistence | Room 2.8.5, DataStore Preferences 1.2.1 |
+| Background work | WorkManager 2.12.0 |
 | Concurrency | Kotlin coroutines 1.11.0 |
-| Thumbnails and photos | Coil Compose and Coil Video 3.5.0 |
-| Local tests | JUnit 4.13.2, MockK 1.14.11, Turbine 1.2.1, Robolectric 4.16.1, AndroidX and Compose test libraries |
+| Thumbnails and photos | Coil Compose and Coil Video 3.6.3 |
+| Local tests | JUnit 4.13.2, MockK 1.14.11, Turbine 1.2.1, Robolectric 4.17, AndroidX and Compose test libraries |
 
 ## Screens and navigation
 
