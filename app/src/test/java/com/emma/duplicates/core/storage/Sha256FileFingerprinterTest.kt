@@ -12,6 +12,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeNoException
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -21,6 +22,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.SeekableByteChannel
 import java.nio.file.AccessDeniedException
+import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 
@@ -38,7 +40,15 @@ class Sha256FileFingerprinterTest {
 
         assertEquals(FileSnapshot(metadata.sizeBytes, metadata.lastModifiedMillis), source.snapshot(metadata))
         Files.delete(path)
-        Files.createSymbolicLink(path, target.toPath())
+        try {
+            Files.createSymbolicLink(path, target.toPath())
+        } catch (error: UnsupportedOperationException) {
+            assumeNoException(error)
+        } catch (error: FileSystemException) {
+            assumeNoException(error)
+        } catch (error: SecurityException) {
+            assumeNoException(error)
+        }
 
         assertThrows(IOException::class.java) { source.open(metadata).close() }
         assertTrue(Files.isSymbolicLink(path))

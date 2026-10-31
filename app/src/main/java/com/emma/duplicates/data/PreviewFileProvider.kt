@@ -27,11 +27,15 @@ class PreviewFileProvider : ContentProvider() {
         return ParcelFileDescriptor.open(resolveFile(uri), ParcelFileDescriptor.MODE_READ_ONLY)
     }
 
-    override fun getType(uri: Uri): String =
-        MimeTypeMap
-            .getSingleton()
-            .getMimeTypeFromExtension(resolveMetadataFile(uri).extension.lowercase(Locale.ROOT))
-            ?: "application/octet-stream"
+    override fun getType(uri: Uri): String? =
+        try {
+            MimeTypeMap
+                .getSingleton()
+                .getMimeTypeFromExtension(resolveFile(uri).extension.lowercase(Locale.ROOT))
+                ?: "application/octet-stream"
+        } catch (_: FileNotFoundException) {
+            null
+        }
 
     override fun query(
         uri: Uri,

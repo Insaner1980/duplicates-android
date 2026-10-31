@@ -15,6 +15,7 @@ import com.emma.duplicates.core.database.IndexedFileEntity
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -175,13 +176,23 @@ class PreviewFileProviderTest {
             val uri = prepare(source)
             source.delete()
             assertThrows(FileNotFoundException::class.java) { provider.openFile(uri, "r")?.close() }
-            assertThrows(IllegalArgumentException::class.java) { provider.getType(uri) }
+            assertNull(provider.getType(uri))
+            for (mimeType in listOf("application/pdf", "application/*", "*/*")) {
+                assertThrows(FileNotFoundException::class.java) {
+                    provider.openTypedAssetFile(uri, mimeType, null)?.close()
+                }
+            }
             assertThrows(IllegalArgumentException::class.java) { provider.query(uri, null, null, null, null)?.close() }
 
             source.writeText("content")
             shadowOf(context.getSystemService(StorageManager::class.java)).resetStorageVolumeList()
             assertThrows(FileNotFoundException::class.java) { provider.openFile(uri, "r")?.close() }
-            assertThrows(IllegalArgumentException::class.java) { provider.getType(uri) }
+            assertNull(provider.getType(uri))
+            for (mimeType in listOf("application/pdf", "application/*", "*/*")) {
+                assertThrows(FileNotFoundException::class.java) {
+                    provider.openTypedAssetFile(uri, mimeType, null)?.close()
+                }
+            }
             assertThrows(IllegalArgumentException::class.java) { provider.query(uri, null, null, null, null)?.close() }
         }
 

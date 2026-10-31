@@ -32,10 +32,10 @@ rules:
     pattern: |
       <application ... android:usesCleartextTraffic="true" ...>
 
-  - id: duplicates-android-file-provider-exported
+  - id: duplicates-android-provider-exported
     languages: [xml]
     severity: ERROR
-    message: Keep content providers private; share previews only with temporary URI permissions.
+    message: Keep content providers non-exported to prevent unrestricted access to app data.
     paths:
       include:
         - /app/src/main/AndroidManifest.xml

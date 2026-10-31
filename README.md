@@ -71,7 +71,7 @@ Using the same PowerShell 7 and shared `Android-check` installation:
 The existing PowerShell profile exposes this as `ac` or `android-check`.
 It runs the project's Semgrep manifest rules and mobsfscan over `app/src/main`,
 `app/src/test`, and `app/src/androidTest`. The manifest rules flag enabled backup,
-debugging, cleartext traffic, and an exported FileProvider in main or release.
+debugging, cleartext traffic, and any exported content provider in main or release.
 Reports are written to `reports/security-android-semgrep.txt` and
 `reports/mobsfscan.txt`, with corresponding JSON files. The shared installation
 must provide its pinned Semgrep and mobsfscan tools; missing tools are reported
