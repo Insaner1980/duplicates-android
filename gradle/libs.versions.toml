@@ -8,7 +8,7 @@ ktlint = "1.8.0"
 detekt = "1.23.8"
 # Compose Rules 0.5+ requires Detekt 2.0 alpha.
 #noinspection NewerVersionAvailable
-composeRulesDetekt = "0.4.28"
+composeRulesDetekt = "0.6.8"
 composeRulesKtlint = "0.6.8"
 owaspDependencyCheck = "13.0.0"
 sonarqube = "7.5.0.8588"
