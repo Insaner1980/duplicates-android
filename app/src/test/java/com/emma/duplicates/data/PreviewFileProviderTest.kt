@@ -175,10 +175,14 @@ class PreviewFileProviderTest {
             val uri = prepare(source)
             source.delete()
             assertThrows(FileNotFoundException::class.java) { provider.openFile(uri, "r")?.close() }
+            assertThrows(IllegalArgumentException::class.java) { provider.getType(uri) }
+            assertThrows(IllegalArgumentException::class.java) { provider.query(uri, null, null, null, null)?.close() }
 
             source.writeText("content")
             shadowOf(context.getSystemService(StorageManager::class.java)).resetStorageVolumeList()
             assertThrows(FileNotFoundException::class.java) { provider.openFile(uri, "r")?.close() }
+            assertThrows(IllegalArgumentException::class.java) { provider.getType(uri) }
+            assertThrows(IllegalArgumentException::class.java) { provider.query(uri, null, null, null, null)?.close() }
         }
 
     private suspend fun prepare(source: File): Uri {

@@ -66,7 +66,7 @@ try {
         throw "Sonar analysis timed out after $GradleTimeoutSeconds seconds."
     }
     if ($result.ExitCode -ne 0) {
-        if (($result.StandardOutput + "`n" + $result.StandardError) -match '(?m)^QUALITY GATE STATUS: FAILED\b') {
+        if (($result.StandardOutput + "`n" + $result.StandardError) -match '\bQUALITY GATE STATUS: FAILED\b') {
             $summary = 'sonar: FINDINGS - analysis completed, but the SonarCloud quality gate failed.'
             Add-Content -LiteralPath $reportPath -Encoding utf8 -Value $summary
             Write-Output $summary

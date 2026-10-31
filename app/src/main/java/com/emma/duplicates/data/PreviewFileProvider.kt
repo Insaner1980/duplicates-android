@@ -30,7 +30,7 @@ class PreviewFileProvider : ContentProvider() {
     override fun getType(uri: Uri): String =
         MimeTypeMap
             .getSingleton()
-            .getMimeTypeFromExtension(resolveFile(uri).extension.lowercase(Locale.ROOT))
+            .getMimeTypeFromExtension(resolveMetadataFile(uri).extension.lowercase(Locale.ROOT))
             ?: "application/octet-stream"
 
     override fun query(
@@ -40,7 +40,7 @@ class PreviewFileProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?,
     ): Cursor {
-        val file = resolveFile(uri)
+        val file = resolveMetadataFile(uri)
         val columns = (projection?.toList() ?: COLUMNS).filter { it in COLUMNS }
         return MatrixCursor(columns.toTypedArray(), 1).apply {
             addRow(columns.map { column -> if (column == OpenableColumns.DISPLAY_NAME) file.name else file.length() })
@@ -64,6 +64,13 @@ class PreviewFileProvider : ContentProvider() {
         selection: String?,
         selectionArgs: Array<out String>?,
     ): Int = throw SecurityException("Previews are read-only")
+
+    private fun resolveMetadataFile(uri: Uri): File =
+        try {
+            resolveFile(uri)
+        } catch (exception: FileNotFoundException) {
+            throw IllegalArgumentException(exception.message, exception)
+        }
 
     private fun resolveFile(uri: Uri): File {
         val appContext = requireNotNull(context)

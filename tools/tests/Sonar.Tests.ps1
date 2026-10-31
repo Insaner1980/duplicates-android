@@ -54,6 +54,8 @@ try {
 
     Set-Content -LiteralPath $gradle -Value @('@echo off', 'echo QUALITY GATE STATUS: FAILED', 'exit /b 1')
     Invoke-Fixture 1 @('-AllowExternalUpload') | Out-Null
+    Set-Content -LiteralPath $gradle -Value @('@echo off', 'echo 21:07:12.345 ERROR QUALITY GATE STATUS: FAILED - View details 1>&2', 'exit /b 1')
+    Invoke-Fixture 1 @('-AllowExternalUpload') | Out-Null
     Set-Content -LiteralPath $gradle -Value @('@echo off', 'echo Analysis failed', 'exit /b 1')
     Invoke-Fixture 2 @('-AllowExternalUpload') | Out-Null
     Set-Content -LiteralPath $gradle -Value @('@echo off', 'powershell.exe -NoProfile -Command "Start-Sleep -Seconds 30"')

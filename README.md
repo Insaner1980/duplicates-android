@@ -83,15 +83,15 @@ Using the same PowerShell 7 and shared `Android-check` installation:
 
 ```powershell
 .\tools\dc.ps1 -PlanOnly
-.\tools\dc.ps1 -InitVerification
+.\tools\dc.ps1
 ```
 
 The existing PowerShell profile exposes this as `dc` or `dependency-check`.
-The first run needs `-InitVerification` because the project has no initial
-`gradle/verification-metadata.xml`. This option creates checksums and signing-key
-metadata and then runs OSV-Scanner and OWASP Dependency-Check. Review the generated
-metadata against trusted artifact sources before relying on it; generation alone
-does not establish trust. Subsequent runs use `dc` without `-InitVerification`.
+Use the checked-in `gradle/verification-metadata.xml` by default. Reserve
+`-InitVerification` for an explicit dependency update that requires new checksums
+or signing-key metadata. This option generates metadata and then runs OSV-Scanner
+and OWASP Dependency-Check. Review generated metadata against trusted artifact
+sources before relying on it; generation alone does not establish trust.
 
 Gradle verification and OWASP cover `:app`'s `debugRuntimeClasspath` and
 `releaseRuntimeClasspath`. OSV scans supported dependency files recursively and

@@ -35,10 +35,10 @@ rules:
   - id: duplicates-android-file-provider-exported
     languages: [xml]
     severity: ERROR
-    message: Keep FileProvider private; share previews only with temporary URI permissions.
+    message: Keep content providers private; share previews only with temporary URI permissions.
     paths:
       include:
         - /app/src/main/AndroidManifest.xml
         - /app/src/release/AndroidManifest.xml
     pattern: |
-      <provider ... android:name="androidx.core.content.FileProvider" ... android:exported="true" ...>
+      <provider ... android:exported="true" ...>

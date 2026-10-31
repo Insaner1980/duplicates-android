@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -20,11 +21,29 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.SeekableByteChannel
 import java.nio.file.AccessDeniedException
+import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 
 class Sha256FileFingerprinterTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun `opening rejects a symlink swapped in after the snapshot`() {
+        val file = temporaryFolder.newFile("candidate.bin").apply { writeText("candidate") }
+        val target = temporaryFolder.newFile("target.bin").apply { writeText("other content") }
+        val metadata = file.metadata()
+        val path = file.toPath()
+        val source = PathFileContentSource()
+
+        assertEquals(FileSnapshot(metadata.sizeBytes, metadata.lastModifiedMillis), source.snapshot(metadata))
+        Files.delete(path)
+        Files.createSymbolicLink(path, target.toPath())
+
+        assertThrows(IOException::class.java) { source.open(metadata).close() }
+        assertTrue(Files.isSymbolicLink(path))
+        assertEquals("other content", target.readText())
+    }
 
     @Test
     fun `small quick fingerprint includes big-endian file size and complete bytes`() =

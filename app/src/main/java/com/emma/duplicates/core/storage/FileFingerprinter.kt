@@ -103,8 +103,7 @@ class PathFileContentSource : FileContentSource {
         val path =
             java.nio.file.Paths
                 .get(file.canonicalPath)
-        if (Files.isSymbolicLink(path)) throw AccessDeniedException(file.canonicalPath)
-        return Files.newByteChannel(path, StandardOpenOption.READ)
+        return Files.newByteChannel(path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)
     }
 }
 
