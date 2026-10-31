@@ -1,0 +1,25 @@
+{
+  "name": "duplicates-android-deepsec-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeepSec scanning workspace for Duplicates Android",
+  "type": "module",
+  "workspaces": [],
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "deepsec": "deepsec",
+    "deepsec:scan": "deepsec scan --project-id duplicates-android",
+    "deepsec:process": "deepsec process --project-id duplicates-android --agent codex --model gpt-6.1-sol --thinking-level medium --concurrency 1",
+    "deepsec:revalidate": "deepsec revalidate --project-id duplicates-android --agent codex --model gpt-6.1-sol --thinking-level medium --min-severity HIGH --concurrency 1",
+    "deepsec:export": "deepsec export --project-id duplicates-android --format md-dir --out ./findings",
+    "deepsec:report": "pnpm run deepsec:scan && pnpm run deepsec:process && pnpm run deepsec:export",
+    "deepsec:report:custom": "pnpm run deepsec:report"
+  },
+  "dependencies": {
+    "deepsec": "2.3.10"
+  }
+}

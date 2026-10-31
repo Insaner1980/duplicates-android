@@ -1,9 +1,9 @@
 package com.emma.duplicates.ui.components
 
-import androidx.annotation.StringRes
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -26,12 +26,6 @@ import com.emma.duplicates.core.designsystem.Primary
 import com.emma.duplicates.core.designsystem.SecondaryText
 import com.emma.duplicates.core.designsystem.SurfaceContainer
 
-enum class RootDestination {
-    HOME,
-    RESULTS,
-    EXCLUSIONS,
-}
-
 private data class RootNavigationItem(
     val destination: RootDestination,
     @StringRes val labelRes: Int,
@@ -45,10 +39,12 @@ private val rootNavigationItems =
         RootNavigationItem(RootDestination.EXCLUSIONS, R.string.exclusions, R.drawable.ic_nav_exclusions),
     )
 
+private const val LARGE_FONT_SCALE = 1.5f
+
 @Composable
 fun RootNavigationBar(
     selectedDestination: RootDestination,
-    onDestinationSelected: (RootDestination) -> Unit,
+    onDestinationSelect: (RootDestination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(
@@ -58,7 +54,7 @@ fun RootNavigationBar(
         val horizontalPadding =
             when {
                 maxWidth >= 600.dp -> 32.dp
-                fontScale >= 1.5f -> 0.dp
+                fontScale >= LARGE_FONT_SCALE -> 0.dp
                 else -> 24.dp
             }
         Surface(
@@ -79,7 +75,7 @@ fun RootNavigationBar(
                     val selected = item.destination == selectedDestination
                     NavigationBarItem(
                         selected = selected,
-                        onClick = { onDestinationSelected(item.destination) },
+                        onClick = { onDestinationSelect(item.destination) },
                         icon = {
                             Icon(
                                 painter = painterResource(item.iconRes),

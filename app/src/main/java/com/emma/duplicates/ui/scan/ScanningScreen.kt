@@ -2,18 +2,15 @@ package com.emma.duplicates.ui.scan
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,8 +39,11 @@ import com.emma.duplicates.core.format.DisplayFormatters
 import com.emma.duplicates.ui.components.ConfirmationDialog
 import com.emma.duplicates.ui.components.DetailHeader
 import com.emma.duplicates.ui.components.Metric
+import com.emma.duplicates.ui.components.ScreenColumn
 import java.text.NumberFormat
 import java.util.Locale
+
+private const val PERCENT_MULTIPLIER = 100
 
 enum class ScanRunStatus {
     RUNNING,
@@ -93,101 +93,36 @@ fun ScanningScreen(
     onConfirmStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .safeDrawingPadding(),
+    ScreenColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        val horizontalPadding = if (maxWidth >= 600.dp) 32.dp else 24.dp
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = horizontalPadding, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            DetailHeader(titleRes = R.string.scanning, onBack = onBack)
+        DetailHeader(titleRes = R.string.scanning, onBack = onBack)
+        Text(
+            text = stringResource(state.runStatus.titleRes()),
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.semantics { heading() },
+        )
+
+        ScanOverviewCard(state)
+
+        ScanWorkCards(state)
+
+        state.failureMessage?.let {
             Text(
-                text = stringResource(state.runStatus.titleRes()),
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.semantics { heading() },
+                text = it,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.error,
             )
-
-            ScanOverviewCard(state)
-
-            DuplicatesCard(Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    state.phases.forEach { phase -> ScanPhaseRow(phase) }
-                }
-            }
-
-            if (state.currentOperation != null || state.currentPath != null) {
-                DuplicatesCard(Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.current_work),
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.semantics { heading() },
-                        )
-                        state.currentOperation?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
-                        state.currentPath?.let {
-                            Text(
-                                text = it,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-
-            state.failureMessage?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            if (state.skippedFileCount > 0) {
-                Text(
-                    text = stringResource(R.string.scan_skipped_files),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            DuplicatesCard(Modifier.fillMaxWidth()) {
-                Text(
-                    text = stringResource(R.string.scan_privacy_note),
-                    modifier = Modifier.padding(24.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (state.runStatus == ScanRunStatus.RUNNING && !state.stopConfirmationVisible) {
-                OutlinedButton(
-                    onClick = onRequestStop,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = MaterialTheme.shapes.large,
-                ) {
-                    Text(stringResource(R.string.stop_scan))
-                }
-            } else {
-                PrimaryActionButton(
-                    onClick = onBack,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.back))
-                }
-            }
         }
+        if (state.skippedFileCount > 0) {
+            Text(
+                text = stringResource(R.string.scan_skipped_files),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ScanActions(state, onRequestStop, onBack)
     }
 
     if (state.stopConfirmationVisible) {
@@ -214,25 +149,30 @@ private fun ScanPhaseRow(state: ScanPhaseUiState) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         when (state.status) {
-            ScanStepStatus.COMPLETED ->
+            ScanStepStatus.COMPLETED -> {
                 Icon(
                     imageVector = Icons.Outlined.Check,
                     contentDescription = null,
                     tint = Primary,
                     modifier = Modifier.size(32.dp),
                 )
-            ScanStepStatus.IN_PROGRESS ->
+            }
+
+            ScanStepStatus.IN_PROGRESS -> {
                 CircularProgressIndicator(
                     modifier = Modifier.size(32.dp),
                     strokeWidth = 3.dp,
                 )
-            ScanStepStatus.PENDING ->
+            }
+
+            ScanStepStatus.PENDING -> {
                 CircularProgressIndicator(
                     progress = { 0f },
                     modifier = Modifier.size(32.dp),
                     strokeWidth = 3.dp,
                     color = MaterialTheme.colorScheme.outline,
                 )
+            }
         }
         Column(Modifier.weight(1f)) {
             Text(stringResource(state.phase.labelRes()), style = MaterialTheme.typography.titleMedium)
@@ -290,7 +230,7 @@ private fun ScanProgressRing(
 ) {
     val progress = rawProgress?.coerceIn(0f, 1f)
     val progressLabel =
-        progress?.let { stringResource(R.string.percent_value, (it * 100).toInt()) }
+        progress?.let { stringResource(R.string.percent_value, (it * PERCENT_MULTIPLIER).toInt()) }
             ?: stringResource(runStatus.titleRes())
     Box(
         modifier =
@@ -351,3 +291,69 @@ private fun ScanStepStatus.labelRes(): Int =
     }
 
 private fun englishInteger(value: Int): String = NumberFormat.getIntegerInstance(Locale.ENGLISH).format(value)
+
+@Composable
+private fun ColumnScope.ScanWorkCards(state: ScanningUiState) {
+    DuplicatesCard(Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            state.phases.forEach { phase -> ScanPhaseRow(phase) }
+        }
+    }
+    if (state.currentOperation != null || state.currentPath != null) {
+        DuplicatesCard(Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.current_work),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.semantics { heading() },
+                )
+                state.currentOperation?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
+                state.currentPath?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.ScanActions(
+    state: ScanningUiState,
+    onRequestStop: () -> Unit,
+    onBack: () -> Unit,
+) {
+    DuplicatesCard(Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.scan_privacy_note),
+            modifier = Modifier.padding(24.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    if (state.runStatus == ScanRunStatus.RUNNING && !state.stopConfirmationVisible) {
+        OutlinedButton(
+            onClick = onRequestStop,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = MaterialTheme.shapes.large,
+        ) {
+            Text(stringResource(R.string.stop_scan))
+        }
+    } else {
+        PrimaryActionButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.back))
+        }
+    }
+}

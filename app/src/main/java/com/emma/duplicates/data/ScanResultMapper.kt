@@ -25,38 +25,11 @@ class ScanResultMapper(
         scanResult: ExactDuplicateScanResult,
         autoSelect: Boolean,
     ): PersistableScanResults {
-        val hashesByFileId =
-            scanResult.groups
-                .flatMap { it.members }
-                .associateBy { it.file.id }
         val entityIdByFileId =
             discoveredFiles.associate { file ->
                 file.id to stableId(sessionId, "file", file.storageVolume, file.canonicalPath)
             }
-        val files =
-            discoveredFiles.map { file ->
-                val hashes = hashesByFileId[file.id]
-                IndexedFileEntity(
-                    id = entityIdByFileId.getValue(file.id),
-                    sessionId = sessionId,
-                    canonicalPath = file.canonicalPath,
-                    displayName = file.displayName,
-                    extension = file.extension,
-                    mimeType = file.mimeType,
-                    category = file.category.name,
-                    sizeBytes = file.sizeBytes,
-                    lastModified = file.lastModifiedMillis,
-                    volume = file.storageVolume,
-                    parentPath = file.parentDirectory,
-                    contentUri = file.contentUri,
-                    quickHash = hashes?.quickSha256,
-                    fullHash = hashes?.fullSha256,
-                    readable = file.isReadable,
-                    writable = file.isWritable,
-                    favorite = file.isFavorite,
-                    trashed = file.isTrashed,
-                )
-            }
+        val files = mapFiles(sessionId, discoveredFiles, scanResult, entityIdByFileId)
 
         val groups = mutableListOf<DuplicateGroupEntity>()
         val members = mutableListOf<DuplicateMemberEntity>()
@@ -90,7 +63,9 @@ class ScanResultMapper(
                     copyCount = group.copyCount,
                     reclaimableBytes = selection.selectedReclaimableBytes,
                     displayTitle =
-                        group.members.minBy { it.file.canonicalPath }.file.displayName,
+                        group.members
+                            .minBy { it.file.canonicalPath }
+                            .file.displayName,
                 )
             group.members.forEach { member ->
                 val indexedFileId = entityIdByFileId.getValue(member.file.id)
@@ -108,6 +83,41 @@ class ScanResultMapper(
         }
 
         return PersistableScanResults(files = files, groups = groups, members = members)
+    }
+
+    private fun mapFiles(
+        sessionId: String,
+        discoveredFiles: List<FileMetadata>,
+        scanResult: ExactDuplicateScanResult,
+        entityIdByFileId: Map<String, String>,
+    ): List<IndexedFileEntity> {
+        val hashesByFileId =
+            scanResult.groups
+                .flatMap { it.members }
+                .associateBy { it.file.id }
+        return discoveredFiles.map { file ->
+            val hashes = hashesByFileId[file.id]
+            IndexedFileEntity(
+                id = entityIdByFileId.getValue(file.id),
+                sessionId = sessionId,
+                canonicalPath = file.canonicalPath,
+                displayName = file.displayName,
+                extension = file.extension,
+                mimeType = file.mimeType,
+                category = file.category.name,
+                sizeBytes = file.sizeBytes,
+                lastModified = file.lastModifiedMillis,
+                volume = file.storageVolume,
+                parentPath = file.parentDirectory,
+                contentUri = file.contentUri,
+                quickHash = hashes?.quickSha256,
+                fullHash = hashes?.fullSha256,
+                readable = file.isReadable,
+                writable = file.isWritable,
+                favorite = file.isFavorite,
+                trashed = file.isTrashed,
+            )
+        }
     }
 
     private fun stableId(vararg parts: String): String =

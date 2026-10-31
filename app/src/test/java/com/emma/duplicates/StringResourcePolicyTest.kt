@@ -1,10 +1,10 @@
 package com.emma.duplicates
 
+import org.junit.Assert.fail
+import org.junit.Test
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
-import org.junit.Assert.fail
-import org.junit.Test
 
 class StringResourcePolicyTest {
     @Test
@@ -17,7 +17,9 @@ class StringResourcePolicyTest {
             paths
                 .filter { path ->
                     Files.isRegularFile(path) &&
-                        path.parent.fileName.toString().startsWith("values") &&
+                        path.parent.fileName
+                            .toString()
+                            .startsWith("values") &&
                         path.fileName.toString().endsWith(".xml")
                 }.forEach { path ->
                     Files.readAllLines(path, StandardCharsets.UTF_8).forEachIndexed { index, line ->

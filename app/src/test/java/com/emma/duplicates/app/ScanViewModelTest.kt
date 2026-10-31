@@ -1,16 +1,12 @@
 package com.emma.duplicates.app
 
 import android.app.Application
-import android.content.Context
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
 import com.emma.duplicates.R
-import com.emma.duplicates.core.database.DuplicatesDatabase
 import com.emma.duplicates.core.database.ScanFailureReasons
 import com.emma.duplicates.core.database.ScanPhases
 import com.emma.duplicates.core.database.ScanSessionEntity
 import com.emma.duplicates.core.database.ScanStatuses
-import com.emma.duplicates.data.ScanStore
+import com.emma.duplicates.core.database.ScanStoreDatabaseTest
 import com.emma.duplicates.core.storage.AvailableStorageVolume
 import com.emma.duplicates.core.storage.StorageVolumeSource
 import com.emma.duplicates.ui.scan.ScanPhase
@@ -18,44 +14,24 @@ import com.emma.duplicates.ui.scan.ScanRunStatus
 import com.emma.duplicates.ui.scan.ScanStepStatus
 import io.mockk.mockk
 import io.mockk.verify
-import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class)
-class ScanViewModelTest {
+class ScanViewModelTest : ScanStoreDatabaseTest() {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
-
-    private lateinit var context: Context
-    private lateinit var database: DuplicatesDatabase
-    private lateinit var scanStore: ScanStore
-
-    @Before
-    fun createDatabase() {
-        context = ApplicationProvider.getApplicationContext()
-        database = Room.inMemoryDatabaseBuilder(context, DuplicatesDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        scanStore = ScanStore(database)
-    }
-
-    @After
-    fun closeDatabase() {
-        database.close()
-    }
 
     @Test
     fun `running session maps progress phases candidate groups and stop actions`() =
@@ -102,7 +78,10 @@ class ScanViewModelTest {
             assertEquals("Portable drive", running.currentOperation)
             assertEquals("/storage/Documents", running.currentPath)
             assertEquals(ScanStepStatus.COMPLETED, running.phases.single { it.phase == ScanPhase.FINDING_FILES }.status)
-            assertEquals(ScanStepStatus.IN_PROGRESS, running.phases.single { it.phase == ScanPhase.COMPARING_CANDIDATES }.status)
+            assertEquals(
+                ScanStepStatus.IN_PROGRESS,
+                running.phases.single { it.phase == ScanPhase.COMPARING_CANDIDATES }.status,
+            )
 
             viewModel.requestStop()
             assertTrue(viewModel.state.first { it.stopConfirmationVisible }.stopConfirmationVisible)
@@ -188,6 +167,8 @@ class ScanViewModelTest {
             }
         }
 
+    // Named fixture overrides keep the exercised case explicit without changing production APIs.
+    @Suppress("LongParameterList")
     private fun session(
         id: String,
         status: String,

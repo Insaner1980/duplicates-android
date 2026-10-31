@@ -20,28 +20,39 @@ class DeletionCoordinator(
 
         selectedGroups.forEach { group ->
             val groupValidations = validations.getValue(group.id)
-            val hasValidKeeper = groupValidations.any { validation ->
-                !validation.file.selectedForDeletion &&
-                    validation.membership == Membership.MATCHING &&
-                    validation.snapshot?.isReadable == true
-            }
+            val hasValidKeeper =
+                groupValidations.any { validation ->
+                    !validation.file.selectedForDeletion &&
+                        validation.membership == Membership.MATCHING &&
+                        validation.snapshot?.isReadable == true
+                }
 
             groupValidations.filter { it.file.selectedForDeletion }.forEach { validation ->
                 val immediateStatus = validation.immediateDeletionStatus()
                 when {
-                    immediateStatus != null -> outcomesByFileId[validation.file.id] =
-                        FileDeletionOutcome(group.id, validation.file.id, immediateStatus)
+                    immediateStatus != null -> {
+                        outcomesByFileId[validation.file.id] =
+                            FileDeletionOutcome(group.id, validation.file.id, immediateStatus)
+                    }
 
-                    !hasValidKeeper -> outcomesByFileId[validation.file.id] =
-                        FileDeletionOutcome(group.id, validation.file.id, DeletionStatus.BLOCKED_NO_VALID_COPY)
+                    !hasValidKeeper -> {
+                        outcomesByFileId[validation.file.id] =
+                            FileDeletionOutcome(group.id, validation.file.id, DeletionStatus.BLOCKED_NO_VALID_COPY)
+                    }
 
-                    validation.file.requiresMediaAuthorization -> mediaCandidates += Candidate(group, validation)
-                    else -> directCandidates += Candidate(group, validation)
+                    validation.file.requiresMediaAuthorization -> {
+                        mediaCandidates += Candidate(group, validation)
+                    }
+
+                    else -> {
+                        directCandidates += Candidate(group, validation)
+                    }
                 }
             }
         }
 
         val operationId = resultStore.beginDeletion(selectedGroups)
+
         suspend fun checkpoint() {
             resultStore.checkpointDeletion(
                 operationId = operationId,
@@ -55,66 +66,93 @@ class DeletionCoordinator(
         }
         deleteMedia(mediaCandidates, outcomesByFileId, ::checkpoint)
 
-        val orderedOutcomes = selectedGroups.flatMap { group ->
-            group.files.filter { it.selectedForDeletion }.map { file -> outcomesByFileId.getValue(file.id) }
-        }
+        val orderedOutcomes =
+            selectedGroups.flatMap { group ->
+                group.files.filter { it.selectedForDeletion }.map { file -> outcomesByFileId.getValue(file.id) }
+            }
         val databaseUpdate = buildDatabaseUpdate(selectedGroups, validations, orderedOutcomes)
         resultStore.completeDeletion(operationId, databaseUpdate)
         return DeletionResult(orderedOutcomes.toList(), databaseUpdate)
     }
 
     private suspend fun validateGroup(group: DeletionGroup): List<Validation> {
-        val initial = group.files.map { file ->
-            val snapshot = storage.snapshot(file)
-            when {
-                snapshot == null -> Validation(file, null, Membership.MISSING)
-                snapshot.sizeBytes == file.sizeBytes && snapshot.lastModifiedMillis == file.lastModifiedMillis ->
-                    Validation(file, snapshot, Membership.MATCHING)
-                !snapshot.isReadable -> Validation(file, snapshot, Membership.REVALIDATION_FAILED)
-                else -> {
-                    val fullHash = storage.fullHash(file)
-                    when {
-                        fullHash == null -> Validation(file, snapshot, Membership.REVALIDATION_FAILED)
-                        fullHash != group.expectedFullHash -> Validation(file, snapshot, Membership.CHANGED)
-                        else -> Validation(file, snapshot, Membership.HASH_MATCH_PENDING)
-                    }
-                }
-            }
-        }.toMutableList()
+        val initial =
+            group.files
+                .map { file -> validateFile(file, group.expectedFullHash) }
+                .toMutableList()
 
         val pendingIndices = initial.indices.filter { initial[it].membership == Membership.HASH_MATCH_PENDING }
         pendingIndices.forEach { index ->
             val pending = initial[index]
-            val reference = initial
-                .asSequence()
-                .filterIndexed { candidateIndex, _ -> candidateIndex != index }
-                .filter { candidate ->
-                    candidate.snapshot?.isReadable == true &&
-                        (candidate.membership == Membership.MATCHING || candidate.membership == Membership.HASH_MATCH_PENDING)
+            val reference =
+                initial
+                    .asSequence()
+                    .filterIndexed { candidateIndex, _ -> candidateIndex != index }
+                    .filter { candidate ->
+                        val canVerifyHash =
+                            candidate.membership == Membership.MATCHING ||
+                                candidate.membership == Membership.HASH_MATCH_PENDING
+                        candidate.snapshot?.isReadable == true &&
+                            canVerifyHash
+                    }.sortedWith(
+                        compareBy<Validation> { it.file.selectedForDeletion }
+                            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.file.canonicalPath }
+                            .thenBy { it.file.canonicalPath },
+                    ).firstOrNull()
+            initial[index] =
+                when {
+                    reference == null -> pending.copy(membership = Membership.REVALIDATION_FAILED)
+
+                    storage.contentsEqual(
+                        pending.file,
+                        reference.file,
+                    ) -> pending.copy(membership = Membership.MATCHING)
+
+                    else -> pending.copy(membership = Membership.CHANGED)
                 }
-                .sortedWith(
-                    compareBy<Validation> { it.file.selectedForDeletion }
-                        .thenBy(String.CASE_INSENSITIVE_ORDER) { it.file.canonicalPath }
-                        .thenBy { it.file.canonicalPath },
-                )
-                .firstOrNull()
-            initial[index] = when {
-                reference == null -> pending.copy(membership = Membership.REVALIDATION_FAILED)
-                storage.contentsEqual(pending.file, reference.file) -> pending.copy(membership = Membership.MATCHING)
-                else -> pending.copy(membership = Membership.CHANGED)
-            }
         }
         return initial.toList()
+    }
+
+    private suspend fun validateFile(
+        file: DeletionFile,
+        expectedFullHash: String,
+    ): Validation {
+        val snapshot = storage.snapshot(file)
+        return when {
+            snapshot == null -> {
+                Validation(file, null, Membership.MISSING)
+            }
+
+            snapshot.sizeBytes == file.sizeBytes && snapshot.lastModifiedMillis == file.lastModifiedMillis -> {
+                Validation(file, snapshot, Membership.MATCHING)
+            }
+
+            !snapshot.isReadable -> {
+                Validation(file, snapshot, Membership.REVALIDATION_FAILED)
+            }
+
+            else -> {
+                val membership =
+                    when (storage.fullHash(file)) {
+                        null -> Membership.REVALIDATION_FAILED
+                        expectedFullHash -> Membership.HASH_MATCH_PENDING
+                        else -> Membership.CHANGED
+                    }
+                Validation(file, snapshot, membership)
+            }
+        }
     }
 
     private suspend fun deleteDirect(candidate: Candidate): FileDeletionOutcome {
         val deletionResult = storage.deleteDirect(candidate.file)
         val afterDeletion = storage.snapshot(candidate.file)
-        val status = when {
-            afterDeletion == null && deletionResult == DirectDeletionResult.DELETED -> DeletionStatus.DELETED
-            afterDeletion == null -> DeletionStatus.VANISHED
-            else -> DeletionStatus.DELETE_FAILED
-        }
+        val status =
+            when {
+                afterDeletion == null && deletionResult == DirectDeletionResult.DELETED -> DeletionStatus.DELETED
+                afterDeletion == null -> DeletionStatus.VANISHED
+                else -> DeletionStatus.DELETE_FAILED
+            }
         return FileDeletionOutcome(
             groupId = candidate.group.id,
             fileId = candidate.file.id,
@@ -141,20 +179,7 @@ class DeletionCoordinator(
             when (mediaDeletionAuthorizer.requestDeletion(chunk.map { it.file })) {
                 MediaAuthorization.APPROVED -> {
                     chunk.forEach { candidate ->
-                        val status = if (storage.snapshot(candidate.file) == null) {
-                            DeletionStatus.DELETED
-                        } else {
-                            DeletionStatus.DELETE_FAILED
-                        }
-                        outcomesByFileId[candidate.file.id] = candidate.outcome(
-                            status = status,
-                            reclaimedBytes =
-                                if (status == DeletionStatus.DELETED) {
-                                    candidate.validation.snapshot!!.sizeBytes
-                                } else {
-                                    0L
-                                },
-                        )
+                        outcomesByFileId[candidate.file.id] = approvedMediaOutcome(candidate)
                     }
                     checkpoint()
                 }
@@ -176,6 +201,19 @@ class DeletionCoordinator(
         }
     }
 
+    private suspend fun approvedMediaOutcome(candidate: Candidate): FileDeletionOutcome {
+        val status =
+            if (storage.snapshot(candidate.file) == null) {
+                DeletionStatus.DELETED
+            } else {
+                DeletionStatus.DELETE_FAILED
+            }
+        return candidate.outcome(
+            status = status,
+            reclaimedBytes = if (status == DeletionStatus.DELETED) candidate.validation.snapshot!!.sizeBytes else 0L,
+        )
+    }
+
     private fun buildDatabaseUpdate(
         groups: List<DeletionGroup>,
         validations: Map<String, List<Validation>>,
@@ -185,64 +223,36 @@ class DeletionCoordinator(
         val removedIndexedFileIds = linkedSetOf<String>()
         val removedMemberIds = linkedSetOf<String>()
         val changedIndexedFileIds = linkedSetOf<String>()
-        val groupUpdates = groups.map { group ->
-            val groupValidations = validations.getValue(group.id)
-            groupValidations.forEach { validation ->
-                when (validation.membership) {
-                    Membership.MISSING -> {
+        val groupUpdates =
+            groups.map { group ->
+                val groupValidations = validations.getValue(group.id)
+                groupValidations.forEach { validation ->
+                    when (validation.membership) {
+                        Membership.MISSING -> {
+                            removedIndexedFileIds += validation.file.id
+                            removedMemberIds += validation.file.memberId
+                        }
+
+                        Membership.CHANGED, Membership.REVALIDATION_FAILED -> {
+                            changedIndexedFileIds += validation.file.id
+                            removedMemberIds += validation.file.memberId
+                        }
+
+                        Membership.MATCHING, Membership.HASH_MATCH_PENDING -> {
+                            // Keep members unless the deletion outcome below confirms their removal.
+                        }
+                    }
+                    if (
+                        outcomesByFileId[validation.file.id]?.status == DeletionStatus.DELETED ||
+                        outcomesByFileId[validation.file.id]?.status == DeletionStatus.VANISHED
+                    ) {
                         removedIndexedFileIds += validation.file.id
                         removedMemberIds += validation.file.memberId
                     }
-
-                    Membership.CHANGED, Membership.REVALIDATION_FAILED -> {
-                        changedIndexedFileIds += validation.file.id
-                        removedMemberIds += validation.file.memberId
-                    }
-
-                    Membership.MATCHING, Membership.HASH_MATCH_PENDING -> Unit
                 }
-                if (
-                    outcomesByFileId[validation.file.id]?.status == DeletionStatus.DELETED ||
-                    outcomesByFileId[validation.file.id]?.status == DeletionStatus.VANISHED
-                ) {
-                    removedIndexedFileIds += validation.file.id
-                    removedMemberIds += validation.file.memberId
-                }
-            }
 
-            val remaining = groupValidations.filter { validation ->
-                validation.membership == Membership.MATCHING &&
-                    outcomesByFileId[validation.file.id]?.status != DeletionStatus.DELETED &&
-                    outcomesByFileId[validation.file.id]?.status != DeletionStatus.VANISHED
+                buildGroupUpdate(group.id, groupValidations, outcomesByFileId)
             }
-            val hasValidUnselectedCopy = remaining.any { validation ->
-                !validation.file.selectedForDeletion && validation.snapshot?.isReadable == true
-            }
-            val remainingReclaimableBytes = if (hasValidUnselectedCopy) {
-                remaining.sumOf { validation ->
-                    val snapshot = validation.snapshot
-                    if (
-                        validation.file.selectedForDeletion &&
-                        snapshot != null &&
-                        snapshot.isReadable &&
-                        snapshot.isWritable
-                    ) {
-                        snapshot.sizeBytes
-                    } else {
-                        0L
-                    }
-                }
-            } else {
-                0L
-            }
-            GroupDeletionUpdate(
-                groupId = group.id,
-                remainingMemberIds = remaining.mapTo(linkedSetOf()) { it.file.memberId },
-                remainingCopyCount = remaining.size,
-                remainingSelectedReclaimableBytes = if (remaining.size >= 2) remainingReclaimableBytes else 0L,
-                removeGroup = remaining.size < 2,
-            )
-        }
         return DeletionDatabaseUpdate(
             removedIndexedFileIds = removedIndexedFileIds.toSet(),
             removedMemberIds = removedMemberIds.toSet(),
@@ -251,28 +261,73 @@ class DeletionCoordinator(
         )
     }
 
-    private fun Validation.immediateDeletionStatus(): DeletionStatus? = when (membership) {
-        Membership.MISSING -> DeletionStatus.VANISHED
-        Membership.CHANGED -> DeletionStatus.CHANGED
-        Membership.REVALIDATION_FAILED -> DeletionStatus.REVALIDATION_FAILED
-        Membership.HASH_MATCH_PENDING -> DeletionStatus.REVALIDATION_FAILED
-        Membership.MATCHING -> if (snapshot?.let { it.isReadable && it.isWritable } == true) {
-            null
-        } else {
-            DeletionStatus.NOT_ACCESSIBLE
-        }
+    private fun buildGroupUpdate(
+        groupId: String,
+        validations: List<Validation>,
+        outcomes: Map<String, FileDeletionOutcome>,
+    ): GroupDeletionUpdate {
+        val removedStatuses = setOf(DeletionStatus.DELETED, DeletionStatus.VANISHED)
+        val remaining =
+            validations.filter { validation ->
+                validation.membership == Membership.MATCHING && outcomes[validation.file.id]?.status !in removedStatuses
+            }
+        val hasValidUnselectedCopy =
+            remaining.any { validation ->
+                !validation.file.selectedForDeletion && validation.snapshot?.isReadable == true
+            }
+        val remainingReclaimableBytes =
+            if (hasValidUnselectedCopy) {
+                remaining.sumOf { validation ->
+                    val snapshot = validation.snapshot
+                    if (validation.file.selectedForDeletion) {
+                        snapshot?.takeIf { it.isReadable && it.isWritable }?.sizeBytes ?: 0L
+                    } else {
+                        0L
+                    }
+                }
+            } else {
+                0L
+            }
+        return GroupDeletionUpdate(
+            groupId = groupId,
+            remainingMemberIds = remaining.mapTo(linkedSetOf()) { it.file.memberId },
+            remainingCopyCount = remaining.size,
+            remainingSelectedReclaimableBytes = if (remaining.size >= 2) remainingReclaimableBytes else 0L,
+            removeGroup = remaining.size < 2,
+        )
     }
+
+    private fun Validation.immediateDeletionStatus(): DeletionStatus? =
+        when (membership) {
+            Membership.MISSING -> {
+                DeletionStatus.VANISHED
+            }
+
+            Membership.CHANGED -> {
+                DeletionStatus.CHANGED
+            }
+
+            Membership.REVALIDATION_FAILED -> {
+                DeletionStatus.REVALIDATION_FAILED
+            }
+
+            Membership.HASH_MATCH_PENDING -> {
+                DeletionStatus.REVALIDATION_FAILED
+            }
+
+            Membership.MATCHING -> {
+                if (snapshot?.let { it.isReadable && it.isWritable } == true) {
+                    null
+                } else {
+                    DeletionStatus.NOT_ACCESSIBLE
+                }
+            }
+        }
 
     private fun Candidate.outcome(
         status: DeletionStatus,
         reclaimedBytes: Long = 0L,
     ) = FileDeletionOutcome(group.id, file.id, status, reclaimedBytes)
-
-    private fun validateInput(groups: List<DeletionGroup>) {
-        require(groups.map { it.id }.distinct().size == groups.size) { "Deletion group IDs must be unique" }
-        val files = groups.flatMap { it.files }
-        require(files.map { it.id }.distinct().size == files.size) { "Deletion file IDs must be unique" }
-    }
 
     private data class Candidate(
         val group: DeletionGroup,
@@ -294,4 +349,10 @@ class DeletionCoordinator(
         CHANGED,
         REVALIDATION_FAILED,
     }
+}
+
+private fun validateInput(groups: List<DeletionGroup>) {
+    require(groups.map { it.id }.distinct().size == groups.size) { "Deletion group IDs must be unique" }
+    val files = groups.flatMap { it.files }
+    require(files.map { it.id }.distinct().size == files.size) { "Deletion file IDs must be unique" }
 }

@@ -1,6 +1,5 @@
 package com.emma.duplicates.app
 
-import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -8,6 +7,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.fail
 import org.junit.Test
+import java.util.UUID
 
 class DuplicateScanWorkerTest {
     @Test

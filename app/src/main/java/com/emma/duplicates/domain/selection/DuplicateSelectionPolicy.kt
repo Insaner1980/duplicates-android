@@ -39,9 +39,10 @@ data class DuplicateSelection(
         get() = members.filterTo(mutableListOf()) { it.selectedForDeletion }.mapTo(linkedSetOf()) { it.file.id }
 
     val selectedReclaimableBytes: Long
-        get() = members.sumOf { member ->
-            if (member.selectedForDeletion && member.file.isDeletionEligible) member.file.sizeBytes else 0L
-        }
+        get() =
+            members.sumOf { member ->
+                if (member.selectedForDeletion && member.file.isDeletionEligible) member.file.sizeBytes else 0L
+            }
 }
 
 enum class SelectionBlockReason {
@@ -74,20 +75,21 @@ class DuplicateSelectionPolicy {
         val hasValidCopy = files.any { it.isValidCopy }
         return DuplicateSelection(
             groupId = groupId,
-            members = files.map { file ->
-                val protected = file.isFavorite || file.protectedFromAutoSelection
-                SelectionMember(
-                    file = file,
-                    recommendedKeep = file.id == recommendedKeepId,
-                    selectedForDeletion =
-                        autoSelect &&
-                            hasValidCopy &&
-                            file.id != recommendedKeepId &&
-                            !protected &&
-                            file.isDeletionEligible,
-                    protectedFromAutoSelection = protected,
-                )
-            },
+            members =
+                files.map { file ->
+                    val protected = file.isFavorite || file.protectedFromAutoSelection
+                    SelectionMember(
+                        file = file,
+                        recommendedKeep = file.id == recommendedKeepId,
+                        selectedForDeletion =
+                            autoSelect &&
+                                hasValidCopy &&
+                                file.id != recommendedKeepId &&
+                                !protected &&
+                                file.isDeletionEligible,
+                        protectedFromAutoSelection = protected,
+                    )
+                },
         )
     }
 
@@ -96,31 +98,39 @@ class DuplicateSelectionPolicy {
         memberId: String,
         selected: Boolean,
     ): SelectionChange {
-        val target = current.members.firstOrNull { it.file.id == memberId }
-            ?: return SelectionChange.Blocked(current, SelectionBlockReason.NOT_ELIGIBLE)
-        if (target.selectedForDeletion == selected) return SelectionChange.Applied(current)
-        if (selected && !target.file.isDeletionEligible) {
-            return SelectionChange.Blocked(current, SelectionBlockReason.NOT_ELIGIBLE)
-        }
-        if (
-            selected &&
-            current.members.none { member ->
-                member.file.id != memberId &&
-                    !member.selectedForDeletion &&
-                    member.file.isValidCopy
+        val target =
+            current.members.firstOrNull { it.file.id == memberId }
+                ?: return SelectionChange.Blocked(current, SelectionBlockReason.NOT_ELIGIBLE)
+        return when {
+            target.selectedForDeletion == selected -> {
+                SelectionChange.Applied(current)
             }
-        ) {
-            return SelectionChange.Blocked(current, SelectionBlockReason.KEEP_AT_LEAST_ONE_COPY)
-        }
 
-        return SelectionChange.Applied(
-            current.copy(
-                members = current.members.map { member ->
-                    if (member.file.id == memberId) member.copy(selectedForDeletion = selected) else member
-                },
-            ),
-        )
+            selected && !target.file.isDeletionEligible -> {
+                SelectionChange.Blocked(current, SelectionBlockReason.NOT_ELIGIBLE)
+            }
+
+            selected && !current.hasOtherValidCopy(memberId) -> {
+                SelectionChange.Blocked(current, SelectionBlockReason.KEEP_AT_LEAST_ONE_COPY)
+            }
+
+            else -> {
+                SelectionChange.Applied(
+                    current.copy(
+                        members =
+                            current.members.map { member ->
+                                if (member.file.id == memberId) member.copy(selectedForDeletion = selected) else member
+                            },
+                    ),
+                )
+            }
+        }
     }
+
+    private fun DuplicateSelection.hasOtherValidCopy(memberId: String): Boolean =
+        members.any { member ->
+            member.file.id != memberId && !member.selectedForDeletion && member.file.isValidCopy
+        }
 
     private val recommendedKeepComparator =
         compareByDescending<SelectionFile> { it.isValidCopy }
@@ -149,28 +159,29 @@ private fun String.isPrimaryUserLocation(): Boolean {
     return segments.any { it in PRIMARY_USER_DIRECTORY_NAMES }
 }
 
-private fun String.isTemporaryOrSecondaryLocation(): Boolean =
-    pathSegments().any { it in SECONDARY_DIRECTORY_NAMES }
+private fun String.isTemporaryOrSecondaryLocation(): Boolean = pathSegments().any { it in SECONDARY_DIRECTORY_NAMES }
 
-private val PRIMARY_USER_DIRECTORY_NAMES = setOf(
-    "pictures",
-    "music",
-    "movies",
-    "documents",
-)
+private val PRIMARY_USER_DIRECTORY_NAMES =
+    setOf(
+        "pictures",
+        "music",
+        "movies",
+        "documents",
+    )
 
-private val SECONDARY_DIRECTORY_NAMES = setOf(
-    "download",
-    "downloads",
-    "cache",
-    "caches",
-    ".cache",
-    "tmp",
-    "temp",
-    "temporary",
-    "whatsapp",
-    "telegram",
-    "signal",
-    "messenger",
-    "messages",
-)
+private val SECONDARY_DIRECTORY_NAMES =
+    setOf(
+        "download",
+        "downloads",
+        "cache",
+        "caches",
+        ".cache",
+        "tmp",
+        "temp",
+        "temporary",
+        "whatsapp",
+        "telegram",
+        "signal",
+        "messenger",
+        "messages",
+    )

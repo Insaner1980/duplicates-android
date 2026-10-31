@@ -2,13 +2,13 @@ package com.emma.duplicates.ui
 
 import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
-import androidx.compose.ui.test.hasText
 import com.emma.duplicates.core.designsystem.DuplicatesTheme
 import com.emma.duplicates.ui.exclusions.BrowserEntryUiState
 import com.emma.duplicates.ui.exclusions.ExclusionBrowserScreen
@@ -55,7 +55,7 @@ class SettingsDetailScreensTest {
                         ),
                     onBack = {},
                     onLocationSelectionChange = { _, _ -> },
-                    onSelectionBlocked = { blocked += 1 },
+                    onSelectionBlock = { blocked += 1 },
                 )
             }
         }
@@ -83,7 +83,7 @@ class SettingsDetailScreensTest {
                         ),
                     onBack = {},
                     onCategoryEnabledChange = { _, _ -> },
-                    onSelectionBlocked = { blocked += 1 },
+                    onSelectionBlock = { blocked += 1 },
                 )
             }
         }

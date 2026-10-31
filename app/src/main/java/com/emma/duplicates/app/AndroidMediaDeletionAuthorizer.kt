@@ -8,7 +8,6 @@ import androidx.lifecycle.ViewModel
 import com.emma.duplicates.domain.deletion.DeletionFile
 import com.emma.duplicates.domain.deletion.MediaAuthorization
 import com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer
-import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,16 +15,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.coroutines.resume
 
 class AndroidMediaDeletionAuthorizer internal constructor(
     private val buildRequest: (List<Uri>) -> IntentSenderRequest?,
-) : ViewModel(), MediaDeletionAuthorizer {
+) : ViewModel(),
+    MediaDeletionAuthorizer {
     constructor(contentResolver: ContentResolver) : this(
         buildRequest = { uris ->
             try {
-                IntentSenderRequest.Builder(
-                    MediaStore.createDeleteRequest(contentResolver, uris).intentSender,
-                ).build()
+                IntentSenderRequest
+                    .Builder(
+                        MediaStore.createDeleteRequest(contentResolver, uris).intentSender,
+                    ).build()
             } catch (_: SecurityException) {
                 null
             } catch (_: IllegalArgumentException) {
@@ -45,6 +47,8 @@ class AndroidMediaDeletionAuthorizer internal constructor(
     val hasPendingRequest: Boolean
         get() = synchronized(stateLock) { pendingContinuation?.isActive == true }
 
+    // The deletion coordinator awaits this lifecycle-retained bridge; views only consume launchRequest.
+    @Suppress("kotlin:S6313")
     override suspend fun requestDeletion(files: List<DeletionFile>): MediaAuthorization =
         requestMutex.withLock {
             val uris = files.mapNotNull { file -> file.contentUri?.let(Uri::parse) }
@@ -74,13 +78,13 @@ class AndroidMediaDeletionAuthorizer internal constructor(
     fun complete(result: MediaAuthorization): Boolean {
         val continuation =
             synchronized(stateLock) {
-                val current = pendingContinuation ?: return false
+                val current = pendingContinuation
                 pendingContinuation = null
                 launchClaimed = false
                 mutableLaunchRequest.value = null
                 current
             }
-        if (!continuation.isActive) return false
+        if (continuation?.isActive != true) return false
         continuation.resume(result)
         return true
     }

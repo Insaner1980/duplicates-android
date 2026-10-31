@@ -7,6 +7,8 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+private const val DATABASE_VERSION = 3
+
 @Database(
     entities = [
         ScanSessionEntity::class,
@@ -18,7 +20,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         FingerprintCacheEntity::class,
         ExclusionEntity::class,
     ],
-    version = 3,
+    version = DATABASE_VERSION,
     exportSchema = true,
 )
 abstract class DuplicatesDatabase : RoomDatabase() {
@@ -34,11 +36,12 @@ abstract class DuplicatesDatabase : RoomDatabase() {
         private const val DATABASE_NAME = "duplicates.db"
 
         fun create(context: Context): DuplicatesDatabase =
-            Room.databaseBuilder(
-                context.applicationContext,
-                DuplicatesDatabase::class.java,
-                DATABASE_NAME,
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            Room
+                .databaseBuilder(
+                    context.applicationContext,
+                    DuplicatesDatabase::class.java,
+                    DATABASE_NAME,
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
 
         val MIGRATION_1_2 =
@@ -65,21 +68,28 @@ abstract class DuplicatesDatabase : RoomDatabase() {
                             `lastModifiedMillis` INTEGER NOT NULL,
                             `contentUri` TEXT,
                             PRIMARY KEY(`operationId`, `memberId`),
-                            FOREIGN KEY(`operationId`) REFERENCES `pending_deletion_operations`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                            FOREIGN KEY(`operationId`) REFERENCES `pending_deletion_operations`(`id`)
+                                ON UPDATE NO ACTION ON DELETE CASCADE
                         )
                         """.trimIndent(),
                     )
                     db.execSQL(
-                        "CREATE INDEX IF NOT EXISTS `index_pending_deletion_items_operationId` ON `pending_deletion_items` (`operationId`)",
+                        """
+                        CREATE INDEX IF NOT EXISTS `index_pending_deletion_items_operationId`
+                        ON `pending_deletion_items` (`operationId`)
+                        """.trimIndent(),
                     )
                     db.execSQL(
-                        "CREATE INDEX IF NOT EXISTS `index_pending_deletion_items_groupId` ON `pending_deletion_items` (`groupId`)",
+                        """
+                        CREATE INDEX IF NOT EXISTS `index_pending_deletion_items_groupId`
+                        ON `pending_deletion_items` (`groupId`)
+                        """.trimIndent(),
                     )
                 }
             }
 
         val MIGRATION_2_3 =
-            object : Migration(2, 3) {
+            object : Migration(2, DATABASE_VERSION) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE `scan_sessions` ADD COLUMN `failureReason` TEXT")
                 }

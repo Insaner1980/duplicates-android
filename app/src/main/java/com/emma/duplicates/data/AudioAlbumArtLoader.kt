@@ -4,14 +4,15 @@ import android.content.ContentResolver
 import android.content.ContentUris
 import android.database.sqlite.SQLiteException
 import android.graphics.Bitmap
+import android.net.Uri
 import android.provider.MediaStore
 import android.util.Size
 import androidx.core.net.toUri
-import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 
 class AudioAlbumArtLoader(
     private val contentResolver: ContentResolver,
@@ -30,19 +31,7 @@ class AudioAlbumArtLoader(
                         volumeName,
                         ContentUris.parseId(indexedFileUri),
                     )
-                val albumId =
-                    contentResolver
-                        .query(
-                            audioUri,
-                            arrayOf(MediaStore.Audio.Media.ALBUM_ID),
-                            null,
-                            null,
-                            null,
-                        )?.use { cursor ->
-                            if (!cursor.moveToFirst()) return@use null
-                            val albumIdIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID)
-                            if (albumIdIndex < 0 || cursor.isNull(albumIdIndex)) null else cursor.getLong(albumIdIndex)
-                        } ?: return@withContext null
+                val albumId = findAlbumId(audioUri) ?: return@withContext null
                 if (albumId < 0) return@withContext null
                 val albumUri =
                     ContentUris.withAppendedId(
@@ -62,4 +51,13 @@ class AudioAlbumArtLoader(
                 null
             }
         }
+
+    private fun findAlbumId(audioUri: Uri): Long? =
+        contentResolver
+            .query(audioUri, arrayOf(MediaStore.Audio.Media.ALBUM_ID), null, null, null)
+            ?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val column = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ID)
+                if (column < 0 || cursor.isNull(column)) null else cursor.getLong(column)
+            }
 }

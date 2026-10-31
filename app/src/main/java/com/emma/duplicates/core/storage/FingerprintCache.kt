@@ -15,12 +15,13 @@ data class FingerprintIdentity(
             storageVolume == file.storageVolume
 
     companion object {
-        fun from(file: FileMetadata): FingerprintIdentity = FingerprintIdentity(
-            canonicalPath = file.canonicalPath,
-            sizeBytes = file.sizeBytes,
-            lastModifiedMillis = file.lastModifiedMillis,
-            storageVolume = file.storageVolume,
-        )
+        fun from(file: FileMetadata): FingerprintIdentity =
+            FingerprintIdentity(
+                canonicalPath = file.canonicalPath,
+                sizeBytes = file.sizeBytes,
+                lastModifiedMillis = file.lastModifiedMillis,
+                storageVolume = file.storageVolume,
+            )
     }
 }
 
@@ -31,17 +32,29 @@ data class CachedFingerprint(
 )
 
 interface FingerprintCache {
-    suspend fun find(canonicalPath: String, storageVolume: String): CachedFingerprint?
+    suspend fun find(
+        canonicalPath: String,
+        storageVolume: String,
+    ): CachedFingerprint?
 
     suspend fun put(fingerprint: CachedFingerprint)
 
-    suspend fun invalidate(canonicalPath: String, storageVolume: String)
+    suspend fun invalidate(
+        canonicalPath: String,
+        storageVolume: String,
+    )
 }
 
 object EmptyFingerprintCache : FingerprintCache {
-    override suspend fun find(canonicalPath: String, storageVolume: String): CachedFingerprint? = null
+    override suspend fun find(
+        canonicalPath: String,
+        storageVolume: String,
+    ): CachedFingerprint? = null
 
     override suspend fun put(fingerprint: CachedFingerprint) = Unit
 
-    override suspend fun invalidate(canonicalPath: String, storageVolume: String) = Unit
+    override suspend fun invalidate(
+        canonicalPath: String,
+        storageVolume: String,
+    ) = Unit
 }

@@ -62,6 +62,7 @@ data class ScanSessionEntity(
 
 @Entity(
     tableName = "indexed_files",
+    // CPD-OFF: Room requires the session foreign key inline on each entity.
     foreignKeys = [
         ForeignKey(
             entity = ScanSessionEntity::class,
@@ -70,6 +71,7 @@ data class ScanSessionEntity(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
+    // CPD-ON
     indices = [
         Index(value = ["sessionId", "canonicalPath"], unique = true),
         Index(value = ["sessionId", "category"]),
@@ -101,6 +103,7 @@ data class IndexedFileEntity(
 
 @Entity(
     tableName = "duplicate_groups",
+    // CPD-OFF: Room requires the session foreign key inline on each entity.
     foreignKeys = [
         ForeignKey(
             entity = ScanSessionEntity::class,
@@ -109,6 +112,7 @@ data class IndexedFileEntity(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
+    // CPD-ON
     indices = [
         Index(value = ["sessionId", "contentHash", "fileSize"], unique = true),
         Index(value = ["sessionId", "category"]),

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.4.xsd">
+    <suppress until="2026-11-29Z">
+        <notes><![CDATA[
+        Owner: project-maintainers. Added: 2026-10-30.
+        False product match: Compose Multiplatform Android Runtime is an Android UI library,
+        not JetBrains Runtime (the OpenJDK distribution for IDEs). CVE-2025-29903 affects
+        dynamic library loading on macOS in JetBrains Runtime before 21.0.6b872.80.
+        This exact Compose package does not contain that macOS runtime.
+        Tracking: https://www.cve.org/CVERecord?id=CVE-2025-29903
+        Evidence: https://repo.maven.apache.org/maven2/org/jetbrains/compose/runtime/runtime-android/1.12.0/runtime-android-1.12.0.pom
+        ]]></notes>
+        <packageUrl>pkg:maven/org.jetbrains.compose.runtime/runtime-android@1.12.0</packageUrl>
+        <cve>CVE-2025-29903</cve>
+    </suppress>
+    <suppress until="2026-11-29Z">
+        <notes><![CDATA[
+        Owner: project-maintainers. Added: 2026-10-30.
+        False product match: Compose Multiplatform Android Runtime Saveable is an Android UI
+        library, not JetBrains Runtime (the OpenJDK distribution for IDEs). CVE-2025-29903
+        affects dynamic library loading on macOS in JetBrains Runtime before 21.0.6b872.80.
+        This exact Compose package does not contain that macOS runtime.
+        Tracking: https://www.cve.org/CVERecord?id=CVE-2025-29903
+        Evidence: https://repo.maven.apache.org/maven2/org/jetbrains/compose/runtime/runtime-saveable-android/1.12.0/runtime-saveable-android-1.12.0.pom
+        ]]></notes>
+        <packageUrl>pkg:maven/org.jetbrains.compose.runtime/runtime-saveable-android@1.12.0</packageUrl>
+        <cve>CVE-2025-29903</cve>
+    </suppress>
+    <suppress until="2026-11-29Z">
+        <notes><![CDATA[
+        Owner: project-maintainers. Added: 2026-10-31.
+        False product match: Compose Stability Analyzer Runtime is a Kotlin/Android
+        library, not GitHub Enterprise Server. Dependency-Check incorrectly assigns
+        cpe:2.3:a:github:github:0.15.0 to this com.github.skydoves artifact.
+        These CVEs affect GitHub Enterprise's public-key assignment, repository access
+        control, and GitHub Pages parsers; this library contains none of those services.
+        Tracking: https://nvd.nist.gov/vuln/detail/CVE-2012-2055
+        Tracking: https://docs.github.com/en/enterprise-server@2.21/admin/release-notes#2.21.6
+        Tracking: https://docs.github.com/en/enterprise-server@2.22/admin/release-notes#2.22.7
+        Evidence: https://repo.maven.apache.org/maven2/com/github/skydoves/compose-stability-runtime-android/0.15.0/compose-stability-runtime-android-0.15.0.pom
+        ]]></notes>
+        <packageUrl>pkg:maven/com.github.skydoves/compose-stability-runtime-android@0.15.0</packageUrl>
+        <cve>CVE-2012-2055</cve>
+        <cve>CVE-2020-10517</cve>
+        <cve>CVE-2020-10518</cve>
+        <cve>CVE-2020-10519</cve>
+    </suppress>
+</suppressions>

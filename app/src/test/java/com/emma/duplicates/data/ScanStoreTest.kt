@@ -2,7 +2,6 @@ package com.emma.duplicates.data
 
 import android.app.Application
 import android.content.Context
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.emma.duplicates.core.database.DuplicateGroupEntity
 import com.emma.duplicates.core.database.DuplicateMemberEntity
@@ -10,12 +9,13 @@ import com.emma.duplicates.core.database.DuplicatesDatabase
 import com.emma.duplicates.core.database.ExclusionEntity
 import com.emma.duplicates.core.database.ExclusionTypes
 import com.emma.duplicates.core.database.FingerprintCacheEntity
-import com.emma.duplicates.core.database.IndexedFileEntity
 import com.emma.duplicates.core.database.ScanCompletionMetrics
 import com.emma.duplicates.core.database.ScanFailureReasons
 import com.emma.duplicates.core.database.ScanPhases
 import com.emma.duplicates.core.database.ScanSessionEntity
 import com.emma.duplicates.core.database.ScanStatuses
+import com.emma.duplicates.core.database.inMemoryTestDatabase
+import com.emma.duplicates.core.database.indexedPhoto
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -38,10 +38,7 @@ class ScanStoreTest {
     @Before
     fun createStore() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        database =
-            Room.inMemoryDatabaseBuilder(context, DuplicatesDatabase::class.java)
-                .allowMainThreadQueries()
-                .build()
+        database = inMemoryTestDatabase(context)
         store = ScanStore(database)
     }
 
@@ -85,7 +82,12 @@ class ScanStoreTest {
 
             val active = store.activeResults.first()!!
             assertEquals(ScanStatuses.COMPLETED, active.session.status)
-            assertEquals("group", active.groups.single().group.id)
+            assertEquals(
+                "group",
+                active.groups
+                    .single()
+                    .group.id,
+            )
             assertFalse(store.replaceStagedResults("session", emptyList(), emptyList(), emptyList()))
         }
 
@@ -212,22 +214,7 @@ class ScanStoreTest {
         }
 
     private fun indexedFile(sessionId: String = "session") =
-        IndexedFileEntity(
-            id = "file",
-            sessionId = sessionId,
-            canonicalPath = "/storage/a.jpg",
-            displayName = "a.jpg",
-            extension = "jpg",
-            mimeType = "image/jpeg",
-            category = "photos",
-            sizeBytes = 100L,
-            lastModified = 10L,
-            volume = "primary",
-            parentPath = "/storage",
-            readable = true,
-            writable = true,
-            favorite = false,
-        )
+        indexedPhoto(id = "file", sessionId = sessionId, path = "/storage/a.jpg")
 
     private fun group(sessionId: String = "session") =
         DuplicateGroupEntity(

@@ -1,6 +1,6 @@
 # Duplicates implementation reference
 
-This document describes the implementation in `app/src/main` and its verification code in `app/src/test` and `app/src/androidTest`. The code and generated Room schema are the source of truth.
+This document describes the implementation in `app/src/main`, its verification code in `app/src/test` and `app/src/androidTest`, and the checked-in build and CI configuration. The code, Gradle files, workflow files, and generated Room schema are the source of truth.
 
 ## Product scope
 
@@ -31,9 +31,9 @@ Deletion is separate from scanning. It requires a user-reviewed selection, prese
 | Minimum SDK | 30, Android 11 |
 | Compile and target SDK | 37, Android 17 |
 | Java and Kotlin JVM target | 17 |
-| Gradle wrapper | 9.7.0 |
-| Android Gradle Plugin | 9.3.1 |
-| Kotlin | 2.4.10 |
+| Gradle wrapper | 9.8.2 |
+| Android Gradle Plugin | 9.5.0 |
+| Kotlin | 2.4.21 |
 
 The manifest enables edge-to-edge window handling through `MainActivity`, predictive back through `enableOnBackInvokedCallback`, a resizable activity, the Android splash screen theme, and a `dataSync` foreground service type for WorkManager. Orientation is not locked. Backup and device transfer are disabled.
 
@@ -42,12 +42,18 @@ The manifest enables edge-to-edge window handling through `MainActivity`, predic
 | Responsibility | Library |
 | --- | --- |
 | UI | Jetpack Compose BOM 2026.06.01, Material 3, Activity Compose 1.13.0 |
-| Navigation and state | Navigation Compose 2.9.8, Lifecycle 2.11.0, Kotlin Serialization 1.11.0 |
-| Persistence | Room 2.8.4, DataStore Preferences 1.2.1 |
+| Navigation and state | Navigation Compose 2.9.8, Lifecycle 2.11.0, Kotlin Serialization 1.12.0 |
+| Persistence | Room 2.8.4, DataStore Preferences 1.3.0 |
 | Background work | WorkManager 2.11.2 |
 | Concurrency | Kotlin coroutines 1.11.0 |
 | Thumbnails and photos | Coil Compose and Coil Video 3.5.0 |
 | Local tests | JUnit 4.13.2, MockK 1.14.11, Turbine 1.2.1, Robolectric 4.16.1, AndroidX and Compose test libraries |
+
+### Continuous integration
+
+`.github/workflows/codeql.yml` is the only checked-in GitHub Actions workflow. It runs CodeQL analysis for `java-kotlin` on pushes and pull requests targeting `main`, plus the weekly schedule `37 4 * * 1`. The job uses `ubuntu-latest`, Temurin Java 17, CodeQL manual build mode, and `bash gradlew :app:assembleDebug --no-daemon` before analysis. Its declared permissions are read-only repository contents and write access to security events.
+
+The CodeQL workflow proves that its analysis build completed when that hosted job passes. It does not run the local JUnit suite, Android lint, connected tests, or a release build; those remain separate verification gates.
 
 ## Screens and navigation
 
@@ -309,7 +315,7 @@ Results and Review use one 72 dp `MediaThumbnail` component with the category ic
 
 Photos are rendered with Coil from the MediaStore content URI or canonical path. Gesture scale is clamped from 1x through 5x; double tap toggles 1x and 2x. Preview is read-only.
 
-Videos, audio, and documents use the generic metadata screen and a system `ACTION_VIEW` chooser. When a MediaStore content URI was stored, it is opened read-only to confirm that it is usable; a stale URI produces the missing state. Only a file with no stored content URI uses the readable canonical file through the non-exported FileProvider paths for shared storage. The viewer receives a `content://` URI through both intent data and `ClipData`, with temporary read permission. A specific stored MIME type is preferred; generic MIME values fall back to extension lookup and then `application/octet-stream`. Unsupported, missing, provider, and no-compatible-viewer cases remain non-destructive and produce an explanatory state. No file is copied for preview and no `file://` URI is exposed.
+Videos, audio, and documents use the generic metadata screen and a system `ACTION_VIEW` chooser. When a MediaStore content URI was stored, it is opened read-only to confirm that it is usable; a stale URI produces the missing state. Only a file with no stored content URI uses the readable canonical file through the non-exported `PreviewFileProvider`. It resolves the volume and relative path against currently mounted shared-storage volumes on every access, rejects paths outside the volume, Android/data, Android/obb, and the app's own Android/media directory, and permits only read operations. The viewer receives a `content://` URI through both intent data and `ClipData`, with temporary read permission. A specific stored MIME type is preferred; generic MIME values fall back to extension lookup and then `application/octet-stream`. Unsupported, missing, provider, and no-compatible-viewer cases remain non-destructive and produce an explanatory state. No file is copied for preview and no `file://` URI is exposed.
 
 ## Tests and runtime verification
 

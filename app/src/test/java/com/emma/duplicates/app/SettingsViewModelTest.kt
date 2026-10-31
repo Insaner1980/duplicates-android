@@ -95,43 +95,41 @@ class SettingsViewModelTest {
             viewModel.setIgnoreSystemFolders(false)
             viewModel.setAutoSelectDuplicateCopies(false)
             viewModel.setConfirmBeforeDelete(false)
-            viewModel.setCategoryEnabled(UiFileCategory.PHOTOS, false)
-            advanceUntilIdle()
-            viewModel.setCategoryEnabled(UiFileCategory.VIDEOS, false)
-            advanceUntilIdle()
-            viewModel.setCategoryEnabled(UiFileCategory.AUDIO, false)
-            advanceUntilIdle()
+            listOf(UiFileCategory.PHOTOS, UiFileCategory.VIDEOS, UiFileCategory.AUDIO).forEach { category ->
+                viewModel.setCategoryEnabled(category, false)
+                advanceUntilIdle()
+            }
             viewModel.setLocationSelected("sd-1", true)
             advanceUntilIdle()
             viewModel.setLocationSelected("primary", false)
             advanceUntilIdle()
 
-            val persisted = repository.preferences.first {
-                it.scanHiddenFolders &&
-                    !it.ignoreSystemFolders &&
-                    !it.autoSelectDuplicateCopies &&
-                    !it.confirmBeforeDelete &&
-                    it.selectedVolumeIds == setOf("sd-1")
-            }
+            val persisted =
+                repository.preferences.first {
+                    it.scanHiddenFolders &&
+                        !it.ignoreSystemFolders &&
+                        !it.autoSelectDuplicateCopies &&
+                        !it.confirmBeforeDelete &&
+                        it.selectedVolumeIds == setOf("sd-1")
+                }
             assertFalse(persisted.scanPhotos)
             assertFalse(persisted.scanVideos)
             assertFalse(persisted.scanAudio)
             assertTrue(persisted.scanDocuments)
+            val expectedTypes = UiFileCategory.entries.associateWith { it == UiFileCategory.DOCUMENTS }
             assertEquals(
-                mapOf(
-                    UiFileCategory.PHOTOS to false,
-                    UiFileCategory.VIDEOS to false,
-                    UiFileCategory.AUDIO to false,
-                    UiFileCategory.DOCUMENTS to true,
-                ),
+                expectedTypes,
                 viewModel.typesToScanState.first { it.enabled[UiFileCategory.PHOTOS] == false }.enabled,
             )
             assertEquals(
                 listOf("sd-1"),
-                viewModel.scanLocationsState.first {
-                    it.locations.filter { location -> location.selected }.map { location -> location.id } ==
-                        listOf("sd-1")
-                }.locations.filter { it.selected }.map { it.id },
+                viewModel.scanLocationsState
+                    .first {
+                        it.locations.filter { location -> location.selected }.map { location -> location.id } ==
+                            listOf("sd-1")
+                    }.locations
+                    .filter { it.selected }
+                    .map { it.id },
             )
         }
 
@@ -163,13 +161,17 @@ class SettingsViewModelTest {
             assertTrue(persisted.scanDocuments)
             assertEquals(
                 1,
-                viewModel.typesToScanState.first { state -> state.enabled.values.count { it } == 1 }
-                    .enabled.values.count { it },
+                viewModel.typesToScanState
+                    .first { state -> state.enabled.values.count { it } == 1 }
+                    .enabled.values
+                    .count { it },
             )
             assertEquals(
                 1,
-                viewModel.scanLocationsState.first { state -> state.locations.count { it.selected } == 1 }
-                    .locations.count { it.selected },
+                viewModel.scanLocationsState
+                    .first { state -> state.locations.count { it.selected } == 1 }
+                    .locations
+                    .count { it.selected },
             )
         }
 
@@ -187,17 +189,16 @@ class SettingsViewModelTest {
         totalBytes: Long = 100,
         freeBytes: Long = 50,
         primary: Boolean = false,
-    ) =
-        AvailableStorageVolume(
-            id = id,
-            label = label,
-            directory = temporaryFolder.root.resolve(id).apply { mkdirs() },
-            mediaStoreVolumeName = if (primary) "external_primary" else id,
-            isPrimary = primary,
-            isReadOnly = false,
-            totalBytes = totalBytes,
-            freeBytes = freeBytes,
-        )
+    ) = AvailableStorageVolume(
+        id = id,
+        label = label,
+        directory = temporaryFolder.root.resolve(id).apply { mkdirs() },
+        mediaStoreVolumeName = if (primary) "external_primary" else id,
+        isPrimary = primary,
+        isReadOnly = false,
+        totalBytes = totalBytes,
+        freeBytes = freeBytes,
+    )
 
     private class MutableVolumeSource(
         var volumes: List<AvailableStorageVolume>,

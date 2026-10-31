@@ -12,7 +12,6 @@ import com.emma.duplicates.data.ScanStore
 import com.emma.duplicates.data.StorageBrowser
 import com.emma.duplicates.ui.exclusions.BrowserMessage
 import com.emma.duplicates.ui.exclusions.ExclusionKind
-import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -27,6 +26,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class)
@@ -47,7 +47,8 @@ class StorageBrowserViewModelTest {
     fun createDependencies() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         database =
-            Room.inMemoryDatabaseBuilder(context, DuplicatesDatabase::class.java)
+            Room
+                .inMemoryDatabaseBuilder(context, DuplicatesDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
         root = temporaryFolder.newFolder("storage")
@@ -69,7 +70,11 @@ class StorageBrowserViewModelTest {
             root.resolve("m-file.txt").writeText("content")
             val viewModel = StorageBrowserViewModel(browser, repository, ExclusionKind.FILE)
 
-            assertEquals(listOf("Phone"), viewModel.state.value.entries.map { it.displayName })
+            assertEquals(
+                listOf("Phone"),
+                viewModel.state.value.entries
+                    .map { it.displayName },
+            )
             assertFalse(viewModel.state.value.canSelectCurrentFolder)
 
             viewModel.openDirectory(root.path)
@@ -97,7 +102,13 @@ class StorageBrowserViewModelTest {
             folderViewModel.state.first { it.currentPath == folder.canonicalPath }
             folderViewModel.selectCurrentFolder()
             assertTrue(folderViewModel.selectionCompleted.first { it })
-            assertEquals(folder.canonicalPath, repository.exclusions.first { it.size == 1 }.single().canonicalPath)
+            assertEquals(
+                folder.canonicalPath,
+                repository.exclusions
+                    .first { it.size == 1 }
+                    .single()
+                    .canonicalPath,
+            )
 
             val fileViewModel = StorageBrowserViewModel(browser, repository, ExclusionKind.FILE)
             fileViewModel.openDirectory(root.path)
@@ -106,7 +117,10 @@ class StorageBrowserViewModelTest {
             assertTrue(fileViewModel.selectionCompleted.first { it })
             assertEquals(
                 setOf(folder.canonicalPath, file.canonicalPath),
-                repository.exclusions.first { it.size == 2 }.map { it.canonicalPath }.toSet(),
+                repository.exclusions
+                    .first { it.size == 2 }
+                    .map { it.canonicalPath }
+                    .toSet(),
             )
         }
 
@@ -127,7 +141,12 @@ class StorageBrowserViewModelTest {
             duplicate.selectFile(file.path)
             assertEquals(BrowserMessage.ALREADY_EXCLUDED, duplicate.state.first { it.message != null }.message)
 
-            repository.remove(repository.exclusions.first { it.isNotEmpty() }.single().id)
+            repository.remove(
+                repository.exclusions
+                    .first { it.isNotEmpty() }
+                    .single()
+                    .id,
+            )
             val folderViewModel = StorageBrowserViewModel(browser, repository, ExclusionKind.FOLDER)
             folderViewModel.openDirectory(folder.path)
             folderViewModel.state.first { it.currentPath == folder.canonicalPath }
@@ -140,7 +159,12 @@ class StorageBrowserViewModelTest {
             child.selectFile(file.path)
             assertEquals(BrowserMessage.PARENT_ALREADY_EXCLUDED, child.state.first { it.message != null }.message)
 
-            repository.remove(repository.exclusions.first { it.isNotEmpty() }.single().id)
+            repository.remove(
+                repository.exclusions
+                    .first { it.isNotEmpty() }
+                    .single()
+                    .id,
+            )
             val inaccessible = StorageBrowserViewModel(browser, repository, ExclusionKind.FILE)
             inaccessible.openDirectory(folder.path)
             inaccessible.state.first { it.currentPath == folder.canonicalPath }

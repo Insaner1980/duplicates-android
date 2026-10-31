@@ -3,6 +3,7 @@ package com.emma.duplicates.app
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.emma.duplicates.core.database.DuplicateGroupWithMembers
+import com.emma.duplicates.core.database.DuplicateMemberWithFile
 import com.emma.duplicates.data.ScanStore
 import com.emma.duplicates.data.preferences.PreferencesRepository
 import com.emma.duplicates.domain.deletion.DeletionCoordinator
@@ -153,33 +154,7 @@ class ReviewViewModel(
                         it.member.recommendedKeep
                     }.thenBy { it.file.canonicalPath },
                 ).map { member ->
-                    val canSelect =
-                        if (member.member.selectedForDeletion) {
-                            true
-                        } else {
-                            member.file.readable &&
-                                member.file.writable &&
-                                !member.file.changedSinceScan &&
-                                validUnselectedCount > 1
-                        }
-                    ReviewMemberUiState(
-                        id = member.member.id,
-                        filename = member.file.displayName,
-                        sizeBytes = member.file.sizeBytes,
-                        dateEpochMillis = member.file.lastModified,
-                        path = member.file.canonicalPath,
-                        thumbnailModel =
-                            if (uiCategory == UiFileCategory.PHOTOS || uiCategory == UiFileCategory.VIDEOS) {
-                                member.file.contentUri ?: member.file.canonicalPath
-                            } else {
-                                null
-                            },
-                        selectedForDeletion = member.member.selectedForDeletion,
-                        recommendedKeep = member.member.recommendedKeep,
-                        canSelectForDeletion = canSelect,
-                        audioContentUri =
-                            if (uiCategory == UiFileCategory.AUDIO) member.file.contentUri else null,
-                    )
+                    member.toMemberUiState(uiCategory, validUnselectedCount)
                 }
         return ReviewUiState(
             groupId = group.id,
@@ -191,10 +166,7 @@ class ReviewViewModel(
             selectedBytes =
                 members.sumOf { member ->
                     if (
-                        member.member.selectedForDeletion &&
-                        member.file.readable &&
-                        member.file.writable &&
-                        !member.file.changedSinceScan
+                        member.member.selectedForDeletion && member.fileAvailableForDeletion()
                     ) {
                         member.file.sizeBytes
                     } else {
@@ -210,4 +182,37 @@ class ReviewViewModel(
     private fun updateState(transform: ReviewUiState.() -> ReviewUiState) {
         mutableState.value = mutableState.value?.transform()
     }
+}
+
+private fun DuplicateMemberWithFile.fileAvailableForDeletion(): Boolean =
+    file.readable && file.writable && !file.changedSinceScan
+
+private fun DuplicateMemberWithFile.toMemberUiState(
+    uiCategory: UiFileCategory,
+    validUnselectedCount: Int,
+): ReviewMemberUiState {
+    val canSelect =
+        if (member.selectedForDeletion) {
+            true
+        } else {
+            fileAvailableForDeletion() && validUnselectedCount > 1
+        }
+    return ReviewMemberUiState(
+        id = member.id,
+        filename = file.displayName,
+        sizeBytes = file.sizeBytes,
+        dateEpochMillis = file.lastModified,
+        path = file.canonicalPath,
+        thumbnailModel =
+            if (uiCategory == UiFileCategory.PHOTOS || uiCategory == UiFileCategory.VIDEOS) {
+                file.contentUri ?: file.canonicalPath
+            } else {
+                null
+            },
+        selectedForDeletion = member.selectedForDeletion,
+        recommendedKeep = member.recommendedKeep,
+        canSelectForDeletion = canSelect,
+        audioContentUri =
+            if (uiCategory == UiFileCategory.AUDIO) file.contentUri else null,
+    )
 }

@@ -8,11 +8,11 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import java.io.IOException
 
 val Context.duplicatesPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "duplicates_settings",
@@ -34,6 +34,8 @@ data class AppPreferences(
     val selectedVolumeIds: Set<String>,
 )
 
+// Each persisted preference has a matching setter on this single DataStore owner.
+@Suppress("TooManyFunctions")
 class PreferencesRepository(
     private val dataStore: DataStore<Preferences>,
 ) {
@@ -63,8 +65,7 @@ class PreferencesRepository(
 
     suspend fun setIgnoreSystemFolders(enabled: Boolean) = setBoolean(Keys.ignoreSystemFolders, enabled)
 
-    suspend fun setAutoSelectDuplicateCopies(enabled: Boolean) =
-        setBoolean(Keys.autoSelectDuplicateCopies, enabled)
+    suspend fun setAutoSelectDuplicateCopies(enabled: Boolean) = setBoolean(Keys.autoSelectDuplicateCopies, enabled)
 
     suspend fun setConfirmBeforeDelete(enabled: Boolean) = setBoolean(Keys.confirmBeforeDelete, enabled)
 

@@ -15,23 +15,25 @@ class RoomDeletionResultStore(
 ) : DeletionResultStore {
     override suspend fun beginDeletion(groups: List<DeletionGroup>): String {
         val operationId = UUID.randomUUID().toString()
-        val selectedFiles = groups.flatMap { group ->
-            group.files.filter { it.selectedForDeletion }.map { file -> group.id to file }
-        }
+        val selectedFiles =
+            groups.flatMap { group ->
+                group.files.filter { it.selectedForDeletion }.map { file -> group.id to file }
+            }
         scanStore.beginDeletion(
             operation = PendingDeletionOperationEntity(operationId, System.currentTimeMillis()),
-            items = selectedFiles.map { (groupId, file) ->
-                PendingDeletionItemEntity(
-                    operationId = operationId,
-                    groupId = groupId,
-                    memberId = file.memberId,
-                    indexedFileId = file.id,
-                    canonicalPath = file.canonicalPath,
-                    sizeBytes = file.sizeBytes,
-                    lastModifiedMillis = file.lastModifiedMillis,
-                    contentUri = file.contentUri,
-                )
-            },
+            items =
+                selectedFiles.map { (groupId, file) ->
+                    PendingDeletionItemEntity(
+                        operationId = operationId,
+                        groupId = groupId,
+                        memberId = file.memberId,
+                        indexedFileId = file.id,
+                        canonicalPath = file.canonicalPath,
+                        sizeBytes = file.sizeBytes,
+                        lastModifiedMillis = file.lastModifiedMillis,
+                        contentUri = file.contentUri,
+                    )
+                },
         )
         return operationId
     }
@@ -40,21 +42,23 @@ class RoomDeletionResultStore(
         scanStore.pendingDeletions().map { pending ->
             PendingDeletionOperation(
                 id = pending.operation.id,
-                files = pending.items.map { item ->
-                    PendingDeletionFile(
-                        groupId = item.groupId,
-                        memberId = item.memberId,
-                        file = DeletionFile(
-                            id = item.indexedFileId,
+                files =
+                    pending.items.map { item ->
+                        PendingDeletionFile(
+                            groupId = item.groupId,
                             memberId = item.memberId,
-                            canonicalPath = item.canonicalPath,
-                            sizeBytes = item.sizeBytes,
-                            lastModifiedMillis = item.lastModifiedMillis,
-                            contentUri = item.contentUri,
-                            selectedForDeletion = true,
-                        ),
-                    )
-                },
+                            file =
+                                DeletionFile(
+                                    id = item.indexedFileId,
+                                    memberId = item.memberId,
+                                    canonicalPath = item.canonicalPath,
+                                    sizeBytes = item.sizeBytes,
+                                    lastModifiedMillis = item.lastModifiedMillis,
+                                    contentUri = item.contentUri,
+                                    selectedForDeletion = true,
+                                ),
+                        )
+                    },
             )
         }
 

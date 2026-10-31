@@ -18,7 +18,11 @@ import com.emma.duplicates.core.database.ScanSessionEntity
 import com.emma.duplicates.core.database.ScanStatuses
 import com.emma.duplicates.domain.deletion.DeletionDatabaseUpdate
 
-class ScanStore(private val database: DuplicatesDatabase) {
+// This facade keeps scan and deletion transactions on the same database boundary.
+@Suppress("TooManyFunctions")
+class ScanStore(
+    private val database: DuplicatesDatabase,
+) {
     private val scanDao = database.scanDao()
     private val fingerprintDao = database.fingerprintDao()
     private val deletionOperationDao = database.deletionOperationDao()
@@ -89,8 +93,7 @@ class ScanStore(private val database: DuplicatesDatabase) {
         volume: String,
         sizeBytes: Long,
         lastModified: Long,
-    ): FingerprintCacheEntity? =
-        fingerprintDao.findReusable(canonicalPath, volume, sizeBytes, lastModified)
+    ): FingerprintCacheEntity? = fingerprintDao.findReusable(canonicalPath, volume, sizeBytes, lastModified)
 
     suspend fun findFingerprint(
         canonicalPath: String,
@@ -127,8 +130,7 @@ class ScanStore(private val database: DuplicatesDatabase) {
         deletionOperationDao.insert(operation, items)
     }
 
-    suspend fun pendingDeletions(): List<PendingDeletionOperationWithItems> =
-        deletionOperationDao.getPending()
+    suspend fun pendingDeletions(): List<PendingDeletionOperationWithItems> = deletionOperationDao.getPending()
 
     suspend fun reconcileDeletion(
         operationId: String,

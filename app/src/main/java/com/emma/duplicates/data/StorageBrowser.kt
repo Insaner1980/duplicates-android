@@ -2,14 +2,16 @@ package com.emma.duplicates.data
 
 import com.emma.duplicates.core.storage.AvailableStorageVolume
 import com.emma.duplicates.core.storage.StorageVolumeSource
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.Paths
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import java.nio.file.attribute.BasicFileAttributes
 
 data class StorageBrowserEntry(
     val displayName: String,
@@ -30,6 +32,7 @@ data class StorageBrowserLocation(
 class StorageBrowser(
     private val volumeSource: StorageVolumeSource,
     private val applicationDirectories: Set<String>,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     fun mountedVolumes(): List<AvailableStorageVolume> = volumeSource.mountedVolumes()
 
@@ -37,16 +40,17 @@ class StorageBrowser(
         volumeId: String,
         requestedPath: String? = null,
     ): StorageBrowserLocation? =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val volume = mountedVolumes().firstOrNull { it.id == volumeId } ?: return@withContext null
             val root = volume.directory.safeCanonicalFile() ?: return@withContext null
             val requested = requestedPath?.let(::File)?.safeCanonicalFile() ?: root
             if (!requested.toPath().startsWith(root.toPath()) || !requested.isDirectory || !requested.canRead()) {
                 return@withContext null
             }
-            val appPaths = applicationDirectories.mapNotNull { path ->
-                runCatching { Paths.get(path).toAbsolutePath().normalize() }.getOrNull()
-            }
+            val appPaths =
+                applicationDirectories.mapNotNull { path ->
+                    runCatching { Paths.get(path).toAbsolutePath().normalize() }.getOrNull()
+                }
             val children =
                 try {
                     requested.listFiles()
@@ -61,8 +65,7 @@ class StorageBrowser(
                         compareByDescending<StorageBrowserEntry> { it.isDirectory }
                             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.displayName }
                             .thenBy { it.displayName },
-                    )
-                    ?.toList()
+                    )?.toList()
                     .orEmpty()
             StorageBrowserLocation(
                 volumeId = volume.id,
@@ -83,26 +86,45 @@ class StorageBrowser(
     ): StorageBrowserEntry? {
         val path = toPath()
         val attributes =
-            try {
-                Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-            } catch (_: SecurityException) {
-                return null
-            } catch (_: IOException) {
-                return null
+            path
+                .safeAttributes()
+                ?.takeIf { !it.isSymbolicLink && (it.isDirectory || it.isRegularFile) }
+        val canonical =
+            attributes?.let {
+                safeCanonicalFile()?.takeIf { file ->
+                    file.isBrowsable(root, applicationPaths)
+                }
             }
-        if (attributes.isSymbolicLink || (!attributes.isDirectory && !attributes.isRegularFile)) return null
-        val canonical = safeCanonicalFile() ?: return null
-        val canonicalPath = canonical.toPath()
-        if (!canonicalPath.startsWith(root) || applicationPaths.any(canonicalPath::startsWith)) return null
-        if (canonical.isDirectory && canonical.isRestrictedDirectory()) return null
-        if (!canonical.canRead()) return null
-        return StorageBrowserEntry(
-            displayName = canonical.name.ifBlank { canonical.path },
-            canonicalPath = canonical.path,
-            isDirectory = attributes.isDirectory,
-            sizeBytes = if (attributes.isRegularFile) attributes.size() else 0L,
-            isReadable = true,
-        )
+        return if (attributes != null && canonical != null) {
+            StorageBrowserEntry(
+                displayName = canonical.name.ifBlank { canonical.path },
+                canonicalPath = canonical.path,
+                isDirectory = attributes.isDirectory,
+                sizeBytes = if (attributes.isRegularFile) attributes.size() else 0L,
+                isReadable = true,
+            )
+        } else {
+            null
+        }
+    }
+
+    private fun Path.safeAttributes(): BasicFileAttributes? =
+        try {
+            Files.readAttributes(this, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+        } catch (_: SecurityException) {
+            null
+        } catch (_: IOException) {
+            null
+        }
+
+    private fun File.isBrowsable(
+        root: Path,
+        applicationPaths: List<Path>,
+    ): Boolean {
+        val path = toPath()
+        val outsideAllowedPaths = !path.startsWith(root) || applicationPaths.any(path::startsWith)
+        val restricted = isDirectory && isRestrictedDirectory()
+        return !outsideAllowedPaths && !restricted && canRead()
     }
 
     private fun File.safeCanonicalFile(): File? =

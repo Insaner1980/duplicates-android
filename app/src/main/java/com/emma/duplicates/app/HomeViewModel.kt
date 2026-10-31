@@ -42,15 +42,20 @@ class HomeViewModel(
             scanStore.activeResults,
         ) { granted, availableVolumes, preferences, running, activeResults ->
             when {
-                !granted -> HomeUiState.PermissionRequired
-                running != null ->
+                !granted -> {
+                    HomeUiState.PermissionRequired
+                }
+
+                running != null -> {
                     HomeUiState.ActiveScan(
                         phase = running.phase.displayName(),
                         progress = running.progressFraction(),
                         progressLabel = running.progressPercentLabel(),
                         filesIndexed = running.scannedFileCount,
                     )
-                activeResults == null ->
+                }
+
+                activeResults == null -> {
                     HomeUiState.Ready(
                         locationSummary = locationSummary(availableVolumes, preferences),
                         typeSummary = typeSummary(preferences),
@@ -58,23 +63,31 @@ class HomeViewModel(
                             availableVolumes.any { it.id in preferences.selectedVolumeIds } &&
                                 preferences.hasEnabledCategory(),
                     )
-                activeResults.session.scannedFileCount == 0 ->
+                }
+
+                activeResults.session.scannedFileCount == 0 -> {
                     HomeUiState.NoMatchingFiles(
                         lastScanEpochMillis =
                             activeResults.session.completedAt ?: activeResults.session.startedAt,
                         skippedFileCount = activeResults.session.skippedFileCount,
                     )
-                activeResults.session.duplicateGroupCount == 0 ->
+                }
+
+                activeResults.session.duplicateGroupCount == 0 -> {
                     HomeUiState.NoDuplicates(
                         lastScanEpochMillis =
                             activeResults.session.completedAt ?: activeResults.session.startedAt,
                         skippedFileCount = activeResults.session.skippedFileCount,
                     )
-                else -> completedState(activeResults, availableVolumes, preferences)
+                }
+
+                else -> {
+                    completedState(activeResults, availableVolumes, preferences)
+                }
             }
         }.stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
+            SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MILLIS),
             if (permissionGranted.value) {
                 HomeUiState.Ready(
                     locationSummary = resources.getString(R.string.internal_storage),
@@ -139,8 +152,7 @@ class HomeViewModel(
         }.joinToString(resources.getString(R.string.summary_separator))
             .ifBlank { resources.getString(R.string.no_file_types_selected) }
 
-    private fun AppPreferences.hasEnabledCategory(): Boolean =
-        scanPhotos || scanVideos || scanAudio || scanDocuments
+    private fun AppPreferences.hasEnabledCategory(): Boolean = scanPhotos || scanVideos || scanAudio || scanDocuments
 
     private fun String?.displayName(): String =
         when (this) {
@@ -150,13 +162,17 @@ class HomeViewModel(
         }
 
     private fun com.emma.duplicates.core.database.ScanSessionEntity.progressFraction(): Float? {
-        val total = progressTotalWork ?: return null
-        if (total <= 0L) return null
+        val total = progressTotalWork?.takeIf { it > 0L } ?: return null
         return (progressCompletedWork.toDouble() / total.toDouble()).toFloat().coerceIn(0f, 1f)
     }
 
     private fun com.emma.duplicates.core.database.ScanSessionEntity.progressPercentLabel(): String? =
         progressFraction()?.let { progress ->
-            resources.getString(R.string.percent_value, (progress * 100).toInt())
+            resources.getString(R.string.percent_value, (progress * PERCENT_TOTAL).toInt())
         }
+
+    private companion object {
+        const val STATE_STOP_TIMEOUT_MILLIS = 5_000L
+        const val PERCENT_TOTAL = 100
+    }
 }

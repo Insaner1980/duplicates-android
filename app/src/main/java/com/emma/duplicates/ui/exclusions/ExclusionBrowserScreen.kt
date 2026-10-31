@@ -3,23 +3,21 @@ package com.emma.duplicates.ui.exclusions
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,6 +30,7 @@ import com.emma.duplicates.R
 import com.emma.duplicates.core.designsystem.DuplicatesCard
 import com.emma.duplicates.core.designsystem.PrimaryActionButton
 import com.emma.duplicates.ui.components.DetailHeader
+import com.emma.duplicates.ui.components.ScreenColumn
 
 data class BrowserEntryUiState(
     val canonicalPath: String,
@@ -69,96 +68,53 @@ fun ExclusionBrowserScreen(
     onSelectCurrentFolder: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(
-        modifier = modifier.fillMaxSize().safeDrawingPadding(),
+    ScreenColumn(
+        modifier = modifier,
+        scrollable = false,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        val horizontalPadding = if (maxWidth >= 600.dp) 32.dp else 24.dp
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = horizontalPadding, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            DetailHeader(
-                titleRes =
-                    if (state.kind == ExclusionKind.FOLDER) {
-                        R.string.choose_folder
-                    } else {
-                        R.string.choose_file
-                    },
-                onBack = onBack,
-            )
+        DetailHeader(
+            titleRes =
+                if (state.kind == ExclusionKind.FOLDER) {
+                    R.string.choose_folder
+                } else {
+                    R.string.choose_file
+                },
+            onBack = onBack,
+        )
+        BrowserLocation(state, onOpenDirectory)
+        if (state.entries.isEmpty()) {
             Text(
-                text = stringResource(R.string.current_location),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.semantics { heading() },
+                text = stringResource(R.string.empty_folder),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (state.breadcrumbs.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    state.breadcrumbs.forEach { breadcrumb ->
-                        Text(
-                            text = breadcrumb.label,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier =
-                                Modifier
-                                    .heightIn(min = 48.dp)
-                                    .clickable { onOpenDirectory(breadcrumb.canonicalPath) }
-                                    .padding(horizontal = 8.dp, vertical = 12.dp),
-                        )
-                    }
-                }
-            } else {
-                Text(
-                    text = state.currentPath,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            state.message?.let {
-                Text(
-                    text = stringResource(it.messageRes()),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            if (state.entries.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.empty_folder),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(state.entries, key = { it.canonicalPath }) { entry ->
-                        BrowserEntryRow(
-                            state = entry,
-                            onClick = {
-                                if (entry.isDirectory) {
-                                    onOpenDirectory(entry.canonicalPath)
-                                } else {
-                                    onSelectFile(entry.canonicalPath)
-                                }
-                            },
-                        )
-                    }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(state.entries, key = { it.canonicalPath }) { entry ->
+                    BrowserEntryRow(
+                        state = entry,
+                        onClick = {
+                            if (entry.isDirectory) {
+                                onOpenDirectory(entry.canonicalPath)
+                            } else {
+                                onSelectFile(entry.canonicalPath)
+                            }
+                        },
+                    )
                 }
             }
-            if (state.kind == ExclusionKind.FOLDER) {
-                PrimaryActionButton(
-                    onClick = onSelectCurrentFolder,
-                    enabled = state.canSelectCurrentFolder,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.select_this_folder))
-                }
+        }
+        if (state.kind == ExclusionKind.FOLDER) {
+            PrimaryActionButton(
+                onClick = onSelectCurrentFolder,
+                enabled = state.canSelectCurrentFolder,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.select_this_folder))
             }
         }
     }
@@ -221,3 +177,47 @@ private fun BrowserMessage.messageRes(): Int =
         BrowserMessage.PARENT_ALREADY_EXCLUDED -> R.string.parent_already_excluded
         BrowserMessage.INACCESSIBLE -> R.string.folder_not_accessible
     }
+
+@Composable
+private fun ColumnScope.BrowserLocation(
+    state: ExclusionBrowserUiState,
+    onOpenDirectory: (String) -> Unit,
+) {
+    Text(
+        text = stringResource(R.string.current_location),
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.semantics { heading() },
+    )
+    if (state.breadcrumbs.isNotEmpty()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            state.breadcrumbs.forEach { breadcrumb ->
+                Text(
+                    text = breadcrumb.label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier =
+                        Modifier
+                            .heightIn(min = 48.dp)
+                            .clickable { onOpenDirectory(breadcrumb.canonicalPath) }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                )
+            }
+        }
+    } else {
+        Text(
+            text = state.currentPath,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    state.message?.let {
+        Text(
+            text = stringResource(it.messageRes()),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}

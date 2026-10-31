@@ -66,6 +66,7 @@ fun MediaThumbnail(
                     )
                 }
             }
+
             UiFileCategory.VIDEOS -> {
                 if (thumbnailModel != null) {
                     AsyncImage(
@@ -81,24 +82,9 @@ fun MediaThumbnail(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
-                Box(
-                    modifier =
-                        Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(4.dp)
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(Surface.copy(alpha = 0.88f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    androidx.compose.material3.Icon(
-                        painter = painterResource(R.drawable.ic_play_arrow),
-                        contentDescription = null,
-                        tint = Primary,
-                        modifier = Modifier.size(16.dp).testTag("video-play-indicator"),
-                    )
-                }
+                VideoPlayIndicator(Modifier.align(Alignment.BottomEnd))
             }
+
             UiFileCategory.AUDIO -> {
                 AudioAlbumArt(
                     contentUri = audioContentUri,
@@ -107,7 +93,10 @@ fun MediaThumbnail(
                     loadArtwork = audioArtworkVisible,
                 )
             }
-            UiFileCategory.DOCUMENTS -> Unit
+
+            UiFileCategory.DOCUMENTS -> {
+                // The category icon already provides the document thumbnail.
+            }
         }
     }
 }
@@ -123,7 +112,8 @@ fun rememberVideoThumbnailImageLoader(): ImageLoader {
 }
 
 internal fun buildVideoThumbnailImageLoader(context: Context): ImageLoader =
-    ImageLoader.Builder(context.applicationContext)
+    ImageLoader
+        .Builder(context.applicationContext)
         .components {
             add(VideoFrameDecoder.Factory())
         }.build()
@@ -133,7 +123,8 @@ internal fun buildVideoThumbnailRequest(
     model: Any,
     sizePx: Int,
 ): ImageRequest =
-    ImageRequest.Builder(context)
+    ImageRequest
+        .Builder(context)
         .data(model)
         .size(sizePx, sizePx)
         .decoderFactory { result, options, _ -> VideoFrameDecoder(result.source, options) }
@@ -160,6 +151,26 @@ private fun AudioAlbumArt(
             contentDescription = contentDescription,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Composable
+private fun VideoPlayIndicator(modifier: Modifier = Modifier) {
+    Box(
+        modifier =
+            modifier
+                .padding(4.dp)
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(Surface.copy(alpha = 0.88f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.material3.Icon(
+            painter = painterResource(R.drawable.ic_play_arrow),
+            contentDescription = null,
+            tint = Primary,
+            modifier = Modifier.size(16.dp).testTag("video-play-indicator"),
         )
     }
 }

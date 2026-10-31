@@ -36,7 +36,7 @@ class ScanViewModel(
             session?.toUiState(confirmationVisible) ?: initialState(confirmationVisible)
         }.stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
+            SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MILLIS),
             initialState(false),
         )
 
@@ -98,12 +98,14 @@ class ScanViewModel(
             else -> R.string.scan_failure_generic
         }
 
-    private fun ScanSessionEntity.progressFraction(runStatus: ScanRunStatus): Float? {
-        if (runStatus == ScanRunStatus.COMPLETED) return 1f
-        val total = progressTotalWork ?: return null
-        if (total <= 0L) return null
-        return (progressCompletedWork.toDouble() / total.toDouble()).toFloat().coerceIn(0f, 1f)
-    }
+    private fun ScanSessionEntity.progressFraction(runStatus: ScanRunStatus): Float? =
+        if (runStatus == ScanRunStatus.COMPLETED) {
+            1f
+        } else {
+            progressTotalWork?.takeIf { it > 0L }?.let { total ->
+                (progressCompletedWork.toDouble() / total.toDouble()).toFloat().coerceIn(0f, 1f)
+            }
+        }
 
     private fun locationLabel(path: String): String {
         val normalizedPath = path.normalizedPath()
@@ -162,4 +164,8 @@ class ScanViewModel(
             currentPath = null,
             stopConfirmationVisible = showConfirmation,
         )
+
+    private companion object {
+        const val STATE_STOP_TIMEOUT_MILLIS = 5_000L
+    }
 }

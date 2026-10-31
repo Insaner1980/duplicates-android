@@ -1,0 +1,6 @@
+node_modules/
+data/
+findings/
+comment.md
+.env
+.env.local
