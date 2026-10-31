@@ -10,14 +10,16 @@ import com.emma.duplicates.ui.results.DuplicateGroupCardUiState
 import com.emma.duplicates.ui.results.ResultsFilter
 import com.emma.duplicates.ui.results.ResultsSort
 import com.emma.duplicates.ui.results.ResultsUiState
-import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.Locale
 
+// The screen exposes one event handler per control and keeps their state in one lifecycle owner.
+@Suppress("TooManyFunctions")
 class ResultsViewModel(
     private val scanStore: ScanStore,
 ) : ViewModel() {
@@ -63,7 +65,7 @@ class ResultsViewModel(
         combine(scanStore.activeResults, controls, ::toUiState)
             .stateIn(
                 viewModelScope,
-                SharingStarted.WhileSubscribed(5_000),
+                SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MILLIS),
                 emptyState(),
             )
 
@@ -113,7 +115,8 @@ class ResultsViewModel(
         controls: ResultsControls,
     ): ResultsUiState {
         val groups =
-            results?.groups
+            results
+                ?.groups
                 .orEmpty()
                 .asSequence()
                 .filter { group -> controls.filter.matches(group.group.category.toUiCategory()) }
@@ -182,20 +185,29 @@ class ResultsViewModel(
 
     private fun ResultsSort.comparator(): Comparator<DuplicateGroupWithMembers> =
         when (this) {
-            ResultsSort.LARGEST_RECLAIMABLE ->
+            ResultsSort.LARGEST_RECLAIMABLE -> {
                 compareByDescending<DuplicateGroupWithMembers> { it.group.reclaimableBytes }
                     .thenBy { it.group.displayTitle.lowercase(Locale.ENGLISH) }
-            ResultsSort.MOST_COPIES ->
+            }
+
+            ResultsSort.MOST_COPIES -> {
                 compareByDescending<DuplicateGroupWithMembers> { it.group.copyCount }
                     .thenByDescending { it.group.reclaimableBytes }
-            ResultsSort.FILE_NAME ->
+            }
+
+            ResultsSort.FILE_NAME -> {
                 compareBy { it.group.displayTitle.lowercase(Locale.ENGLISH) }
-            ResultsSort.NEWEST ->
+            }
+
+            ResultsSort.NEWEST -> {
                 compareByDescending<DuplicateGroupWithMembers> { group ->
                     group.members.maxOfOrNull { it.file.lastModified } ?: 0L
                 }
-            ResultsSort.OLDEST ->
+            }
+
+            ResultsSort.OLDEST -> {
                 compareBy { group -> group.members.minOfOrNull { it.file.lastModified } ?: Long.MAX_VALUE }
+            }
         }.thenBy { it.group.id }
 
     private fun ResultsFilter.matches(category: UiFileCategory): Boolean =
@@ -237,4 +249,8 @@ class ResultsViewModel(
         val sort: Boolean,
         val clear: Boolean,
     )
+
+    private companion object {
+        const val STATE_STOP_TIMEOUT_MILLIS = 5_000L
+    }
 }

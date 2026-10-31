@@ -2,7 +2,6 @@ package com.emma.duplicates.core.database
 
 import android.app.Application
 import android.content.Context
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -28,10 +27,7 @@ class DuplicatesDatabaseTest {
     @Before
     fun createDatabase() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        database =
-            Room.inMemoryDatabaseBuilder(context, DuplicatesDatabase::class.java)
-                .allowMainThreadQueries()
-                .build()
+        database = inMemoryTestDatabase(context)
         scanDao = database.scanDao()
         fingerprintDao = database.fingerprintDao()
         exclusionDao = database.exclusionDao()
@@ -145,12 +141,7 @@ class DuplicatesDatabaseTest {
     fun activeResultsContainGroupsMembersAndIndexedFiles() =
         runTest {
             scanDao.insertSession(completedSession(id = "completed", active = true))
-            scanDao.insertIndexedFiles(
-                listOf(
-                    indexedFile(id = "file-a", sessionId = "completed", path = "/storage/a.jpg"),
-                    indexedFile(id = "file-b", sessionId = "completed", path = "/storage/b.jpg"),
-                ),
-            )
+            insertCompletedFiles()
             scanDao.insertGroups(
                 listOf(
                     duplicateGroup(id = "group", sessionId = "completed"),
@@ -167,20 +158,28 @@ class DuplicatesDatabaseTest {
 
             assertEquals("completed", results.session.id)
             assertEquals(1, results.groups.size)
-            assertEquals(setOf("file-a", "file-b"), results.groups.single().members.map { it.file.id }.toSet())
-            assertTrue(results.groups.single().members.first { it.member.id == "member-a" }.member.recommendedKeep)
+            assertEquals(
+                setOf("file-a", "file-b"),
+                results.groups
+                    .single()
+                    .members
+                    .map { it.file.id }
+                    .toSet(),
+            )
+            assertTrue(
+                results.groups
+                    .single()
+                    .members
+                    .first { it.member.id == "member-a" }
+                    .member.recommendedKeep,
+            )
         }
 
     @Test
     fun selectionCannotRemoveFinalValidCopyAndUpdatesReclaimableTotals() =
         runTest {
             scanDao.insertSession(completedSession(id = "completed", active = true, reclaimableBytes = 0L))
-            scanDao.insertIndexedFiles(
-                listOf(
-                    indexedFile(id = "file-a", sessionId = "completed", path = "/storage/a.jpg"),
-                    indexedFile(id = "file-b", sessionId = "completed", path = "/storage/b.jpg"),
-                ),
-            )
+            insertCompletedFiles()
             scanDao.insertGroups(listOf(duplicateGroup(id = "group", sessionId = "completed", reclaimableBytes = 0L)))
             scanDao.insertMembers(
                 listOf(
@@ -194,8 +193,16 @@ class DuplicatesDatabaseTest {
 
             val results = scanDao.observeActiveResults().first()!!
             val group = results.groups.single()
-            assertTrue(group.members.first { it.member.id == "member-a" }.member.selectedForDeletion)
-            assertFalse(group.members.first { it.member.id == "member-b" }.member.selectedForDeletion)
+            assertTrue(
+                group.members
+                    .first { it.member.id == "member-a" }
+                    .member.selectedForDeletion,
+            )
+            assertFalse(
+                group.members
+                    .first { it.member.id == "member-b" }
+                    .member.selectedForDeletion,
+            )
             assertEquals(100L, group.group.reclaimableBytes)
             assertEquals(100L, results.session.reclaimableBytes)
         }
@@ -321,6 +328,15 @@ class DuplicatesDatabaseTest {
             assertEquals(listOf(exclusion), exclusionDao.observeAll().first())
         }
 
+    private suspend fun insertCompletedFiles() {
+        scanDao.insertIndexedFiles(
+            listOf(
+                indexedFile(id = "file-a", sessionId = "completed", path = "/storage/a.jpg"),
+                indexedFile(id = "file-b", sessionId = "completed", path = "/storage/b.jpg"),
+            ),
+        )
+    }
+
     private fun runningSession(id: String): ScanSessionEntity =
         ScanSessionEntity(
             id = id,
@@ -350,23 +366,7 @@ class DuplicatesDatabaseTest {
         id: String,
         sessionId: String,
         path: String,
-    ): IndexedFileEntity =
-        IndexedFileEntity(
-            id = id,
-            sessionId = sessionId,
-            canonicalPath = path,
-            displayName = path.substringAfterLast('/'),
-            extension = "jpg",
-            mimeType = "image/jpeg",
-            category = "photos",
-            sizeBytes = 100L,
-            lastModified = 10L,
-            volume = "primary",
-            parentPath = "/storage",
-            readable = true,
-            writable = true,
-            favorite = false,
-        )
+    ): IndexedFileEntity = indexedPhoto(id, sessionId, path)
 
     private fun duplicateGroup(
         id: String,

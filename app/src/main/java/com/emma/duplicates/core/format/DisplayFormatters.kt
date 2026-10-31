@@ -15,6 +15,7 @@ object DisplayFormatters {
     private const val MEGABYTE = 1_000_000L
     private const val GIGABYTE = 1_000_000_000L
     private const val TERABYTE = 1_000_000_000_000L
+    private const val TENTHS_PER_UNIT = 10L
 
     fun size(
         resources: Resources,
@@ -22,16 +23,25 @@ object DisplayFormatters {
     ): String {
         val safeBytes = bytes.coerceAtLeast(0L)
         return when {
-            safeBytes < KILOBYTE ->
+            safeBytes < KILOBYTE -> {
                 resources.getQuantityString(R.plurals.size_bytes, safeBytes.toInt(), safeBytes)
-            safeBytes < MEGABYTE ->
+            }
+
+            safeBytes < MEGABYTE -> {
                 resources.getString(R.string.size_kilobytes, decimal(safeBytes.toDouble() / KILOBYTE))
-            safeBytes < GIGABYTE ->
+            }
+
+            safeBytes < GIGABYTE -> {
                 resources.getString(R.string.size_megabytes, decimal(safeBytes.toDouble() / MEGABYTE))
-            safeBytes < TERABYTE ->
+            }
+
+            safeBytes < TERABYTE -> {
                 resources.getString(R.string.size_gigabytes, decimal(safeBytes.toDouble() / GIGABYTE))
-            else ->
+            }
+
+            else -> {
                 resources.getString(R.string.size_terabytes, decimal(safeBytes.toDouble() / TERABYTE))
+            }
         }
     }
 
@@ -51,17 +61,30 @@ object DisplayFormatters {
     ): StorageLabels {
         val (divisor, formatResource) =
             when {
-                storage.totalBytes >= TERABYTE -> TERABYTE to R.string.size_terabytes
-                storage.totalBytes >= GIGABYTE -> GIGABYTE to R.string.size_gigabytes
-                storage.totalBytes >= MEGABYTE -> MEGABYTE to R.string.size_megabytes
-                storage.totalBytes >= KILOBYTE -> KILOBYTE to R.string.size_kilobytes
-                else ->
+                storage.totalBytes >= TERABYTE -> {
+                    TERABYTE to R.string.size_terabytes
+                }
+
+                storage.totalBytes >= GIGABYTE -> {
+                    GIGABYTE to R.string.size_gigabytes
+                }
+
+                storage.totalBytes >= MEGABYTE -> {
+                    MEGABYTE to R.string.size_megabytes
+                }
+
+                storage.totalBytes >= KILOBYTE -> {
+                    KILOBYTE to R.string.size_kilobytes
+                }
+
+                else -> {
                     return StorageLabels(
                         total = size(resources, storage.totalBytes),
                         otherUsed = size(resources, storage.otherUsedBytes),
                         reclaimable = size(resources, storage.reclaimableBytes),
                         free = size(resources, storage.freeBytes),
                     )
+                }
             }
         val totalTenths = roundedTenths(storage.totalBytes, divisor)
         val reclaimableTenths = roundedTenths(storage.reclaimableBytes, divisor).coerceAtMost(totalTenths)
@@ -87,12 +110,12 @@ object DisplayFormatters {
     private fun floorTenths(
         bytes: Long,
         divisor: Long,
-    ): Long = bytes / divisor * 10L + bytes % divisor * 10L / divisor
+    ): Long = bytes / divisor * TENTHS_PER_UNIT + bytes % divisor * TENTHS_PER_UNIT / divisor
 
     private fun tenthRemainder(
         bytes: Long,
         divisor: Long,
-    ): Long = bytes % divisor * 10L % divisor
+    ): Long = bytes % divisor * TENTHS_PER_UNIT % divisor
 
     private fun roundedTenths(
         bytes: Long,
@@ -112,7 +135,7 @@ object DisplayFormatters {
         resources: Resources,
         tenths: Long,
         @StringRes formatResource: Int,
-    ): String = resources.getString(formatResource, decimal(tenths.toDouble() / 10.0))
+    ): String = resources.getString(formatResource, decimal(tenths.toDouble() / TENTHS_PER_UNIT))
 }
 
 data class StorageLabels(

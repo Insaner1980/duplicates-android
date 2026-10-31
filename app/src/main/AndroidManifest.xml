@@ -41,14 +41,10 @@
         </activity>
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".data.PreviewFileProvider"
             android:authorities="${applicationId}.files"
             android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
+            android:grantUriPermissions="true" />
 
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

@@ -5,22 +5,21 @@ import com.emma.duplicates.core.model.FileCategory
 import com.emma.duplicates.core.model.FileMetadata
 import com.emma.duplicates.core.model.ScanExclusion
 import com.emma.duplicates.core.model.StorageVolumeRoot
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileNotFoundException
 import java.io.IOException
 import java.net.URLConnection
 import java.nio.file.Files
 import java.nio.file.LinkOption
-import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.ArrayDeque
 import java.util.UUID
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
 
 data class PlatformFileMetadata(
     val mimeType: String? = null,
@@ -56,177 +55,204 @@ data class FileDiscoveryResult(
 
 class FileDiscovery(
     private val categoryResolver: FileCategoryResolver = FileCategoryResolver(),
-    private val metadataReader: FileMetadataReader = DefaultFileMetadataReader,
+    private val metadataReader: FileMetadataReader = defaultFileMetadataReader,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     suspend fun discover(
         roots: List<StorageVolumeRoot>,
         options: FileDiscoveryOptions = FileDiscoveryOptions(),
         onProgress: suspend (FileDiscoveryProgress) -> Unit = {},
-    ): FileDiscoveryResult = withContext(Dispatchers.IO) {
-        val files = mutableListOf<FileMetadata>()
-        val visitedDirectories = mutableSetOf<String>()
-        val queue = ArrayDeque<PendingEntry>()
-        val exclusions = options.exclusions.map(::normalizedExclusion)
-        val applicationDirectories = options.applicationDirectories.map(::normalizedPath)
-        var skippedFileCount = 0
-        var errorCount = 0
-        var visitedEntryCount = 0
-        var scannedByteCount = 0L
+    ): FileDiscoveryResult =
+        withContext(ioDispatcher) {
+            Traversal(options).discover(roots, onProgress)
+        }
 
-        roots.sortedWith(compareBy(StorageVolumeRoot::id, { it.directory.absolutePath }))
-            .forEach { queue.addLast(PendingEntry(it.directory, it)) }
+    private inner class Traversal(
+        private val options: FileDiscoveryOptions,
+    ) {
+        private val files = mutableListOf<FileMetadata>()
+        private val visitedDirectories = mutableSetOf<String>()
+        private val queue = ArrayDeque<PendingEntry>()
+        private val exclusions = options.exclusions.map(::normalizedExclusion)
+        private val applicationDirectories = options.applicationDirectories.map(::normalizedPath)
+        private var skippedFileCount = 0
+        private var errorCount = 0
+        private var visitedEntryCount = 0
+        private var scannedByteCount = 0L
 
-        while (queue.isNotEmpty()) {
-            currentCoroutineContext().ensureActive()
-            val pending = queue.removeFirst()
-            visitedEntryCount += 1
-            try {
-                val path = pending.file.toPath()
-                val attributes = try {
-                    Files.readAttributes(
-                        path,
-                        BasicFileAttributes::class.java,
-                        LinkOption.NOFOLLOW_LINKS,
+        suspend fun discover(
+            roots: List<StorageVolumeRoot>,
+            onProgress: suspend (FileDiscoveryProgress) -> Unit,
+        ): FileDiscoveryResult {
+            roots
+                .sortedWith(compareBy(StorageVolumeRoot::id, { it.directory.absolutePath }))
+                .forEach { queue.addLast(PendingEntry(it.directory, it)) }
+
+            while (queue.isNotEmpty()) {
+                currentCoroutineContext().ensureActive()
+                val pending = queue.removeFirst()
+                visitedEntryCount += 1
+                try {
+                    discoverEntry(pending)
+                } finally {
+                    onProgress(
+                        FileDiscoveryProgress(
+                            visitedEntryCount = visitedEntryCount,
+                            currentPath = pending.file.absolutePath,
+                            discoveredFileCount = files.size,
+                            scannedByteCount = scannedByteCount,
+                        ),
                     )
-                } catch (_: NoSuchFileException) {
-                    skippedFileCount += 1
-                    errorCount += 1
-                    continue
-                } catch (_: FileNotFoundException) {
-                    skippedFileCount += 1
-                    errorCount += 1
-                    continue
-                } catch (_: SecurityException) {
-                    skippedFileCount += 1
-                    errorCount += 1
-                    continue
-                } catch (_: IOException) {
-                    skippedFileCount += 1
-                    errorCount += 1
-                    continue
+                    currentCoroutineContext().ensureActive()
                 }
+            }
 
-                if (attributes.isSymbolicLink) {
-                    if (attributes.isRegularFile) skippedFileCount += 1
-                    continue
-                }
+            return FileDiscoveryResult(
+                files = files.sortedWith(compareBy(FileMetadata::storageVolume, FileMetadata::canonicalPath)),
+                skippedFileCount = skippedFileCount,
+                errorCount = errorCount,
+            )
+        }
 
-                val canonicalFile = try {
-                    pending.file.canonicalFile
-                } catch (_: SecurityException) {
-                    if (attributes.isRegularFile) skippedFileCount += 1
-                    errorCount += 1
-                    continue
-                } catch (_: IOException) {
-                    if (attributes.isRegularFile) skippedFileCount += 1
-                    errorCount += 1
-                    continue
-                }
-                val canonicalPath = canonicalFile.path
-
-                if (shouldSkipEntry(canonicalFile, canonicalPath, options, exclusions, applicationDirectories)) {
-                    if (attributes.isRegularFile) skippedFileCount += 1
-                    continue
-                }
-
+        private suspend fun discoverEntry(pending: PendingEntry) {
+            val attributes = readAttributes(pending.file) ?: return
+            if (attributes.isSymbolicLink) {
+                if (attributes.isRegularFile) skippedFileCount += 1
+            } else {
+                val canonicalFile = canonicalFile(pending.file, attributes) ?: return
                 when {
+                    shouldSkipEntry(canonicalFile, canonicalFile.path, options, exclusions, applicationDirectories) -> {
+                        if (attributes.isRegularFile) skippedFileCount += 1
+                    }
+
                     attributes.isDirectory -> {
-                        if (!visitedDirectories.add(canonicalPath)) continue
-                        val children = try {
-                            canonicalFile.listFiles()
-                        } catch (_: SecurityException) {
-                            null
-                        }
-                        if (children == null) {
-                            errorCount += 1
-                            continue
-                        }
-                        children.sortedBy { it.name.lowercase() }
-                            .forEach { queue.addLast(PendingEntry(it, pending.root)) }
+                        discoverDirectory(canonicalFile, pending.root)
                     }
 
                     attributes.isRegularFile -> {
-                        if (attributes.size() == 0L) {
-                            skippedFileCount += 1
-                            continue
-                        }
-                        if (!canonicalFile.canRead()) {
-                            skippedFileCount += 1
-                            errorCount += 1
-                            continue
-                        }
-
-                        val platformMetadata = try {
-                            metadataReader.read(canonicalFile)
-                        } catch (_: FileNotFoundException) {
-                            skippedFileCount += 1
-                            errorCount += 1
-                            continue
-                        } catch (_: NoSuchFileException) {
-                            skippedFileCount += 1
-                            errorCount += 1
-                            continue
-                        } catch (_: SecurityException) {
-                            skippedFileCount += 1
-                            errorCount += 1
-                            continue
-                        } catch (_: IOException) {
-                            skippedFileCount += 1
-                            errorCount += 1
-                            continue
-                        }
-                        if (platformMetadata.isTrashed == true) {
-                            skippedFileCount += 1
-                            continue
-                        }
-
-                        val extension = canonicalFile.extension.lowercase()
-                        val category = categoryResolver.resolve(platformMetadata.mimeType, extension)
-                        if (category !in options.enabledCategories) {
-                            skippedFileCount += 1
-                            continue
-                        }
-
-                        files += FileMetadata(
-                            id = stableFileId(pending.root.id, canonicalPath),
-                            canonicalPath = canonicalPath,
-                            displayName = canonicalFile.name,
-                            extension = extension,
-                            mimeType = platformMetadata.mimeType,
-                            category = category,
-                            sizeBytes = attributes.size(),
-                            lastModifiedMillis = attributes.lastModifiedTime().toMillis(),
-                            storageVolume = pending.root.id,
-                            parentDirectory = canonicalFile.parentFile?.path.orEmpty(),
-                            isReadable = true,
-                            isWritable = canonicalFile.canWrite(),
-                            contentUri = platformMetadata.contentUri,
-                            isFavorite = platformMetadata.isFavorite,
-                            isTrashed = platformMetadata.isTrashed,
-                        )
-                        scannedByteCount += attributes.size()
+                        discoverFile(canonicalFile, pending.root, attributes)
                     }
-
-                    else -> Unit
                 }
-            } finally {
-                onProgress(
-                    FileDiscoveryProgress(
-                        visitedEntryCount = visitedEntryCount,
-                        currentPath = pending.file.absolutePath,
-                        discoveredFileCount = files.size,
-                        scannedByteCount = scannedByteCount,
-                    ),
-                )
-                currentCoroutineContext().ensureActive()
             }
         }
 
-        FileDiscoveryResult(
-            files = files.sortedWith(compareBy(FileMetadata::storageVolume, FileMetadata::canonicalPath)),
-            skippedFileCount = skippedFileCount,
-            errorCount = errorCount,
-        )
+        private fun readAttributes(file: File): BasicFileAttributes? =
+            try {
+                Files.readAttributes(file.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+            } catch (_: SecurityException) {
+                skippedFileCount += 1
+                errorCount += 1
+                null
+            } catch (_: IOException) {
+                skippedFileCount += 1
+                errorCount += 1
+                null
+            }
+
+        private fun canonicalFile(
+            file: File,
+            attributes: BasicFileAttributes,
+        ): File? =
+            try {
+                file.canonicalFile
+            } catch (_: SecurityException) {
+                if (attributes.isRegularFile) skippedFileCount += 1
+                errorCount += 1
+                null
+            } catch (_: IOException) {
+                if (attributes.isRegularFile) skippedFileCount += 1
+                errorCount += 1
+                null
+            }
+
+        private fun discoverDirectory(
+            file: File,
+            root: StorageVolumeRoot,
+        ) {
+            if (!visitedDirectories.add(file.path)) return
+            val children =
+                try {
+                    file.listFiles()
+                } catch (_: SecurityException) {
+                    null
+                }
+            if (children == null) {
+                errorCount += 1
+            } else {
+                children.sortedBy { it.name.lowercase() }.forEach { queue.addLast(PendingEntry(it, root)) }
+            }
+        }
+
+        private suspend fun discoverFile(
+            file: File,
+            root: StorageVolumeRoot,
+            attributes: BasicFileAttributes,
+        ) {
+            when {
+                attributes.size() == 0L -> {
+                    skippedFileCount += 1
+                }
+
+                !file.canRead() -> {
+                    skippedFileCount += 1
+                    errorCount += 1
+                }
+
+                else -> {
+                    readMetadata(file)?.let { addFile(file, root, attributes, it) }
+                }
+            }
+        }
+
+        private suspend fun readMetadata(file: File): PlatformFileMetadata? =
+            try {
+                metadataReader.read(file)
+            } catch (_: SecurityException) {
+                skippedFileCount += 1
+                errorCount += 1
+                null
+            } catch (_: IOException) {
+                skippedFileCount += 1
+                errorCount += 1
+                null
+            }
+
+        private fun addFile(
+            file: File,
+            root: StorageVolumeRoot,
+            attributes: BasicFileAttributes,
+            metadata: PlatformFileMetadata,
+        ) {
+            if (metadata.isTrashed == true) {
+                skippedFileCount += 1
+                return
+            }
+            val extension = file.extension.lowercase()
+            val category = categoryResolver.resolve(metadata.mimeType, extension)
+            if (category !in options.enabledCategories) {
+                skippedFileCount += 1
+            } else {
+                files +=
+                    FileMetadata(
+                        id = stableFileId(root.id, file.path),
+                        canonicalPath = file.path,
+                        displayName = file.name,
+                        extension = extension,
+                        mimeType = metadata.mimeType,
+                        category = category,
+                        sizeBytes = attributes.size(),
+                        lastModifiedMillis = attributes.lastModifiedTime().toMillis(),
+                        storageVolume = root.id,
+                        parentDirectory = file.parentFile?.path.orEmpty(),
+                        isReadable = true,
+                        isWritable = file.canWrite(),
+                        contentUri = metadata.contentUri,
+                        isFavorite = metadata.isFavorite,
+                        isTrashed = metadata.isTrashed,
+                    )
+                scannedByteCount += attributes.size()
+            }
+        }
     }
 
     private fun shouldSkipEntry(
@@ -236,21 +262,23 @@ class FileDiscovery(
         exclusions: List<NormalizedExclusion>,
         applicationDirectories: List<Path>,
     ): Boolean {
-        if (!options.scanHiddenFolders && file.name.startsWith('.')) return true
-        if (file.isDirectory && isRecycleDirectoryName(file.name)) return true
-        if (file.isDirectory && isRestrictedAndroidDirectory(file)) return true
-        if (file.isDirectory && options.ignoreSystemFolders && file.name.lowercase() in SYSTEM_DIRECTORY_NAMES) {
+        val skipByName =
+            (!options.scanHiddenFolders && file.name.startsWith('.')) ||
+                (file.isDirectory && isRecycleDirectoryName(file.name)) ||
+                (file.isDirectory && isRestrictedAndroidDirectory(file)) ||
+                (file.isDirectory && options.ignoreSystemFolders && file.name.lowercase() in SYSTEM_DIRECTORY_NAMES)
+        if (skipByName) {
             return true
         }
 
         val path = normalizedPath(canonicalPath)
-        if (applicationDirectories.any(path::startsWith)) return true
-        return exclusions.any { exclusion ->
-            when (exclusion.type) {
-                ExclusionType.FILE -> path == exclusion.path
-                ExclusionType.FOLDER -> path.startsWith(exclusion.path)
+        return applicationDirectories.any(path::startsWith) ||
+            exclusions.any { exclusion ->
+                when (exclusion.type) {
+                    ExclusionType.FILE -> path == exclusion.path
+                    ExclusionType.FOLDER -> path.startsWith(exclusion.path)
+                }
             }
-        }
     }
 
     private fun normalizedExclusion(exclusion: ScanExclusion): NormalizedExclusion =
@@ -267,8 +295,10 @@ class FileDiscovery(
         return normalized in RECYCLE_DIRECTORY_NAMES || normalized.startsWith(".trash-")
     }
 
-    private fun stableFileId(volume: String, canonicalPath: String): String =
-        UUID.nameUUIDFromBytes("$volume\u0000$canonicalPath".toByteArray(Charsets.UTF_8)).toString()
+    private fun stableFileId(
+        volume: String,
+        canonicalPath: String,
+    ): String = UUID.nameUUIDFromBytes("$volume\u0000$canonicalPath".toByteArray(Charsets.UTF_8)).toString()
 
     private data class PendingEntry(
         val file: File,
@@ -282,18 +312,21 @@ class FileDiscovery(
 
     private companion object {
         val RESTRICTED_ANDROID_DIRECTORY_NAMES = setOf("data", "obb")
-        val RECYCLE_DIRECTORY_NAMES = setOf(
-            ".trash",
-            ".trashes",
-            "\$recycle.bin",
-        )
+        val RECYCLE_DIRECTORY_NAMES =
+            setOf(
+                ".trash",
+                ".trashes",
+                "\$recycle.bin",
+            )
         val SYSTEM_DIRECTORY_NAMES = setOf("cache", ".cache", "tmp", "temp", "lost.dir")
     }
 }
 
-private object DefaultFileMetadataReader : FileMetadataReader {
-    override suspend fun read(file: File): PlatformFileMetadata = PlatformFileMetadata(
-        mimeType = Files.probeContentType(file.toPath())
-            ?: URLConnection.guessContentTypeFromName(file.name),
-    )
-}
+private val defaultFileMetadataReader =
+    FileMetadataReader { file ->
+        PlatformFileMetadata(
+            mimeType =
+                Files.probeContentType(file.toPath())
+                    ?: URLConnection.guessContentTypeFromName(file.name),
+        )
+    }

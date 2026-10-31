@@ -12,4 +12,6 @@ fun FileCategory.toUiCategory(): UiFileCategory =
     }
 
 fun String.toUiCategory(): UiFileCategory =
-    runCatching { FileCategory.valueOf(this).toUiCategory() }.getOrDefault(UiFileCategory.DOCUMENTS)
+    runCatching {
+        FileCategory.valueOf(this).toUiCategory()
+    }.getOrDefault(UiFileCategory.DOCUMENTS)

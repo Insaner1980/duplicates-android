@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "id": "mobsf-task-hijacking2-gradle-sdk",
+      "tool": "mobsfscan",
+      "rule": "android_task_hijacking2",
+      "scope": "app/src/main/AndroidManifest.xml android_task_hijacking2",
+      "reason": "False positive in mobsfscan 0.4.5: its source-manifest parser defaults an absent target SDK to 26 instead of reading Gradle. Gradle and the merged debug/release manifests specify minSdk 30 and targetSdk 37. Android 11 and newer include the StrandHogg platform fixes. Preserve the existing singleTop notification navigation.",
+      "owner": "project-maintainers",
+      "added": "2026-10-30",
+      "expires": "2026-11-29",
+      "tracking": "https://developer.android.com/privacy-and-security/risks/strandhogg",
+      "sourcePath": "app/build.gradle.kts",
+      "selector": "minSdk = 30",
+      "findingPath": "app/src/main/AndroidManifest.xml",
+      "findingSelectors": [
+        "Activity exported, targetSdk<29 and launchMode != singleInstance or taskAffinity is not empty"
+      ]
+    }
+  ]
+}

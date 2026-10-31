@@ -17,18 +17,20 @@ class ScanResultMapperTest {
 
     @Test
     fun `mapping preserves scanner hashes platform metadata and safe selection`() {
-        val favorite = file(
-            id = "favorite",
-            path = "/storage/emulated/0/Download/photo.jpg",
-            favorite = true,
-            contentUri = "content://media/1",
-        )
+        val favorite =
+            file(
+                id = "favorite",
+                path = "/storage/emulated/0/Download/photo.jpg",
+                favorite = true,
+                contentUri = "content://media/1",
+            )
         val camera = file("camera", "/storage/emulated/0/DCIM/Camera/photo-copy.jpg")
-        val trashed = file(
-            id = "trashed",
-            path = "/storage/emulated/0/Other/photo-copy.jpg",
-            trashed = true,
-        )
+        val trashed =
+            file(
+                id = "trashed",
+                path = "/storage/emulated/0/Other/photo-copy.jpg",
+                trashed = true,
+            )
         val unique = file("unique", "/storage/emulated/0/Documents/unique.txt")
         val result = result(group(favorite, camera, trashed))
 
@@ -65,28 +67,42 @@ class ScanResultMapperTest {
         assertEquals(old.files.map { it.id }, oldAgain.files.map { it.id })
         assertEquals(old.groups.map { it.id }, oldAgain.groups.map { it.id })
         assertEquals(old.members.map { it.id }, oldAgain.members.map { it.id })
-        assertTrue(old.files.map { it.id }.toSet().intersect(staging.files.map { it.id }.toSet()).isEmpty())
+        assertTrue(
+            old.files
+                .map { it.id }
+                .toSet()
+                .intersect(staging.files.map { it.id }.toSet())
+                .isEmpty(),
+        )
         assertNotEquals(old.groups.single().id, staging.groups.single().id)
-        assertTrue(old.members.map { it.id }.toSet().intersect(staging.members.map { it.id }.toSet()).isEmpty())
+        assertTrue(
+            old.members
+                .map { it.id }
+                .toSet()
+                .intersect(staging.members.map { it.id }.toSet())
+                .isEmpty(),
+        )
     }
 
-    private fun result(group: ExactDuplicateGroup) = ExactDuplicateScanResult(
-        groups = listOf(group),
-        issues = emptyList(),
-        skippedFileCount = 0,
-        errorCount = 0,
-        cacheHitCount = 0,
-        quickHashedFileCount = group.copyCount,
-        fullHashedFileCount = group.copyCount,
-    )
+    private fun result(group: ExactDuplicateGroup) =
+        ExactDuplicateScanResult(
+            groups = listOf(group),
+            issues = emptyList(),
+            skippedFileCount = 0,
+            errorCount = 0,
+            cacheHitCount = 0,
+            quickHashedFileCount = group.copyCount,
+            fullHashedFileCount = group.copyCount,
+        )
 
-    private fun group(vararg files: FileMetadata) = ExactDuplicateGroup(
-        id = "100:full:0",
-        category = FileCategory.PHOTOS,
-        sizeBytes = 100L,
-        contentHash = "full",
-        members = files.map { ExactDuplicateMember(it, quickSha256 = "quick", fullSha256 = "full") },
-    )
+    private fun group(vararg files: FileMetadata) =
+        ExactDuplicateGroup(
+            id = "100:full:0",
+            category = FileCategory.PHOTOS,
+            sizeBytes = 100L,
+            contentHash = "full",
+            members = files.map { ExactDuplicateMember(it, quickSha256 = "quick", fullSha256 = "full") },
+        )
 
     private fun file(
         id: String,

@@ -46,7 +46,7 @@ class ReviewDuplicatesScreenTest {
                     onBack = {},
                     onPreviewMember = {},
                     onMemberSelectionChange = { _, _ -> },
-                    onSelectionBlocked = {},
+                    onSelectionBlock = {},
                     onRequestDelete = {},
                     onDismissDelete = {},
                     onConfirmDelete = {},
@@ -82,7 +82,7 @@ class ReviewDuplicatesScreenTest {
                     onBack = {},
                     onPreviewMember = {},
                     onMemberSelectionChange = { _, _ -> },
-                    onSelectionBlocked = {},
+                    onSelectionBlock = {},
                     onRequestDelete = {
                         state.value = state.value.copy(deleteConfirmationVisible = true)
                     },

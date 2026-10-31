@@ -25,9 +25,13 @@ fun DuplicatesCard(
         color = SurfaceContainer,
         border = BorderStroke(1.dp, OutlineVariant),
         tonalElevation = 1.dp,
-        content = { androidx.compose.foundation.layout.Column(content = content) },
+        content = {
+            androidx.compose.foundation.layout
+                .Column(content = content)
+        },
     )
 }
+
 @Composable
 fun PrimaryActionButton(
     onClick: () -> Unit,

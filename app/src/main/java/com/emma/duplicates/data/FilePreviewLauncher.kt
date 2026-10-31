@@ -6,15 +6,15 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.webkit.MimeTypeMap
-import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import com.emma.duplicates.core.database.IndexedFileEntity
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 sealed interface PreviewPreparation {
     data class Ready(
@@ -34,32 +34,19 @@ enum class PreviewLaunchResult {
 
 class FilePreviewLauncher(
     private val context: Context,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val fileUriProvider: (File) -> Uri = { file ->
-        FileProvider.getUriForFile(
+        PreviewFileProvider.getUriForFile(
             context,
-            "${context.packageName}.files",
             file,
         )
     },
 ) {
     suspend fun prepare(file: IndexedFileEntity): PreviewPreparation =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val mimeType = file.previewMimeType()
             file.contentUri?.let { uri ->
-                val parsedUri = uri.toUri()
-                return@withContext try {
-                    context.contentResolver.openFileDescriptor(parsedUri, "r")?.use { }
-                        ?: return@withContext PreviewPreparation.Missing
-                    PreviewPreparation.Ready(parsedUri, mimeType)
-                } catch (_: FileNotFoundException) {
-                    PreviewPreparation.Missing
-                } catch (_: IllegalArgumentException) {
-                    PreviewPreparation.Missing
-                } catch (_: SecurityException) {
-                    PreviewPreparation.Failed
-                } catch (_: IOException) {
-                    PreviewPreparation.Failed
-                }
+                return@withContext prepareContentUri(uri.toUri(), mimeType)
             }
 
             val source = File(file.canonicalPath)
@@ -69,11 +56,34 @@ class FilePreviewLauncher(
                     uri = fileUriProvider(source),
                     mimeType = mimeType,
                 )
+            } catch (_: FileNotFoundException) {
+                PreviewPreparation.Missing
+            } catch (_: IOException) {
+                PreviewPreparation.Failed
             } catch (_: SecurityException) {
                 PreviewPreparation.Failed
             } catch (_: IllegalArgumentException) {
                 PreviewPreparation.Failed
             }
+        }
+
+    private fun prepareContentUri(
+        uri: Uri,
+        mimeType: String,
+    ): PreviewPreparation =
+        try {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use {
+                // Opening and closing the descriptor verifies that the URI is readable.
+            } ?: return PreviewPreparation.Missing
+            PreviewPreparation.Ready(uri, mimeType)
+        } catch (_: FileNotFoundException) {
+            PreviewPreparation.Missing
+        } catch (_: IllegalArgumentException) {
+            PreviewPreparation.Missing
+        } catch (_: SecurityException) {
+            PreviewPreparation.Failed
+        } catch (_: IOException) {
+            PreviewPreparation.Failed
         }
 
     fun launch(prepared: PreviewPreparation.Ready): PreviewLaunchResult {
@@ -97,7 +107,8 @@ class FilePreviewLauncher(
         if (!storedMimeType.isNullOrBlank() && storedMimeType !in GENERIC_MIME_TYPES) {
             return storedMimeType
         }
-        return MimeTypeMap.getSingleton()
+        return MimeTypeMap
+            .getSingleton()
             .getMimeTypeFromExtension(extension.trim().trimStart('.').lowercase(Locale.ENGLISH))
             ?: "application/octet-stream"
     }

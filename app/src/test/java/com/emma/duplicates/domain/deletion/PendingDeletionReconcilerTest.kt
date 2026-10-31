@@ -6,43 +6,48 @@ import org.junit.Test
 
 class PendingDeletionReconcilerTest {
     @Test
-    fun `reconciliation reports only files confirmed absent from storage`() = runTest {
-        val missing = pendingFile("missing")
-        val present = pendingFile("present")
-        val inaccessible = pendingFile("inaccessible")
-        val operation = PendingDeletionOperation("operation", listOf(missing, present, inaccessible))
-        val storage = RecoveryStorage(
-            mapOf(
-                "present" to snapshot(isReadable = true),
-                "inaccessible" to snapshot(isReadable = false),
-            ),
-        )
-        val store = RecoveryStore(operation)
+    fun `reconciliation reports only files confirmed absent from storage`() =
+        runTest {
+            val missing = pendingFile("missing")
+            val present = pendingFile("present")
+            val inaccessible = pendingFile("inaccessible")
+            val operation = PendingDeletionOperation("operation", listOf(missing, present, inaccessible))
+            val storage =
+                RecoveryStorage(
+                    mapOf(
+                        "present" to snapshot(isReadable = true),
+                        "inaccessible" to snapshot(isReadable = false),
+                    ),
+                )
+            val store = RecoveryStore(operation)
 
-        PendingDeletionReconciler(storage, store).reconcile()
+            PendingDeletionReconciler(storage, store).reconcile()
 
-        assertEquals(listOf("operation" to setOf("missing")), store.reconciliations)
-    }
+            assertEquals(listOf("operation" to setOf("missing")), store.reconciliations)
+        }
 
-    private fun pendingFile(id: String) = PendingDeletionFile(
-        groupId = "group",
-        memberId = "member-$id",
-        file = DeletionFile(
-            id = id,
+    private fun pendingFile(id: String) =
+        PendingDeletionFile(
+            groupId = "group",
             memberId = "member-$id",
-            canonicalPath = "/storage/$id.txt",
+            file =
+                DeletionFile(
+                    id = id,
+                    memberId = "member-$id",
+                    canonicalPath = "/storage/$id.txt",
+                    sizeBytes = 100L,
+                    lastModifiedMillis = 10L,
+                    selectedForDeletion = true,
+                ),
+        )
+
+    private fun snapshot(isReadable: Boolean) =
+        CurrentFileSnapshot(
             sizeBytes = 100L,
             lastModifiedMillis = 10L,
-            selectedForDeletion = true,
-        ),
-    )
-
-    private fun snapshot(isReadable: Boolean) = CurrentFileSnapshot(
-        sizeBytes = 100L,
-        lastModifiedMillis = 10L,
-        isReadable = isReadable,
-        isWritable = isReadable,
-    )
+            isReadable = isReadable,
+            isWritable = isReadable,
+        )
 
     private class RecoveryStorage(
         private val snapshots: Map<String, CurrentFileSnapshot>,
@@ -51,8 +56,10 @@ class PendingDeletionReconcilerTest {
 
         override suspend fun fullHash(file: DeletionFile): String? = error("Not used")
 
-        override suspend fun contentsEqual(first: DeletionFile, second: DeletionFile): Boolean =
-            error("Not used")
+        override suspend fun contentsEqual(
+            first: DeletionFile,
+            second: DeletionFile,
+        ): Boolean = error("Not used")
 
         override suspend fun deleteDirect(file: DeletionFile): DirectDeletionResult = error("Not used")
     }

@@ -9,12 +9,14 @@ class PendingDeletionReconciler(
 ) {
     private val mutex = Mutex()
 
-    suspend fun reconcile() = mutex.withLock {
-        resultStore.pendingDeletions().forEach { operation ->
-            val missingFileIds = operation.files
-                .filter { pending -> storage.snapshot(pending.file) == null }
-                .mapTo(linkedSetOf()) { pending -> pending.file.id }
-            resultStore.reconcileDeletion(operation.id, missingFileIds)
+    suspend fun reconcile() =
+        mutex.withLock {
+            resultStore.pendingDeletions().forEach { operation ->
+                val missingFileIds =
+                    operation.files
+                        .filter { pending -> storage.snapshot(pending.file) == null }
+                        .mapTo(linkedSetOf()) { pending -> pending.file.id }
+                resultStore.reconcileDeletion(operation.id, missingFileIds)
+            }
         }
-    }
 }

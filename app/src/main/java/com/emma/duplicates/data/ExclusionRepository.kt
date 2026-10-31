@@ -4,12 +4,12 @@ import com.emma.duplicates.core.database.ExclusionEntity
 import com.emma.duplicates.core.database.ExclusionTypes
 import com.emma.duplicates.core.model.ExclusionType
 import com.emma.duplicates.core.storage.StorageVolumeSource
+import kotlinx.coroutines.flow.Flow
 import java.io.File
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import java.util.UUID
-import kotlinx.coroutines.flow.Flow
 
 enum class AddExclusionResult {
     ADDED,
@@ -29,40 +29,27 @@ class ExclusionRepository(
         path: String,
         type: ExclusionType,
     ): AddExclusionResult {
-        val file =
-            try {
-                File(path).canonicalFile
-            } catch (_: SecurityException) {
-                return AddExclusionResult.NOT_ACCESSIBLE
-            } catch (_: IOException) {
-                return AddExclusionResult.NOT_ACCESSIBLE
-            }
-        if (!file.canRead() || (type == ExclusionType.FOLDER && !file.isDirectory) ||
-            (type == ExclusionType.FILE && !file.isFile)
-        ) {
-            return AddExclusionResult.NOT_ACCESSIBLE
-        }
-        val roots = volumeSource.mountedVolumes().mapNotNull { it.directory.safeCanonicalPath() }
+        val file = File(path).accessibleCanonicalFile(type) ?: return AddExclusionResult.NOT_ACCESSIBLE
         val candidatePath = file.toPath()
-        if (roots.none(candidatePath::startsWith)) return AddExclusionResult.NOT_ACCESSIBLE
-
         val existing = scanStore.getExclusions()
-        if (existing.any { it.canonicalPath == file.path }) {
-            return AddExclusionResult.ALREADY_EXCLUDED
+        return when {
+            existing.any { it.canonicalPath == file.path } -> AddExclusionResult.ALREADY_EXCLUDED
+            existing.any { it.contains(candidatePath) } -> AddExclusionResult.PARENT_ALREADY_EXCLUDED
+            else -> insert(file, type, existing)
         }
-        if (
-            existing.any { exclusion ->
-                exclusion.type == ExclusionTypes.FOLDER &&
-                    candidatePath.startsWith(File(exclusion.canonicalPath).toPath())
-            }
-        ) {
-            return AddExclusionResult.PARENT_ALREADY_EXCLUDED
-        }
+    }
 
+    private suspend fun insert(
+        file: File,
+        type: ExclusionType,
+        existing: List<ExclusionEntity>,
+    ): AddExclusionResult {
+        val candidatePath = file.toPath()
         if (type == ExclusionType.FOLDER) {
-            existing.filter { exclusion ->
-                File(exclusion.canonicalPath).toPath().startsWith(candidatePath)
-            }.forEach { scanStore.removeExclusion(it.id) }
+            existing
+                .filter { exclusion ->
+                    File(exclusion.canonicalPath).toPath().startsWith(candidatePath)
+                }.forEach { scanStore.removeExclusion(it.id) }
         }
         val inserted =
             scanStore.addExclusion(
@@ -75,6 +62,20 @@ class ExclusionRepository(
                 ),
             )
         return if (inserted) AddExclusionResult.ADDED else AddExclusionResult.ALREADY_EXCLUDED
+    }
+
+    private fun ExclusionEntity.contains(candidate: Path): Boolean =
+        type == ExclusionTypes.FOLDER && candidate.startsWith(File(canonicalPath).toPath())
+
+    private fun File.accessibleCanonicalFile(type: ExclusionType): File? {
+        val canonical = safeCanonicalPath()?.toFile() ?: return null
+        val matchesType =
+            when (type) {
+                ExclusionType.FOLDER -> canonical.isDirectory
+                ExclusionType.FILE -> canonical.isFile
+            }
+        val roots = volumeSource.mountedVolumes().mapNotNull { it.directory.safeCanonicalPath() }
+        return canonical.takeIf { matchesType && it.canRead() && roots.any(it.toPath()::startsWith) }
     }
 
     suspend fun remove(id: String) {

@@ -45,24 +45,26 @@ class MainActivity : ComponentActivity() {
             if (scanStartPending) {
                 scanStartPending = false
                 if (!granted) {
-                    Toast.makeText(
-                        this,
-                        R.string.notifications_disabled_scan_continues,
-                        Toast.LENGTH_LONG,
-                    ).show()
+                    Toast
+                        .makeText(
+                            this,
+                            R.string.notifications_disabled_scan_continues,
+                            Toast.LENGTH_LONG,
+                        ).show()
                 }
                 enqueueScanIfAllowed()
             }
         }
     private val mediaDeletionLauncher =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-            val deliveredToLiveRequest = deletionAuthorizer.complete(
-                if (result.resultCode == Activity.RESULT_OK) {
-                    MediaAuthorization.APPROVED
-                } else {
-                    MediaAuthorization.CANCELED
-                },
-            )
+            val deliveredToLiveRequest =
+                deletionAuthorizer.complete(
+                    if (result.resultCode == Activity.RESULT_OK) {
+                        MediaAuthorization.APPROVED
+                    } else {
+                        MediaAuthorization.CANCELED
+                    },
+                )
             if (deletionRecoveryGate.onAuthorizationResult(deliveredToLiveRequest)) {
                 reconcilePendingDeletions()
             }
@@ -180,10 +182,10 @@ internal class DeletionRecoveryGate {
 
     fun onResume(hasPendingRequest: Boolean): Boolean {
         if (hasPendingRequest) return false
+        val shouldReconcile = !suppressNextResume
         if (suppressNextResume) {
             suppressNextResume = false
-            return false
         }
-        return true
+        return shouldReconcile
     }
 }

@@ -1,0 +1,44 @@
+rules:
+  - id: duplicates-android-backup-enabled
+    languages: [xml]
+    severity: ERROR
+    message: Keep backups disabled to protect local file paths, scan results, and deletion records.
+    paths:
+      include:
+        - /app/src/main/AndroidManifest.xml
+        - /app/src/release/AndroidManifest.xml
+    pattern: |
+      <application ... android:allowBackup="true" ...>
+
+  - id: duplicates-android-debuggable-enabled
+    languages: [xml]
+    severity: ERROR
+    message: Debugging must not be enabled in the main or release manifest.
+    paths:
+      include:
+        - /app/src/main/AndroidManifest.xml
+        - /app/src/release/AndroidManifest.xml
+    pattern: |
+      <application ... android:debuggable="true" ...>
+
+  - id: duplicates-android-cleartext-enabled
+    languages: [xml]
+    severity: ERROR
+    message: Keep cleartext traffic disabled in this offline file utility.
+    paths:
+      include:
+        - /app/src/main/AndroidManifest.xml
+        - /app/src/release/AndroidManifest.xml
+    pattern: |
+      <application ... android:usesCleartextTraffic="true" ...>
+
+  - id: duplicates-android-provider-exported
+    languages: [xml]
+    severity: ERROR
+    message: Keep content providers non-exported to prevent unrestricted access to app data.
+    paths:
+      include:
+        - /app/src/main/AndroidManifest.xml
+        - /app/src/release/AndroidManifest.xml
+    pattern: |
+      <provider ... android:exported="true" ...>

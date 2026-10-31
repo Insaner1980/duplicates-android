@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.emma.duplicates.R
 import com.emma.duplicates.core.designsystem.DuplicatesCard
 import com.emma.duplicates.core.designsystem.Primary
+import com.emma.duplicates.ui.components.screenListPadding
 
 enum class ExclusionKind {
     FOLDER,
@@ -53,7 +54,6 @@ data class ExclusionsUiState(
 )
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 fun ExclusionsScreen(
     state: ExclusionsUiState,
     onRequestAdd: () -> Unit,
@@ -72,57 +72,13 @@ fun ExclusionsScreen(
         val horizontalPadding = if (maxWidth >= 600.dp) 32.dp else 24.dp
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding =
-                androidx.compose.foundation.layout.PaddingValues(
-                    start = horizontalPadding,
-                    end = horizontalPadding,
-                    top = 24.dp,
-                    bottom = 32.dp,
-                ),
+            contentPadding = screenListPadding(horizontalPadding),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.exclusions),
-                        style = MaterialTheme.typography.displayLarge,
-                        modifier = Modifier.weight(1f).semantics { heading() },
-                    )
-                    IconButton(
-                        onClick = onRequestAdd,
-                        modifier = Modifier.size(48.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Add,
-                            contentDescription = stringResource(R.string.add_exclusion),
-                        )
-                    }
-                }
+                ExclusionsHeader(onRequestAdd)
             }
-            item {
-                DuplicatesCard(Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.scans_skip_excluded_items),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Primary,
-                            modifier = Modifier.semantics { heading() },
-                        )
-                        Text(
-                            text = stringResource(R.string.exclusions_explanation),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
+            item { ExclusionsExplanation() }
             item {
                 SectionHeader(
                     title = stringResource(R.string.excluded_folders),
@@ -148,25 +104,7 @@ fun ExclusionsScreen(
         }
     }
 
-    if (state.addSheetVisible) {
-        ModalBottomSheet(
-            onDismissRequest = onDismissAddSheet,
-            containerColor = MaterialTheme.colorScheme.surface,
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.add_exclusion),
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.padding(bottom = 8.dp).semantics { heading() },
-                )
-                AddChoiceRow(R.string.choose_folder, onChooseFolder)
-                AddChoiceRow(R.string.choose_file, onChooseFile)
-            }
-        }
-    }
+    AddExclusionSheet(state.addSheetVisible, onDismissAddSheet, onChooseFolder, onChooseFile)
 }
 
 @Composable
@@ -258,5 +196,80 @@ private fun AddChoiceRow(
             tint = Primary,
         )
         Text(stringResource(textRes), style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+@Composable
+private fun ExclusionsHeader(onRequestAdd: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.exclusions),
+            style = MaterialTheme.typography.displayLarge,
+            modifier = Modifier.weight(1f).semantics { heading() },
+        )
+        IconButton(
+            onClick = onRequestAdd,
+            modifier = Modifier.size(48.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Add,
+                contentDescription = stringResource(R.string.add_exclusion),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExclusionsExplanation() {
+    DuplicatesCard(Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.scans_skip_excluded_items),
+                style = MaterialTheme.typography.titleLarge,
+                color = Primary,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(
+                text = stringResource(R.string.exclusions_explanation),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddExclusionSheet(
+    visible: Boolean,
+    onDismissAddSheet: () -> Unit,
+    onChooseFolder: () -> Unit,
+    onChooseFile: () -> Unit,
+) {
+    if (visible) {
+        ModalBottomSheet(
+            onDismissRequest = onDismissAddSheet,
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.add_exclusion),
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.padding(bottom = 8.dp).semantics { heading() },
+                )
+                AddChoiceRow(R.string.choose_folder, onChooseFolder)
+                AddChoiceRow(R.string.choose_file, onChooseFile)
+            }
+        }
     }
 }

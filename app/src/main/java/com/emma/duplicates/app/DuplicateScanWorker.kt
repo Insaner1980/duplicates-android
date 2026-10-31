@@ -4,8 +4,8 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.emma.duplicates.core.database.ScanPhases
-import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import java.util.UUID
 
 class DuplicateScanWorker(
     appContext: Context,
@@ -48,6 +48,7 @@ class DuplicateScanWorker(
             }
         ) {
             ScanRunOutcome.COMPLETED -> Result.success()
+
             ScanRunOutcome.STORAGE_ACCESS_REQUIRED,
             ScanRunOutcome.EMPTY_SCOPE,
             ScanRunOutcome.FAILED,
@@ -56,8 +57,12 @@ class DuplicateScanWorker(
     }
 }
 
-internal class ForegroundWorkerFailureException(cause: Exception) : Exception(cause)
+internal class ForegroundWorkerFailureException(
+    cause: Exception,
+) : Exception(cause)
 
+// The platform foreground boundary must classify every failure, while cancellation remains cancellation.
+@Suppress("TooGenericExceptionCaught")
 internal suspend fun runForegroundOperation(operation: suspend () -> Unit) {
     try {
         operation()
@@ -68,6 +73,5 @@ internal suspend fun runForegroundOperation(operation: suspend () -> Unit) {
     }
 }
 
-internal suspend fun runScanAttempt(
-    scan: suspend (sessionId: String) -> ScanRunOutcome,
-): ScanRunOutcome = scan(UUID.randomUUID().toString())
+internal suspend fun runScanAttempt(scan: suspend (sessionId: String) -> ScanRunOutcome): ScanRunOutcome =
+    scan(UUID.randomUUID().toString())

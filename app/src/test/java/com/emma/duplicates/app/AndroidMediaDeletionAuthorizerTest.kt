@@ -22,23 +22,24 @@ import org.robolectric.annotation.Config
 @Config(application = Application::class, sdk = [35])
 class AndroidMediaDeletionAuthorizerTest {
     @Test
-    fun pendingAuthorizationIsClaimedOnceAndCompletedAfterRecreation() = runTest {
-        val launchRequest = mockk<IntentSenderRequest>()
-        val authorizer = AndroidMediaDeletionAuthorizer { launchRequest }
+    fun pendingAuthorizationIsClaimedOnceAndCompletedAfterRecreation() =
+        runTest {
+            val launchRequest = mockk<IntentSenderRequest>()
+            val authorizer = AndroidMediaDeletionAuthorizer { launchRequest }
 
-        val result = async { authorizer.requestDeletion(listOf(mediaFile())) }
-        yield()
+            val result = async { authorizer.requestDeletion(listOf(mediaFile())) }
+            yield()
 
-        assertTrue(authorizer.hasPendingRequest)
-        assertSame(launchRequest, authorizer.claimLaunchRequest())
-        assertNull(authorizer.claimLaunchRequest())
+            assertTrue(authorizer.hasPendingRequest)
+            assertSame(launchRequest, authorizer.claimLaunchRequest())
+            assertNull(authorizer.claimLaunchRequest())
 
-        assertTrue(authorizer.complete(MediaAuthorization.APPROVED))
+            assertTrue(authorizer.complete(MediaAuthorization.APPROVED))
 
-        assertEquals(MediaAuthorization.APPROVED, result.await())
-        assertFalse(authorizer.hasPendingRequest)
-        assertNull(authorizer.launchRequest.value)
-    }
+            assertEquals(MediaAuthorization.APPROVED, result.await())
+            assertFalse(authorizer.hasPendingRequest)
+            assertNull(authorizer.launchRequest.value)
+        }
 
     @Test
     fun activityResultWithoutLiveContinuationIsReportedForRecovery() {
@@ -49,14 +50,15 @@ class AndroidMediaDeletionAuthorizerTest {
     }
 
     @Test
-    fun invalidMediaRequestFailsWithoutLaunching() = runTest {
-        val authorizer = AndroidMediaDeletionAuthorizer { mockk() }
+    fun invalidMediaRequestFailsWithoutLaunching() =
+        runTest {
+            val authorizer = AndroidMediaDeletionAuthorizer { mockk() }
 
-        val result = authorizer.requestDeletion(listOf(mediaFile(contentUri = null)))
+            val result = authorizer.requestDeletion(listOf(mediaFile(contentUri = null)))
 
-        assertEquals(MediaAuthorization.FAILED, result)
-        assertNull(authorizer.launchRequest.value)
-    }
+            assertEquals(MediaAuthorization.FAILED, result)
+            assertNull(authorizer.launchRequest.value)
+        }
 
     private fun mediaFile(contentUri: String? = "content://media/external/images/media/1") =
         DeletionFile(

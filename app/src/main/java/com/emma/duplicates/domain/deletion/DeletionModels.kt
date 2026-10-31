@@ -52,13 +52,16 @@ interface DeletionStorage {
 
     suspend fun fullHash(file: DeletionFile): String?
 
-    suspend fun contentsEqual(first: DeletionFile, second: DeletionFile): Boolean
+    suspend fun contentsEqual(
+        first: DeletionFile,
+        second: DeletionFile,
+    ): Boolean
 
     suspend fun deleteDirect(file: DeletionFile): DirectDeletionResult
 }
 
 /** Returns only after the system deletion request has completed or been canceled. */
-interface MediaDeletionAuthorizer {
+fun interface MediaDeletionAuthorizer {
     suspend fun requestDeletion(files: List<DeletionFile>): MediaAuthorization
 }
 

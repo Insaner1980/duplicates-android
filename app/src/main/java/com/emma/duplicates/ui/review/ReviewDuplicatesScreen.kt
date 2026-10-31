@@ -3,14 +3,11 @@ package com.emma.duplicates.ui.review
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,13 +26,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
 import com.emma.duplicates.R
@@ -43,10 +40,11 @@ import com.emma.duplicates.core.designsystem.DuplicatesCard
 import com.emma.duplicates.core.designsystem.Primary
 import com.emma.duplicates.core.designsystem.PrimaryActionButton
 import com.emma.duplicates.core.format.DisplayFormatters
-import com.emma.duplicates.ui.components.ConfirmationDialog
 import com.emma.duplicates.ui.components.CategoryIcon
+import com.emma.duplicates.ui.components.ConfirmationDialog
 import com.emma.duplicates.ui.components.DetailHeader
 import com.emma.duplicates.ui.components.MediaThumbnail
+import com.emma.duplicates.ui.components.ScreenColumn
 import com.emma.duplicates.ui.components.rememberVideoThumbnailImageLoader
 import com.emma.duplicates.ui.model.UiFileCategory
 
@@ -90,95 +88,56 @@ fun ReviewDuplicatesScreen(
     onBack: () -> Unit,
     onPreviewMember: (String) -> Unit,
     onMemberSelectionChange: (String, Boolean) -> Unit,
-    onSelectionBlocked: () -> Unit,
+    onSelectionBlock: () -> Unit,
     onRequestDelete: () -> Unit,
     onDismissDelete: () -> Unit,
     onConfirmDelete: () -> Unit,
     onDismissDeletionResult: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .safeDrawingPadding(),
+    ScreenColumn(
+        modifier = modifier,
+        scrollable = false,
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        val horizontalPadding = if (maxWidth >= 600.dp) 32.dp else 24.dp
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = horizontalPadding, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            val listState = rememberLazyListState()
-            val visibleMemberIds by
-                remember(listState) {
-                    derivedStateOf {
-                        listState.layoutInfo.visibleItemsInfo.mapNotNullTo(mutableSetOf()) { it.key as? String }
-                    }
-                }
-            val videoImageLoader = rememberVideoThumbnailImageLoader()
-            DetailHeader(titleRes = R.string.review_duplicates, onBack = onBack)
-            ReviewSummaryCard(state)
-            LazyColumn(
-                modifier = Modifier.weight(1f).testTag("review-list"),
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                items(state.members, key = { it.id }) { member ->
-                    ReviewMemberCard(
-                        state = member,
-                        category = state.category,
-                        videoImageLoader = videoImageLoader,
-                        audioArtworkVisible = member.id in visibleMemberIds,
-                        onPreview = { onPreviewMember(member.id) },
-                        onToggle = {
-                            if (member.canSelectForDeletion) {
-                                onMemberSelectionChange(member.id, !member.selectedForDeletion)
-                            } else {
-                                onSelectionBlocked()
-                            }
-                        },
-                    )
+        val listState = rememberLazyListState()
+        val visibleMemberIds by
+            remember(listState) {
+                derivedStateOf {
+                    listState.layoutInfo.visibleItemsInfo
+                        .mapNotNull { it.key as? String }
+                        .toSet()
                 }
             }
-            PrimaryActionButton(
-                onClick = onRequestDelete,
-                enabled = state.selectedCount > 0,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    if (state.selectedCount > 0) {
-                        stringResource(
-                            R.string.delete_selected_duplicates,
-                            state.selectedCount,
-                            DisplayFormatters.size(LocalResources.current, state.selectedBytes),
-                        )
-                    } else {
-                        stringResource(R.string.nothing_selected)
+        val videoImageLoader = rememberVideoThumbnailImageLoader()
+        DetailHeader(titleRes = R.string.review_duplicates, onBack = onBack)
+        ReviewSummaryCard(state)
+        LazyColumn(
+            modifier = Modifier.weight(1f).testTag("review-list"),
+            state = listState,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            items(state.members, key = { it.id }) { member ->
+                ReviewMemberCard(
+                    state = member,
+                    category = state.category,
+                    videoImageLoader = videoImageLoader,
+                    audioArtworkVisible = member.id in visibleMemberIds,
+                    onPreview = { onPreviewMember(member.id) },
+                    onToggle = {
+                        if (member.canSelectForDeletion) {
+                            onMemberSelectionChange(member.id, !member.selectedForDeletion)
+                        } else {
+                            onSelectionBlock()
+                        }
                     },
                 )
             }
         }
+        DeleteSelectedButton(state, onRequestDelete)
     }
 
-    if (state.deleteConfirmationVisible) {
-        ConfirmationDialog(
-            title = stringResource(R.string.delete_confirmation_title),
-            message =
-                pluralStringResource(
-                    R.plurals.delete_confirmation_message,
-                    state.selectedCount,
-                    state.selectedCount,
-                    DisplayFormatters.size(LocalResources.current, state.selectedBytes),
-                ),
-            confirmLabel = stringResource(R.string.delete_selected),
-            onDismiss = onDismissDelete,
-            onConfirm = onConfirmDelete,
-            destructive = true,
-        )
-    }
+    DeleteConfirmation(state, onDismissDelete, onConfirmDelete)
     state.deletionResult?.let { result ->
         DeletionResultDialog(result, onDismissDeletionResult)
     }
@@ -231,54 +190,7 @@ private fun ReviewMemberCard(
                     fallbackIconSize = 48.dp,
                 )
             }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(state.filename, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text =
-                        stringResource(
-                            R.string.file_size_label,
-                            DisplayFormatters.size(LocalResources.current, state.sizeBytes),
-                        ),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(
-                    text = state.path,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = DisplayFormatters.dateTime(LocalResources.current, state.dateEpochMillis),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text =
-                        stringResource(
-                            if (state.selectedForDeletion) {
-                                R.string.selected_for_deletion
-                            } else {
-                                R.string.kept
-                            },
-                        ),
-                    style = MaterialTheme.typography.labelLarge,
-                    color =
-                        if (state.selectedForDeletion) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            Primary
-                        },
-                )
-                if (state.recommendedKeep) {
-                    Text(
-                        text = stringResource(R.string.recommended),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Primary,
-                    )
-                }
-            }
+            ReviewMemberDetails(state, Modifier.weight(1f))
             Icon(
                 imageVector =
                     if (state.selectedForDeletion) Icons.Outlined.Close else Icons.Outlined.Check,
@@ -363,4 +275,107 @@ private fun DeletionResultDialog(
         },
         shape = MaterialTheme.shapes.extraLarge,
     )
+}
+
+@Composable
+private fun DeleteSelectedButton(
+    state: ReviewUiState,
+    onRequestDelete: () -> Unit,
+) {
+    PrimaryActionButton(
+        onClick = onRequestDelete,
+        enabled = state.selectedCount > 0,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            if (state.selectedCount > 0) {
+                stringResource(
+                    R.string.delete_selected_duplicates,
+                    state.selectedCount,
+                    DisplayFormatters.size(LocalResources.current, state.selectedBytes),
+                )
+            } else {
+                stringResource(R.string.nothing_selected)
+            },
+        )
+    }
+}
+
+@Composable
+private fun DeleteConfirmation(
+    state: ReviewUiState,
+    onDismissDelete: () -> Unit,
+    onConfirmDelete: () -> Unit,
+) {
+    if (state.deleteConfirmationVisible) {
+        ConfirmationDialog(
+            title = stringResource(R.string.delete_confirmation_title),
+            message =
+                pluralStringResource(
+                    R.plurals.delete_confirmation_message,
+                    state.selectedCount,
+                    state.selectedCount,
+                    DisplayFormatters.size(LocalResources.current, state.selectedBytes),
+                ),
+            confirmLabel = stringResource(R.string.delete_selected),
+            onDismiss = onDismissDelete,
+            onConfirm = onConfirmDelete,
+            destructive = true,
+        )
+    }
+}
+
+@Composable
+private fun ReviewMemberDetails(
+    state: ReviewMemberUiState,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(state.filename, style = MaterialTheme.typography.titleMedium)
+        Text(
+            text =
+                stringResource(
+                    R.string.file_size_label,
+                    DisplayFormatters.size(LocalResources.current, state.sizeBytes),
+                ),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = state.path,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = DisplayFormatters.dateTime(LocalResources.current, state.dateEpochMillis),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text =
+                stringResource(
+                    if (state.selectedForDeletion) {
+                        R.string.selected_for_deletion
+                    } else {
+                        R.string.kept
+                    },
+                ),
+            style = MaterialTheme.typography.labelLarge,
+            color =
+                if (state.selectedForDeletion) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    Primary
+                },
+        )
+        if (state.recommendedKeep) {
+            Text(
+                text = stringResource(R.string.recommended),
+                style = MaterialTheme.typography.labelLarge,
+                color = Primary,
+            )
+        }
+    }
 }

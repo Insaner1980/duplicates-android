@@ -25,7 +25,8 @@ class ScanScheduler(
         workManager.enqueueUniqueWork(
             UNIQUE_SCAN_WORK,
             ExistingWorkPolicy.KEEP,
-            OneTimeWorkRequest.Builder(workerClass)
+            OneTimeWorkRequest
+                .Builder(workerClass)
                 .addTag(SCAN_WORK_TAG)
                 .build(),
         )
@@ -51,7 +52,8 @@ class ScanNotificationFactory(
     ): ForegroundInfo {
         ensureChannel()
         val notification =
-            NotificationCompat.Builder(context, CHANNEL_ID)
+            NotificationCompat
+                .Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(context.getString(R.string.app_name))
                 .setContentText(context.getString(phase.stringResource()))
@@ -68,9 +70,9 @@ class ScanNotificationFactory(
                 ).apply {
                     if (totalWork != null && totalWork > 0L) {
                         val progress =
-                            ((completedWork.coerceIn(0L, totalWork) * 100L) / totalWork)
+                            ((completedWork.coerceIn(0L, totalWork) * PERCENT_TOTAL) / totalWork)
                                 .toInt()
-                        setProgress(100, progress, false)
+                        setProgress(PERCENT_TOTAL, progress, false)
                     } else {
                         setProgress(0, 0, true)
                     }
@@ -122,5 +124,6 @@ class ScanNotificationFactory(
         private const val CHANNEL_ID = "duplicate_scans"
         private const val NOTIFICATION_ID = 1001
         private const val CONTENT_INTENT_REQUEST_CODE = 1002
+        private const val PERCENT_TOTAL = 100
     }
 }

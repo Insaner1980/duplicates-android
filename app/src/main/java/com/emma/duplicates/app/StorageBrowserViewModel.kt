@@ -13,14 +13,16 @@ import com.emma.duplicates.ui.exclusions.BrowserEntryUiState
 import com.emma.duplicates.ui.exclusions.BrowserMessage
 import com.emma.duplicates.ui.exclusions.ExclusionBrowserUiState
 import com.emma.duplicates.ui.exclusions.ExclusionKind
-import java.io.File
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 
+// Navigation and selection events share the browser's lifecycle and cancellation jobs.
+@Suppress("TooManyFunctions")
 class StorageBrowserViewModel(
     private val storageBrowser: StorageBrowser,
     private val exclusionRepository: ExclusionRepository,
@@ -100,14 +102,17 @@ class StorageBrowserViewModel(
                         _selectionCompleted.value = true
                     }
 
-                    AddExclusionResult.ALREADY_EXCLUDED ->
+                    AddExclusionResult.ALREADY_EXCLUDED -> {
                         _state.update { it.copy(message = BrowserMessage.ALREADY_EXCLUDED) }
+                    }
 
-                    AddExclusionResult.PARENT_ALREADY_EXCLUDED ->
+                    AddExclusionResult.PARENT_ALREADY_EXCLUDED -> {
                         _state.update { it.copy(message = BrowserMessage.PARENT_ALREADY_EXCLUDED) }
+                    }
 
-                    AddExclusionResult.NOT_ACCESSIBLE ->
+                    AddExclusionResult.NOT_ACCESSIBLE -> {
                         _state.update { it.copy(message = BrowserMessage.INACCESSIBLE) }
+                    }
                 }
             }
     }
@@ -162,31 +167,37 @@ class StorageBrowserViewModel(
         )
 
     private fun StorageBrowserLocation.breadcrumbs(): List<BrowserBreadcrumbUiState> {
-        val volume = storageBrowser.mountedVolumes().firstOrNull { it.id == volumeId } ?: return emptyList()
-        val root = volume.directory.safeCanonicalFile() ?: return emptyList()
-        val current = File(currentPath).safeCanonicalFile() ?: return emptyList()
+        val root =
+            storageBrowser
+                .mountedVolumes()
+                .firstOrNull { it.id == volumeId }
+                ?.directory
+                ?.safeCanonicalFile()
+        val current = File(currentPath).safeCanonicalFile()
+        if (root == null || current == null) return emptyList()
         val rootPath = root.toPath()
         val currentFilePath = current.toPath()
-        if (!currentFilePath.startsWith(rootPath)) return emptyList()
-
-        val breadcrumbs =
-            mutableListOf(
-                BrowserBreadcrumbUiState(
-                    canonicalPath = root.path,
-                    label = volumeLabel,
-                ),
-            )
-        if (currentFilePath == rootPath) return breadcrumbs
-        var path = rootPath
-        for (segment in rootPath.relativize(currentFilePath)) {
-            path = path.resolve(segment)
-            breadcrumbs +=
-                BrowserBreadcrumbUiState(
-                    canonicalPath = path.toFile().path,
-                    label = segment.toString(),
+        return if (currentFilePath.startsWith(rootPath)) {
+            val breadcrumbs =
+                mutableListOf(
+                    BrowserBreadcrumbUiState(
+                        canonicalPath = root.path,
+                        label = volumeLabel,
+                    ),
                 )
+            var path = rootPath
+            for (segment in rootPath.relativize(currentFilePath).filter { it.toString().isNotEmpty() }) {
+                path = path.resolve(segment)
+                breadcrumbs +=
+                    BrowserBreadcrumbUiState(
+                        canonicalPath = path.toFile().path,
+                        label = segment.toString(),
+                    )
+            }
+            breadcrumbs
+        } else {
+            emptyList()
         }
-        return breadcrumbs
     }
 
     private fun File.safeCanonicalPath(): String? = safeCanonicalFile()?.path

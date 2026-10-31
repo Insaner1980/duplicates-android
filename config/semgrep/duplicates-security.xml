@@ -1,0 +1,18 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- ruleid: duplicates-android-provider-exported -->
+        <provider android:name=".data.PreviewFileProvider" android:exported="true" />
+        <!-- ruleid: duplicates-android-provider-exported -->
+        <provider android:name="com.emma.duplicates.data.PreviewFileProvider" android:exported="true" />
+        <!-- ruleid: duplicates-android-provider-exported -->
+        <provider android:name="androidx.core.content.FileProvider" android:exported="true" />
+        <!-- ruleid: duplicates-android-provider-exported -->
+        <provider android:name=".data.OtherProvider" android:exported="true" />
+        <!-- ok: duplicates-android-provider-exported -->
+        <provider android:name=".data.PreviewFileProvider" android:exported="false" />
+        <!-- ok: duplicates-android-provider-exported -->
+        <provider android:name="androidx.core.content.FileProvider" android:exported="false" />
+        <!-- ok: duplicates-android-provider-exported -->
+        <provider android:name=".data.OtherProvider" android:exported="false" />
+    </application>
+</manifest>

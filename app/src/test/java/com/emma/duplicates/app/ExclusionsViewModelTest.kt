@@ -42,7 +42,8 @@ class ExclusionsViewModelTest {
     fun createRepository() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         database =
-            Room.inMemoryDatabaseBuilder(context, DuplicatesDatabase::class.java)
+            Room
+                .inMemoryDatabaseBuilder(context, DuplicatesDatabase::class.java)
                 .allowMainThreadQueries()
                 .build()
         val root = temporaryFolder.newFolder("storage")
@@ -65,8 +66,14 @@ class ExclusionsViewModelTest {
             val root = temporaryFolder.root.resolve("storage")
             val folder = root.resolve("Pictures").apply { mkdirs() }
             val file = root.resolve("note.txt").apply { writeText("note") }
-            assertEquals(com.emma.duplicates.data.AddExclusionResult.ADDED, repository.add(folder.path, ExclusionType.FOLDER))
-            assertEquals(com.emma.duplicates.data.AddExclusionResult.ADDED, repository.add(file.path, ExclusionType.FILE))
+            assertEquals(
+                com.emma.duplicates.data.AddExclusionResult.ADDED,
+                repository.add(folder.path, ExclusionType.FOLDER),
+            )
+            assertEquals(
+                com.emma.duplicates.data.AddExclusionResult.ADDED,
+                repository.add(file.path, ExclusionType.FILE),
+            )
             val viewModel = ExclusionsViewModel(repository)
 
             val populated = viewModel.state.first { it.folders.size == 1 && it.files.size == 1 }

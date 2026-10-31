@@ -18,9 +18,13 @@ import kotlinx.coroutines.launch
 sealed interface PreviewScreenState {
     data object Loading : PreviewScreenState
 
-    data class Photo(val state: PhotoPreviewUiState) : PreviewScreenState
+    data class Photo(
+        val state: PhotoPreviewUiState,
+    ) : PreviewScreenState
 
-    data class Generic(val state: GenericPreviewUiState) : PreviewScreenState
+    data class Generic(
+        val state: GenericPreviewUiState,
+    ) : PreviewScreenState
 }
 
 class PreviewViewModel(
@@ -52,10 +56,14 @@ class PreviewViewModel(
                         mutableState.value = file.genericState(PreviewAvailability.NO_COMPATIBLE_VIEWER, false)
                     }
                 }
-                PreviewPreparation.Missing ->
+
+                PreviewPreparation.Missing -> {
                     mutableState.value = file.genericState(PreviewAvailability.MISSING, false)
-                PreviewPreparation.Failed ->
+                }
+
+                PreviewPreparation.Failed -> {
                     mutableState.value = file.genericState(PreviewAvailability.UNSUPPORTED, false)
+                }
             }
         }
     }
@@ -63,7 +71,7 @@ class PreviewViewModel(
     private suspend fun IndexedFileEntity.toScreenState(): PreviewScreenState {
         val category = category.toUiCategory()
         return when (val prepared = previewLauncher.prepare(this)) {
-            is PreviewPreparation.Ready ->
+            is PreviewPreparation.Ready -> {
                 if (category == UiFileCategory.PHOTOS) {
                     PreviewScreenState.Photo(
                         PhotoPreviewUiState(
@@ -77,25 +85,31 @@ class PreviewViewModel(
                 } else {
                     genericState(PreviewAvailability.UNSUPPORTED, true)
                 }
-            PreviewPreparation.Missing -> genericState(PreviewAvailability.MISSING, false)
-            PreviewPreparation.Failed -> genericState(PreviewAvailability.UNSUPPORTED, false)
+            }
+
+            PreviewPreparation.Missing -> {
+                genericState(PreviewAvailability.MISSING, false)
+            }
+
+            PreviewPreparation.Failed -> {
+                genericState(PreviewAvailability.UNSUPPORTED, false)
+            }
         }
     }
 
     private fun IndexedFileEntity.genericState(
         availability: PreviewAvailability,
         canOpen: Boolean,
-    ) =
-        PreviewScreenState.Generic(
-            GenericPreviewUiState(
-                filename = displayName,
-                path = canonicalPath,
-                sizeBytes = sizeBytes,
-                dateEpochMillis = lastModified,
-                availability = availability,
-                canOpenExternally = canOpen,
-            ),
-        )
+    ) = PreviewScreenState.Generic(
+        GenericPreviewUiState(
+            filename = displayName,
+            path = canonicalPath,
+            sizeBytes = sizeBytes,
+            dateEpochMillis = lastModified,
+            availability = availability,
+            canOpenExternally = canOpen,
+        ),
+    )
 
     private fun missingState() =
         PreviewScreenState.Generic(

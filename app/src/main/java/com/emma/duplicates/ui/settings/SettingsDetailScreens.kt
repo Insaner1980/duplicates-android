@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -19,8 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -30,6 +31,7 @@ import com.emma.duplicates.core.format.DisplayFormatters
 import com.emma.duplicates.ui.components.CategoryIcon
 import com.emma.duplicates.ui.components.DetailHeader
 import com.emma.duplicates.ui.components.labelRes
+import com.emma.duplicates.ui.components.screenListPadding
 import com.emma.duplicates.ui.model.UiFileCategory
 
 data class ScanLocationUiState(
@@ -50,7 +52,7 @@ fun ScanLocationsScreen(
     state: ScanLocationsUiState,
     onBack: () -> Unit,
     onLocationSelectionChange: (String, Boolean) -> Unit,
-    onSelectionBlocked: () -> Unit,
+    onSelectionBlock: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val selectedCount = state.locations.count { it.selected && it.mounted }
@@ -60,74 +62,16 @@ fun ScanLocationsScreen(
         val horizontalPadding = if (maxWidth >= 600.dp) 32.dp else 24.dp
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("scan-locations-list"),
-            contentPadding =
-                androidx.compose.foundation.layout.PaddingValues(
-                    start = horizontalPadding,
-                    end = horizontalPadding,
-                    top = 24.dp,
-                    bottom = 32.dp,
-                ),
+            contentPadding = screenListPadding(horizontalPadding),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item { DetailHeader(titleRes = R.string.scan_locations, onBack = onBack) }
             items(state.locations, key = { it.id }) { location ->
-                DuplicatesCard(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 96.dp)
-                            .toggleable(
-                                value = location.selected,
-                                enabled = location.mounted,
-                                role = Role.Checkbox,
-                                onValueChange = { selected ->
-                                    if (!selected && selectedCount == 1 && location.selected) {
-                                        onSelectionBlocked()
-                                    } else {
-                                        onLocationSelectionChange(location.id, selected)
-                                    }
-                                },
-                            )
-                            .semantics(mergeDescendants = true) {},
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Text(location.displayName, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                text =
-                                    stringResource(
-                                        R.string.total_size,
-                                        DisplayFormatters.size(LocalResources.current, location.totalBytes),
-                                    ),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text =
-                                    if (location.mounted) {
-                                        stringResource(
-                                            R.string.free_size,
-                                            DisplayFormatters.size(LocalResources.current, location.freeBytes),
-                                        )
-                                    } else {
-                                        stringResource(R.string.not_mounted)
-                                    },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Checkbox(
-                            checked = location.selected,
-                            onCheckedChange = null,
-                            enabled = location.mounted,
-                        )
+                ScanLocationCard(location) { selected ->
+                    if (!selected && selectedCount == 1 && location.selected) {
+                        onSelectionBlock()
+                    } else {
+                        onLocationSelectionChange(location.id, selected)
                     }
                 }
             }
@@ -151,7 +95,7 @@ fun TypesToScanScreen(
     state: TypesToScanUiState,
     onBack: () -> Unit,
     onCategoryEnabledChange: (UiFileCategory, Boolean) -> Unit,
-    onSelectionBlocked: () -> Unit,
+    onSelectionBlock: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val enabledCount = UiFileCategory.entries.count { state.enabled[it] == true }
@@ -161,57 +105,17 @@ fun TypesToScanScreen(
         val horizontalPadding = if (maxWidth >= 600.dp) 32.dp else 24.dp
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag("types-list"),
-            contentPadding =
-                androidx.compose.foundation.layout.PaddingValues(
-                    start = horizontalPadding,
-                    end = horizontalPadding,
-                    top = 24.dp,
-                    bottom = 32.dp,
-                ),
+            contentPadding = screenListPadding(horizontalPadding),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item { DetailHeader(titleRes = R.string.types_to_scan, onBack = onBack) }
             items(UiFileCategory.entries, key = { it.name }) { category ->
                 val checked = state.enabled[category] == true
-                DuplicatesCard(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 96.dp)
-                            .toggleable(
-                                value = checked,
-                                role = Role.Checkbox,
-                                onValueChange = { enabled ->
-                                    if (!enabled && checked && enabledCount == 1) {
-                                        onSelectionBlocked()
-                                    } else {
-                                        onCategoryEnabledChange(category, enabled)
-                                    }
-                                },
-                            )
-                            .semantics(mergeDescendants = true) {},
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(20.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CategoryIcon(category)
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Text(
-                                text = stringResource(category.labelRes()),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            Text(
-                                text = stringResource(category.supportingRes()),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Checkbox(checked = checked, onCheckedChange = null)
+                FileTypeCard(category, checked) { enabled ->
+                    if (!enabled && checked && enabledCount == 1) {
+                        onSelectionBlock()
+                    } else {
+                        onCategoryEnabledChange(category, enabled)
                     }
                 }
             }
@@ -233,3 +137,99 @@ private fun UiFileCategory.supportingRes(): Int =
         UiFileCategory.AUDIO -> R.string.audio_supporting
         UiFileCategory.DOCUMENTS -> R.string.documents_supporting
     }
+
+@Composable
+private fun ScanLocationCard(
+    location: ScanLocationUiState,
+    onSelectionChange: (Boolean) -> Unit,
+) {
+    SelectableSettingsCard(
+        checked = location.selected,
+        enabled = location.mounted,
+        onSelectionChange = onSelectionChange,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(location.displayName, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text =
+                    stringResource(
+                        R.string.total_size,
+                        DisplayFormatters.size(LocalResources.current, location.totalBytes),
+                    ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text =
+                    if (location.mounted) {
+                        stringResource(
+                            R.string.free_size,
+                            DisplayFormatters.size(LocalResources.current, location.freeBytes),
+                        )
+                    } else {
+                        stringResource(R.string.not_mounted)
+                    },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FileTypeCard(
+    category: UiFileCategory,
+    checked: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+) {
+    SelectableSettingsCard(checked = checked, onSelectionChange = onEnabledChange) {
+        CategoryIcon(category)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(category.labelRes()),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(category.supportingRes()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectableSettingsCard(
+    checked: Boolean,
+    onSelectionChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
+    DuplicatesCard(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 96.dp)
+                .toggleable(
+                    value = checked,
+                    enabled = enabled,
+                    role = Role.Checkbox,
+                    onValueChange = onSelectionChange,
+                ).semantics(mergeDescendants = true) {},
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            content()
+            Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
+        }
+    }
+}

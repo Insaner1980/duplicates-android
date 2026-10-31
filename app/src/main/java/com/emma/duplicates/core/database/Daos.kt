@@ -9,6 +9,8 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
+// These queries participate in the same scan-session transactions.
+@Suppress("TooManyFunctions")
 abstract class ScanDao {
     @Insert
     abstract suspend fun insertSession(session: ScanSessionEntity)
@@ -44,11 +46,11 @@ abstract class ScanDao {
         groups: List<DuplicateGroupEntity>,
         members: List<DuplicateMemberEntity>,
     ): Boolean {
-        if (!isRunningSession(sessionId)) return false
-        if (files.any { it.sessionId != sessionId } || groups.any { it.sessionId != sessionId }) return false
         val fileIds = files.mapTo(mutableSetOf()) { it.id }
         val groupIds = groups.mapTo(mutableSetOf()) { it.id }
-        if (members.any { it.indexedFileId !in fileIds || it.groupId !in groupIds }) return false
+        val belongsToSession = files.all { it.sessionId == sessionId } && groups.all { it.sessionId == sessionId }
+        val validMembers = members.all { it.indexedFileId in fileIds && it.groupId in groupIds }
+        if (!isRunningSession(sessionId) || !belongsToSession || !validMembers) return false
 
         deleteGroupsForSession(sessionId)
         deleteFilesForSession(sessionId)
@@ -123,6 +125,8 @@ abstract class ScanDao {
         WHERE id = :sessionId AND status = 'running'
         """,
     )
+    // Room binds each updated column through an individual query parameter.
+    @Suppress("LongParameterList", "kotlin:S107")
     protected abstract suspend fun updateProgressRow(
         sessionId: String,
         phase: String,
@@ -184,6 +188,8 @@ abstract class ScanDao {
         WHERE id = :sessionId AND status = 'running'
         """,
     )
+    // Room binds each completion metric to its corresponding SQL column.
+    @Suppress("LongParameterList", "kotlin:S107")
     protected abstract suspend fun markCompleted(
         sessionId: String,
         completedAt: Long,
@@ -248,14 +254,25 @@ abstract class ScanDao {
         selected: Boolean,
     ): Boolean {
         val current = getMemberSelectionState(memberId) ?: return false
-        if (current.selectedForDeletion == selected) return true
-        if (selected && countOtherValidUnselectedMembers(current.groupId, memberId) == 0) {
-            return false
+        return when {
+            current.selectedForDeletion == selected -> {
+                true
+            }
+
+            selected && countOtherValidUnselectedMembers(current.groupId, memberId) == 0 -> {
+                false
+            }
+
+            updateMemberSelection(memberId, selected) != 1 -> {
+                false
+            }
+
+            else -> {
+                recalculateGroupReclaimableBytes(current.groupId)
+                recalculateSessionReclaimableBytes(current.groupId)
+                true
+            }
         }
-        if (updateMemberSelection(memberId, selected) != 1) return false
-        recalculateGroupReclaimableBytes(current.groupId)
-        recalculateSessionReclaimableBytes(current.groupId)
-        return true
     }
 
     @Query("SELECT groupId, selectedForDeletion FROM duplicate_members WHERE id = :memberId LIMIT 1")

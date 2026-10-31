@@ -1,22 +1,23 @@
 package com.emma.duplicates.ui
 
 import android.app.Application
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
-import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.hasTestTag
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Density
 import com.emma.duplicates.core.designsystem.DuplicatesTheme
 import com.emma.duplicates.ui.components.RootDestination
@@ -29,7 +30,9 @@ import com.emma.duplicates.ui.home.CompletedHomeUiState
 import com.emma.duplicates.ui.home.HomeCategorySummaryUiState
 import com.emma.duplicates.ui.home.HomeScreen
 import com.emma.duplicates.ui.home.HomeUiState
+import com.emma.duplicates.ui.home.ReadyHomeScreen
 import com.emma.duplicates.ui.model.UiFileCategory
+import com.emma.duplicates.ui.permission.PermissionScreen
 import com.emma.duplicates.ui.preview.GenericPreviewScreen
 import com.emma.duplicates.ui.preview.GenericPreviewUiState
 import com.emma.duplicates.ui.preview.PreviewAvailability
@@ -64,12 +67,55 @@ class PresentationScreensTest {
     val composeRule = createComposeRule()
 
     @Test
+    @Config(qualifiers = "w320dp-h800dp-mdpi")
+    fun homeEntryActionsRemainReachableAtNormalAndDoubleFontScale() {
+        val fontScale = mutableFloatStateOf(1f)
+        val ready = mutableStateOf(false)
+        var grants = 0
+        var scans = 0
+        var settings = 0
+        setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale.floatValue)) {
+                if (ready.value) {
+                    ReadyHomeScreen(
+                        locationSummary = "Internal storage",
+                        typeSummary = "Photos, Videos, Audio, Documents",
+                        scanEnabled = true,
+                        onStartScan = { scans++ },
+                        onOpenSettings = { settings++ },
+                    )
+                } else {
+                    PermissionScreen(onGrantAccess = { grants++ }, onOpenSettings = { settings++ })
+                }
+            }
+        }
+
+        for (scale in listOf(1f, 2f)) {
+            composeRule.runOnIdle {
+                fontScale.floatValue = scale
+                ready.value = false
+            }
+            composeRule.onNodeWithContentDescription("Settings").performScrollTo().performClick()
+            composeRule.onNodeWithText("Grant storage access").performScrollTo().performClick()
+            composeRule.runOnIdle { ready.value = true }
+            composeRule.onNodeWithContentDescription("Settings").performScrollTo().performClick()
+            composeRule.onNodeWithText("Start scan").performScrollTo().performClick()
+        }
+
+        assertEquals(2, grants)
+        assertEquals(2, scans)
+        assertEquals(4, settings)
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h800dp-mdpi")
     fun rootNavigationAnnouncesSelectionAndInvokesDestinationCallback() {
         var selected: RootDestination? = null
         setContent {
             RootNavigationBar(
                 selectedDestination = RootDestination.RESULTS,
-                onDestinationSelected = { selected = it },
+                onDestinationSelect = { selected = it },
             )
         }
 
@@ -107,7 +153,7 @@ class PresentationScreensTest {
                 onStartScan = {},
                 onViewScan = {},
                 onReviewDuplicates = {},
-                onCategorySelected = {},
+                onCategorySelect = {},
                 onScanAgain = {},
             )
         }
@@ -154,7 +200,7 @@ class PresentationScreensTest {
                 onStartScan = {},
                 onViewScan = { openedScanning = true },
                 onReviewDuplicates = {},
-                onCategorySelected = {},
+                onCategorySelect = {},
                 onScanAgain = {},
             )
         }
@@ -165,6 +211,7 @@ class PresentationScreensTest {
     }
 
     @Test
+    @Config(qualifiers = "w320dp-h800dp-mdpi")
     fun completedHomeReflowsWithoutOverlappingStorageValuesAtDoubleFontScale() {
         setContent {
             val density = LocalDensity.current
@@ -189,7 +236,7 @@ class PresentationScreensTest {
                     onStartScan = {},
                     onViewScan = {},
                     onReviewDuplicates = {},
-                    onCategorySelected = {},
+                    onCategorySelect = {},
                     onScanAgain = {},
                 )
             }
@@ -301,34 +348,11 @@ class PresentationScreensTest {
         val clearVisible = mutableStateOf(false)
         setContent {
             ResultsScreen(
-                state =
-                    ResultsUiState(
-                        hasCompletedScan = true,
-                        duplicateFileCount = 3,
-                        duplicateGroupCount = 1,
-                        reclaimableBytes = 48_000_000L,
-                        selectedFilter = ResultsFilter.ALL,
-                        selectedSort = ResultsSort.LARGEST_RECLAIMABLE,
-                        searchVisible = true,
-                        searchQuery = "",
-                        clearConfirmationVisible = clearVisible.value,
-                        groups =
-                            listOf(
-                                DuplicateGroupCardUiState(
-                                    id = "group-1",
-                                    title = "mountain.jpg",
-                                    category = UiFileCategory.PHOTOS,
-                                    copyCount = 3,
-                                    reclaimableBytes = 48_000_000L,
-                                    paths = listOf("/storage/DCIM/Camera", "/storage/Pictures"),
-                                    thumbnailModel = null,
-                                ),
-                            ),
-                    ),
+                state = searchableResultsState(clearVisible.value),
                 onSearchVisibilityChange = {},
                 onSearchQueryChange = { query = it },
-                onFilterSelected = { selectedFilter = it },
-                onSortSelected = {},
+                onFilterSelect = { selectedFilter = it },
+                onSortSelect = {},
                 onOverflowVisibilityChange = {},
                 onSortVisibilityChange = {},
                 onPreviewFile = { _, _ -> },
@@ -393,8 +417,8 @@ class PresentationScreensTest {
                     ),
                 onSearchVisibilityChange = {},
                 onSearchQueryChange = {},
-                onFilterSelected = {},
-                onSortSelected = {},
+                onFilterSelect = {},
+                onSortSelect = {},
                 onOverflowVisibilityChange = {},
                 onSortVisibilityChange = {},
                 onPreviewFile = { groupId, fileId -> previewedFile = groupId to fileId },
@@ -456,7 +480,7 @@ class PresentationScreensTest {
                 onBack = {},
                 onPreviewMember = {},
                 onMemberSelectionChange = { id, selected -> changes += id to selected },
-                onSelectionBlocked = { blocked += 1 },
+                onSelectionBlock = { blocked += 1 },
                 onRequestDelete = {},
                 onDismissDelete = {},
                 onConfirmDelete = {},
@@ -569,6 +593,31 @@ class PresentationScreensTest {
         composeRule.onNodeWithText("Open with another app").performClick()
         assertEquals(1, opens)
     }
+
+    private fun searchableResultsState(clearConfirmationVisible: Boolean): ResultsUiState =
+        ResultsUiState(
+            hasCompletedScan = true,
+            duplicateFileCount = 3,
+            duplicateGroupCount = 1,
+            reclaimableBytes = 48_000_000L,
+            selectedFilter = ResultsFilter.ALL,
+            selectedSort = ResultsSort.LARGEST_RECLAIMABLE,
+            searchVisible = true,
+            searchQuery = "",
+            clearConfirmationVisible = clearConfirmationVisible,
+            groups =
+                listOf(
+                    DuplicateGroupCardUiState(
+                        id = "group-1",
+                        title = "mountain.jpg",
+                        category = UiFileCategory.PHOTOS,
+                        copyCount = 3,
+                        reclaimableBytes = 48_000_000L,
+                        paths = listOf("/storage/DCIM/Camera", "/storage/Pictures"),
+                        thumbnailModel = null,
+                    ),
+                ),
+        )
 
     private fun setContent(content: @androidx.compose.runtime.Composable () -> Unit) {
         composeRule.setContent {

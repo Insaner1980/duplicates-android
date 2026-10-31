@@ -8,13 +8,13 @@ import com.emma.duplicates.core.storage.AndroidStorageVolumeSource
 import com.emma.duplicates.core.storage.ExactDuplicateScanner
 import com.emma.duplicates.core.storage.FileDiscovery
 import com.emma.duplicates.core.storage.MediaStoreMetadataIndex
-import com.emma.duplicates.data.RoomFingerprintCache
 import com.emma.duplicates.data.AndroidDeletionStorage
-import com.emma.duplicates.data.RoomDeletionResultStore
-import com.emma.duplicates.data.ScanResultMapper
-import com.emma.duplicates.data.ScanStore
 import com.emma.duplicates.data.ExclusionRepository
 import com.emma.duplicates.data.FilePreviewLauncher
+import com.emma.duplicates.data.RoomDeletionResultStore
+import com.emma.duplicates.data.RoomFingerprintCache
+import com.emma.duplicates.data.ScanResultMapper
+import com.emma.duplicates.data.ScanStore
 import com.emma.duplicates.data.StorageBrowser
 import com.emma.duplicates.data.preferences.PreferencesRepository
 import com.emma.duplicates.data.preferences.duplicatesPreferencesDataStore
@@ -50,7 +50,9 @@ class AppContainer(
     }
     val scanResultMapper = ScanResultMapper()
     val exclusionRepository by lazy { ExclusionRepository(scanStore, storageVolumeSource) }
-    @Suppress("DEPRECATION")
+
+    // These paths are excluded from browsing; no data is stored in external directories here.
+    @Suppress("DEPRECATION", "kotlin:S5324")
     val storageBrowser by lazy {
         StorageBrowser(
             volumeSource = storageVolumeSource,

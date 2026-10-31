@@ -20,13 +20,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+// Settings events and their derived screen states share this lifecycle owner.
+@Suppress("TooManyFunctions")
 class SettingsViewModel(
     context: Context,
     private val storageAccessManager: StorageAccessManager,
@@ -130,48 +132,44 @@ class SettingsViewModel(
         preferences: AppPreferences,
         volumes: List<AvailableStorageVolume>,
         granted: Boolean,
-    ) =
-        SettingsUiState(
-            scanLocationsSummary =
-                volumes
-                    .filter { it.id in preferences.selectedVolumeIds }
-                    .joinToString(
-                        separator = resources.getString(R.string.summary_separator),
-                        transform = AvailableStorageVolume::label,
-                    )
-                    .ifBlank { resources.getString(R.string.no_locations_selected) },
-            scanHiddenFolders = preferences.scanHiddenFolders,
-            ignoreSystemFolders = preferences.ignoreSystemFolders,
-            autoSelectDuplicateCopies = preferences.autoSelectDuplicateCopies,
-            confirmBeforeDelete = preferences.confirmBeforeDelete,
-            fileTypesSummary =
-                UiFileCategory.entries
-                    .filter { preferences.isEnabled(it) }
-                    .joinToString(resources.getString(R.string.summary_separator)) {
-                        resources.getString(it.labelResource())
-                    }
-                    .ifBlank { resources.getString(R.string.no_file_types_selected) },
-            storagePermissionGranted = granted,
-            appVersion = BuildConfig.VERSION_NAME,
-        )
+    ) = SettingsUiState(
+        scanLocationsSummary =
+            volumes
+                .filter { it.id in preferences.selectedVolumeIds }
+                .joinToString(
+                    separator = resources.getString(R.string.summary_separator),
+                    transform = AvailableStorageVolume::label,
+                ).ifBlank { resources.getString(R.string.no_locations_selected) },
+        scanHiddenFolders = preferences.scanHiddenFolders,
+        ignoreSystemFolders = preferences.ignoreSystemFolders,
+        autoSelectDuplicateCopies = preferences.autoSelectDuplicateCopies,
+        confirmBeforeDelete = preferences.confirmBeforeDelete,
+        fileTypesSummary =
+            UiFileCategory.entries
+                .filter { preferences.isEnabled(it) }
+                .joinToString(resources.getString(R.string.summary_separator)) {
+                    resources.getString(it.labelResource())
+                }.ifBlank { resources.getString(R.string.no_file_types_selected) },
+        storagePermissionGranted = granted,
+        appVersion = BuildConfig.VERSION_NAME,
+    )
 
     private fun scanLocationsState(
         preferences: AppPreferences,
         volumes: List<AvailableStorageVolume>,
-    ) =
-        ScanLocationsUiState(
-            locations =
-                volumes.map { volume ->
-                    ScanLocationUiState(
-                        id = volume.id,
-                        displayName = volume.label,
-                        totalBytes = volume.totalBytes,
-                        freeBytes = volume.freeBytes,
-                        selected = volume.id in preferences.selectedVolumeIds,
-                        mounted = true,
-                    )
-                },
-        )
+    ) = ScanLocationsUiState(
+        locations =
+            volumes.map { volume ->
+                ScanLocationUiState(
+                    id = volume.id,
+                    displayName = volume.label,
+                    totalBytes = volume.totalBytes,
+                    freeBytes = volume.freeBytes,
+                    selected = volume.id in preferences.selectedVolumeIds,
+                    mounted = true,
+                )
+            },
+    )
 
     private fun typesToScanState(preferences: AppPreferences) =
         TypesToScanUiState(
@@ -186,8 +184,7 @@ class SettingsViewModel(
             UiFileCategory.DOCUMENTS -> scanDocuments
         }
 
-    private fun AppPreferences.enabledCategoryCount(): Int =
-        UiFileCategory.entries.count { isEnabled(it) }
+    private fun AppPreferences.enabledCategoryCount(): Int = UiFileCategory.entries.count { isEnabled(it) }
 
     private fun UiFileCategory.labelResource(): Int =
         when (this) {
