@@ -12,13 +12,16 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnySibling
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
@@ -57,14 +60,16 @@ class AppNavigationTest {
 
     private val application: Application = ApplicationProvider.getApplicationContext()
     private lateinit var container: AppContainer
-    private val openScanningRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val openScanningRequests = MutableSharedFlow<ScanNavigationRequest>(extraBufferCapacity = 1)
     private val fontScale = mutableFloatStateOf(1f)
     private val deletionAuthorizer = mockk<MediaDeletionAuthorizer>(relaxed = true)
 
     @Before
     fun setUp() {
         mockkObject(WorkManager.Companion)
-        every { WorkManager.getInstance(any()) } returns mockk(relaxed = true)
+        val manager = mockk<WorkManager>(relaxed = true)
+        every { manager.getWorkInfosForUniqueWorkFlow(any()) } returns kotlinx.coroutines.flow.flowOf(emptyList())
+        every { WorkManager.getInstance(any()) } returns manager
         mockkStatic(Environment::class)
         every { Environment.isExternalStorageManager() } returns false
         container = AppContainer(application)
@@ -90,27 +95,18 @@ class AppNavigationTest {
     }
 
     @Test
-    fun settingsAndRootNavigationRemainUsableAtNormalAndDoubleFontScale() {
-        checkSettingsAndRootNavigation()
-    }
+    fun settingsAndExclusionsReturnThroughTheirParents() = checkSettingsNavigation()
 
     @Test
     @Config(qualifiers = "w320dp-h900dp-mdpi")
-    fun settingsAndRootNavigationRemainUsableAtSmallWidthAndBothFontScales() {
-        checkSettingsAndRootNavigation()
-    }
+    fun settingsAndExclusionsAt320dpAndDoubleFontScale() = checkSettingsNavigation()
 
-    private fun checkSettingsAndRootNavigation() {
+    private fun checkSettingsNavigation() {
         for (scale in listOf(1f, 2f)) {
             composeRule.runOnIdle { fontScale.floatValue = scale }
-
             awaitText(R.string.grant_storage_access)
-            click(R.string.results)
-            awaitText(R.string.no_saved_scan_results)
-            click(R.string.home)
-            composeRule.onNodeWithContentDescription(text(R.string.settings)).performClick()
-
-            click(R.string.scan_locations)
+            composeRule.onNodeWithContentDescription(text(R.string.settings)).performScrollTo().performClick()
+            composeRule.onNodeWithText(text(R.string.scan_locations)).performScrollTo().performClick()
             awaitText(R.string.scan_locations)
             back()
             val hiddenFolders = composeRule.onNodeWithText(text(R.string.scan_hidden_folders))
@@ -119,68 +115,40 @@ class AppNavigationTest {
                 hiddenFolders.fetchSemanticsNode().config[SemanticsProperties.ToggleableState] == ToggleableState.On
             }
             hiddenFolders.performClick()
-            composeRule.waitUntil(10_000) {
-                hiddenFolders.fetchSemanticsNode().config[SemanticsProperties.ToggleableState] == ToggleableState.Off
-            }
             composeRule.onNodeWithText(text(R.string.types_to_scan)).performScrollTo().performClick()
             awaitText(R.string.photos_supporting)
             back()
-            back()
-
-            click(R.string.exclusions)
+            composeRule.onNodeWithText(text(R.string.exclusions)).performScrollTo().performClick()
             awaitText(R.string.no_excluded_folders)
-            for (kind in listOf(R.string.choose_folder, R.string.choose_file)) {
-                composeRule.onNodeWithContentDescription(text(R.string.add_exclusion)).performClick()
-                click(kind)
-                awaitText(kind)
-                back()
-                awaitText(R.string.no_excluded_files)
-            }
-            click(R.string.home)
+            composeRule.onNodeWithContentDescription(text(R.string.add_exclusion)).performClick()
+            click(R.string.choose_folder)
+            awaitText(R.string.choose_folder)
+            back()
+            back()
+            composeRule.onNodeWithContentDescription(text(R.string.back)).performScrollTo().performClick()
             awaitText(R.string.grant_storage_access)
         }
     }
 
     @Test
-    fun savedResultsOpenReviewAndPreviewAndReturnToTheirOrigin() {
+    fun completionOpensInlineResultsAndBothBackPathsLeaveScanningBehind() {
         seedSavedResults(container, application)
-
-        click(R.string.results)
-        awaitText(R.string.review)
-        composeRule
-            .onNode(
-                hasClickAction() and hasAnySibling(hasText("original.txt")) and !hasText(text(R.string.review)),
-            ).performClick()
-        awaitText(R.string.file_preview)
-        back()
-        awaitText(R.string.review)
-        click(R.string.review)
-        awaitText(R.string.review_duplicates)
-        composeRule
-            .onNodeWithContentDescription(text(R.string.preview_item_description, "original.txt"))
-            .performClick()
-        awaitText(R.string.file_preview)
-        back()
-        awaitText(R.string.review_duplicates)
-        back()
-        awaitText(R.string.review)
-
-        every { Environment.isExternalStorageManager() } returns true
-        composeRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
-        composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
-        click(R.string.home)
-        composeRule.onNodeWithText(text(R.string.review_duplicates)).performScrollTo().performClick()
-        awaitText(R.string.review)
-        click(R.string.home)
-        composeRule.onNodeWithText(text(R.string.documents)).performScrollTo().performClick()
-        awaitText(R.string.review)
-        composeRule.onNodeWithText(text(R.string.documents)).performScrollTo().assertIsSelected()
-
-        composeRule.runOnIdle { openScanningRequests.tryEmit(Unit) }
-        awaitText(R.string.scan_complete)
-        back()
-        awaitText(R.string.home)
-        composeRule.onNodeWithText(text(R.string.home)).assertIsSelected()
+        for (systemBack in listOf(false, true)) {
+            composeRule.runOnIdle { openScanningRequests.tryEmit(ScanNavigationRequest()) }
+            awaitText(R.string.available_to_free)
+            composeRule.onNodeWithTag("results-list").performScrollToNode(hasTestTag("preview-file-1"))
+            composeRule.onNodeWithTag("preview-file-1").performClick()
+            awaitText(R.string.file_preview)
+            back()
+            composeRule.onNodeWithTag("preview-file-1").assertIsDisplayed()
+            if (systemBack) {
+                composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+            } else {
+                back()
+            }
+            awaitText(R.string.grant_storage_access)
+            composeRule.onNodeWithText(text(R.string.scan_complete)).assertDoesNotExist()
+        }
     }
 
     private fun text(

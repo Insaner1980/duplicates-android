@@ -7,13 +7,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -21,7 +25,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.emma.duplicates.R
 import com.emma.duplicates.core.designsystem.DuplicatesCard
-import com.emma.duplicates.core.designsystem.Primary
 import com.emma.duplicates.ui.components.DetailHeader
 import com.emma.duplicates.ui.components.ScreenColumn
 
@@ -38,12 +41,14 @@ fun SettingsScreen(
     onOpenFileTypes: () -> Unit,
     onOpenStoragePermission: () -> Unit,
     modifier: Modifier = Modifier,
+    onThemeModeChange: (com.emma.duplicates.data.preferences.AppThemeMode) -> Unit = {},
 ) {
     ScreenColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         DetailHeader(titleRes = R.string.settings, onBack = onBack)
+        AppearanceSection(state, onThemeModeChange)
         ScanningSettingsSection(
             state,
             onOpenScanLocations,
@@ -63,7 +68,7 @@ fun SettingsScreen(
             )
             DetailSettingsRow(
                 title = stringResource(R.string.exclusions),
-                summary = stringResource(R.string.scans_skip_excluded_items),
+                summary = "",
                 onClick = onOpenExclusions,
             )
         }
@@ -86,10 +91,11 @@ private fun SettingsSection(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             text = stringResource(titleRes),
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.semantics { heading() },
         )
-        DuplicatesCard(Modifier.fillMaxWidth(), content = content)
+        Column(Modifier.fillMaxWidth(), content = content)
     }
 }
 
@@ -100,26 +106,32 @@ private fun DetailSettingsRow(
     onClick: () -> Unit,
     emphasized: Boolean = false,
 ) {
-    Column(
+    Row(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .heightIn(min = 72.dp)
+                .heightIn(min = 64.dp)
                 .clickable(onClick = onClick)
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(vertical = 12.dp)
                 .semantics(mergeDescendants = true) {},
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = if (emphasized) Primary else MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = summary,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (emphasized) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            )
+            if (summary.isNotEmpty()) {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(24.dp))
     }
 }
 
@@ -133,19 +145,19 @@ private fun ToggleSettingsRow(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .heightIn(min = 72.dp)
+                .heightIn(min = 64.dp)
                 .toggleable(
                     value = checked,
                     role = Role.Switch,
                     onValueChange = onCheckedChange,
-                ).padding(horizontal = 20.dp, vertical = 12.dp)
+                ).padding(vertical = 8.dp)
                 .semantics(mergeDescendants = true) {},
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f),
         )
         Switch(
@@ -161,11 +173,11 @@ private fun StaticSettingsRow(
     value: String,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(20.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Text(
             text = value,
             style = MaterialTheme.typography.bodyLarge,
@@ -219,5 +231,39 @@ private fun ScanningSettingsSection(
             checked = state.ignoreSystemFolders,
             onCheckedChange = onIgnoreSystemFoldersChange,
         )
+    }
+}
+
+@Composable
+private fun AppearanceSection(
+    state: SettingsUiState,
+    onThemeModeChange: (com.emma.duplicates.data.preferences.AppThemeMode) -> Unit,
+) {
+    SettingsSection(R.string.appearance) {
+        com.emma.duplicates.data.preferences.AppThemeMode.entries.forEach { mode ->
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .selectable(selected = mode == state.themeMode, role = Role.RadioButton, onClick = {
+                            onThemeModeChange(mode)
+                        })
+                        .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.RadioButton(selected = mode == state.themeMode, onClick = null)
+                Text(
+                    stringResource(
+                        when (mode) {
+                            com.emma.duplicates.data.preferences.AppThemeMode.SYSTEM -> R.string.appearance_system
+                            com.emma.duplicates.data.preferences.AppThemeMode.LIGHT -> R.string.appearance_light
+                            com.emma.duplicates.data.preferences.AppThemeMode.DARK -> R.string.appearance_dark
+                        },
+                    ),
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
+        }
     }
 }

@@ -4,12 +4,14 @@ import com.emma.duplicates.core.model.FileCategory
 import com.emma.duplicates.core.model.FileMetadata
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeNoException
@@ -25,6 +27,7 @@ import java.nio.file.AccessDeniedException
 import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
+import java.util.concurrent.Executors
 
 class Sha256FileFingerprinterTest {
     @get:Rule
@@ -76,6 +79,37 @@ class Sha256FileFingerprinterTest {
                 "f6a900c70e08adc80c0b65b5a6836df075ef04835623a3819ec221f791ce8484",
                 Sha256FileFingerprinter().fullFingerprint(file.metadata()).successHash(),
             )
+        }
+
+    @Test
+    fun `both fingerprints open and read files on the injected dispatcher`() =
+        runTest {
+            val file = temporaryFolder.newFile("dispatcher.bin").apply { writeText("same bytes") }.metadata()
+            val executor = Executors.newSingleThreadExecutor()
+            executor.asCoroutineDispatcher().use { dispatcher ->
+                val ioThread = executor.submit<Thread> { Thread.currentThread() }.get()
+                val delegate = PathFileContentSource()
+                val source =
+                    object : FileContentSource {
+                        override fun snapshot(file: FileMetadata): FileSnapshot? {
+                            assertSame(ioThread, Thread.currentThread())
+                            return delegate.snapshot(file)
+                        }
+
+                        override fun open(file: FileMetadata): SeekableByteChannel {
+                            assertSame(ioThread, Thread.currentThread())
+                            return delegate.open(file)
+                        }
+                    }
+                for (quick in listOf(true, false)) {
+                    val recording = RecordingContentSource(source) { assertSame(ioThread, Thread.currentThread()) }
+                    val fingerprinter = Sha256FileFingerprinter(recording, dispatcher)
+                    val result =
+                        if (quick) fingerprinter.quickFingerprint(file) else fingerprinter.fullFingerprint(file)
+                    assertTrue(result is FingerprintOutcome.Success)
+                    assertTrue(recording.readCalls > 0)
+                }
+            }
         }
 
     @Test

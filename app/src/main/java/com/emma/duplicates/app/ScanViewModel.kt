@@ -1,6 +1,7 @@
 package com.emma.duplicates.app
 
 import android.content.Context
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.emma.duplicates.R
@@ -15,10 +16,12 @@ import com.emma.duplicates.ui.scan.ScanPhaseUiState
 import com.emma.duplicates.ui.scan.ScanRunStatus
 import com.emma.duplicates.ui.scan.ScanStepStatus
 import com.emma.duplicates.ui.scan.ScanningUiState
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 
 class ScanViewModel(
@@ -26,14 +29,48 @@ class ScanViewModel(
     scanStore: ScanStore,
     private val scanScheduler: ScanScheduler,
     storageVolumeSource: StorageVolumeSource = StorageVolumeSource { emptyList() },
+    private val savedStateHandle: SavedStateHandle,
+    workActive: Flow<Boolean> = flowOf(true),
 ) : ViewModel() {
+    private val request =
+        ScanNavigationRequest(
+            savedStateHandle["baselineSessionId"],
+            savedStateHandle["awaitNewSession"] ?: false,
+        )
     private val resources = context.applicationContext.resources
     private val mountedVolumes = storageVolumeSource.mountedVolumes()
     private val stopConfirmationVisible = MutableStateFlow(false)
 
     val state: StateFlow<ScanningUiState> =
-        combine(scanStore.latestSession, stopConfirmationVisible) { session, confirmationVisible ->
-            session?.toUiState(confirmationVisible) ?: initialState(confirmationVisible)
+        combine(scanStore.latestSession, scanStore.activeCompletedSession, stopConfirmationVisible, workActive) {
+            session,
+            active,
+            confirmationVisible,
+            activeWork,
+            ->
+            val boundId = savedStateHandle.get<String>("boundSessionId")
+            val relevant =
+                session?.takeIf {
+                    if (boundId != null) {
+                        it.id == boundId
+                    } else {
+                        !request.awaitNewSession || it.id != request.baselineSessionId
+                    }
+                }
+            if (relevant != null) {
+                savedStateHandle["boundSessionId"] = relevant.id
+                relevant.toUiState(confirmationVisible).copy(
+                    sessionId = relevant.id,
+                    completionReady = relevant.status == ScanStatuses.COMPLETED && active?.id == relevant.id,
+                )
+            } else if (!activeWork) {
+                initialState(false).copy(
+                    runStatus = ScanRunStatus.CANCELED,
+                    failureMessage = resources.getString(R.string.scan_not_started),
+                )
+            } else {
+                initialState(confirmationVisible)
+            }
         }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MILLIS),

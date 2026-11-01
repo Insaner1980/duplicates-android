@@ -117,21 +117,25 @@ class Sha256FileFingerprinter(
         }
 
     override suspend fun quickFingerprint(file: FileMetadata): FingerprintOutcome =
-        fingerprint(file) { digest ->
-            digest.update(ByteBuffer.allocate(Long.SIZE_BYTES).putLong(file.sizeBytes).array())
-            contentSource.open(file).use { channel ->
-                if (updateQuickDigest(channel, digest, file.sizeBytes)) {
-                    null
-                } else {
-                    changedOrMissingIssue(file)
+        withContext(ioDispatcher) {
+            fingerprint(file) { digest ->
+                digest.update(ByteBuffer.allocate(Long.SIZE_BYTES).putLong(file.sizeBytes).array())
+                contentSource.open(file).use { channel ->
+                    if (updateQuickDigest(channel, digest, file.sizeBytes)) {
+                        null
+                    } else {
+                        changedOrMissingIssue(file)
+                    }
                 }
             }
         }
 
     override suspend fun fullFingerprint(file: FileMetadata): FingerprintOutcome =
-        fingerprint(file) { digest ->
-            val totalRead = contentSource.open(file).use { channel -> updateFullDigest(channel, digest) }
-            if (totalRead == file.sizeBytes) null else changedOrMissingIssue(file)
+        withContext(ioDispatcher) {
+            fingerprint(file) { digest ->
+                val totalRead = contentSource.open(file).use { channel -> updateFullDigest(channel, digest) }
+                if (totalRead == file.sizeBytes) null else changedOrMissingIssue(file)
+            }
         }
 
     override suspend fun compare(
@@ -176,22 +180,24 @@ class Sha256FileFingerprinter(
     private suspend fun fingerprint(
         file: FileMetadata,
         updateDigest: suspend (MessageDigest) -> FileProcessingIssue?,
-    ): FingerprintOutcome =
-        withContext(ioDispatcher) {
-            validateCurrentSnapshot(file)?.let { return@withContext FingerprintOutcome.Failure(it) }
-            try {
-                val digest = MessageDigest.getInstance(SHA_256)
-                updateDigest(digest)?.let { return@withContext FingerprintOutcome.Failure(it) }
-                validateCurrentSnapshot(file)?.let { return@withContext FingerprintOutcome.Failure(it) }
+    ): FingerprintOutcome {
+        validateCurrentSnapshot(file)?.let { return FingerprintOutcome.Failure(it) }
+        return try {
+            val digest = MessageDigest.getInstance(SHA_256)
+            val processingIssue = updateDigest(digest) ?: validateCurrentSnapshot(file)
+            if (processingIssue != null) {
+                FingerprintOutcome.Failure(processingIssue)
+            } else {
                 FingerprintOutcome.Success(digest.digest().toHexString())
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (error: SecurityException) {
-                FingerprintOutcome.Failure(issue(file, error))
-            } catch (error: IOException) {
-                FingerprintOutcome.Failure(issue(file, error))
             }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: SecurityException) {
+            FingerprintOutcome.Failure(issue(file, error))
+        } catch (error: IOException) {
+            FingerprintOutcome.Failure(issue(file, error))
         }
+    }
 
     private suspend fun compareChannels(
         first: FileMetadata,

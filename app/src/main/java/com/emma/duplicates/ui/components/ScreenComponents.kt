@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Settings
@@ -26,7 +27,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.emma.duplicates.R
-import com.emma.duplicates.core.designsystem.Primary
 import com.emma.duplicates.ui.model.UiFileCategory
 
 @Composable
@@ -52,7 +52,7 @@ fun DetailHeader(
         }
         Text(
             text = stringResource(titleRes),
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
             modifier =
                 Modifier
                     .weight(1f)
@@ -70,7 +70,7 @@ fun CategoryIcon(
     Icon(
         painter = painterResource(category.iconRes),
         contentDescription = null,
-        tint = Primary,
+        tint = MaterialTheme.colorScheme.onSurface,
         modifier = modifier.size(32.dp),
     )
 }
@@ -99,7 +99,6 @@ fun Metric(
     value: String,
     label: String,
     modifier: Modifier = Modifier,
-    emphasized: Boolean = false,
 ) {
     Column(
         modifier = modifier,
@@ -108,7 +107,7 @@ fun Metric(
         Text(
             text = value,
             style = MaterialTheme.typography.titleLarge,
-            color = if (emphasized) Primary else MaterialTheme.colorScheme.onSurface,
+            color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = label,
@@ -130,18 +129,18 @@ fun ConfirmationDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { Text(message) },
+        text = { Text(message, modifier = Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(
                     text = confirmLabel,
-                    color = if (destructive) MaterialTheme.colorScheme.error else Primary,
+                    color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                 )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
+                Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurface)
             }
         },
         shape = MaterialTheme.shapes.extraLarge,
@@ -158,9 +157,10 @@ fun HomeHeader(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(painterResource(R.drawable.ic_app_stack), null, Modifier.size(32.dp))
         Text(
             text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.displayLarge,
+            style = MaterialTheme.typography.titleLarge,
             modifier =
                 Modifier
                     .weight(1f)

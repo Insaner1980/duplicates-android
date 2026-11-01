@@ -38,6 +38,7 @@ data class FileDiscoveryOptions(
     val enabledCategories: Set<FileCategory> = FileCategory.entries.toSet(),
     val exclusions: Set<ScanExclusion> = emptySet(),
     val applicationDirectories: Set<String> = emptySet(),
+    val includedPaths: Set<String> = emptySet(),
 )
 
 data class FileDiscoveryProgress(
@@ -75,6 +76,7 @@ class FileDiscovery(
         private val queue = ArrayDeque<PendingEntry>()
         private val exclusions = options.exclusions.map(::normalizedExclusion)
         private val applicationDirectories = options.applicationDirectories.map(::normalizedPath)
+        private val includedPaths = options.includedPaths.map(::normalizedPath)
         private var skippedFileCount = 0
         private var errorCount = 0
         private var visitedEntryCount = 0
@@ -115,7 +117,13 @@ class FileDiscovery(
         }
 
         private suspend fun discoverEntry(pending: PendingEntry) {
-            val attributes = readAttributes(pending.file) ?: return
+            val path =
+                pending.file
+                    .toPath()
+                    .toAbsolutePath()
+                    .normalize()
+            val included = includedPaths.isEmpty() || includedPaths.any { path.startsWith(it) || it.startsWith(path) }
+            val attributes = pending.file.takeIf { included }?.let(::readAttributes) ?: return
             if (attributes.isSymbolicLink) {
                 if (attributes.isRegularFile) skippedFileCount += 1
             } else {

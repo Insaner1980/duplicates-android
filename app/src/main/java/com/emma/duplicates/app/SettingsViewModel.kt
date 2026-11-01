@@ -92,6 +92,10 @@ class SettingsViewModel(
         viewModelScope.launch { preferencesRepository.setConfirmBeforeDelete(enabled) }
     }
 
+    fun setThemeMode(mode: com.emma.duplicates.data.preferences.AppThemeMode) {
+        viewModelScope.launch { preferencesRepository.setThemeMode(mode) }
+    }
+
     fun setLocationSelected(
         volumeId: String,
         selected: Boolean,
@@ -133,13 +137,7 @@ class SettingsViewModel(
         volumes: List<AvailableStorageVolume>,
         granted: Boolean,
     ) = SettingsUiState(
-        scanLocationsSummary =
-            volumes
-                .filter { it.id in preferences.selectedVolumeIds }
-                .joinToString(
-                    separator = resources.getString(R.string.summary_separator),
-                    transform = AvailableStorageVolume::label,
-                ).ifBlank { resources.getString(R.string.no_locations_selected) },
+        scanLocationsSummary = scanLocationSummary(resources, volumes, preferences),
         scanHiddenFolders = preferences.scanHiddenFolders,
         ignoreSystemFolders = preferences.ignoreSystemFolders,
         autoSelectDuplicateCopies = preferences.autoSelectDuplicateCopies,
@@ -152,6 +150,7 @@ class SettingsViewModel(
                 }.ifBlank { resources.getString(R.string.no_file_types_selected) },
         storagePermissionGranted = granted,
         appVersion = BuildConfig.VERSION_NAME,
+        themeMode = preferences.themeMode,
     )
 
     private fun scanLocationsState(

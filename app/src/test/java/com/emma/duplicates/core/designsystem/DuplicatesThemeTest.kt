@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -18,6 +19,20 @@ import org.robolectric.annotation.Config
 class DuplicatesThemeTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun darkThemeUsesApprovedWarmNeutralAndOrangeRoles() {
+        lateinit var scheme: ColorScheme
+        composeRule.setContent { DuplicatesTheme { scheme = MaterialTheme.colorScheme } }
+        composeRule.runOnIdle {
+            assertEquals(Color(0xFF252422), scheme.background)
+            assertEquals(Color(0xFF403D39), scheme.surfaceContainer)
+            assertEquals(Color(0xFFEB5E28), scheme.primary)
+            assertEquals(Color(0xFF252422), scheme.onPrimary)
+            assertEquals(Color(0xFFFFFCF2), scheme.onSurface)
+            assertEquals(Color(0xFFCCC5B9), scheme.onSurfaceVariant)
+        }
+    }
 
     @Test
     fun everyMaterialColorRoleUsesTheDefinedBlackGrayWhiteGoldOrErrorPalette() {

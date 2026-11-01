@@ -1,6 +1,7 @@
 package com.emma.duplicates.app
 
 import android.app.Application
+import androidx.lifecycle.SavedStateHandle
 import com.emma.duplicates.R
 import com.emma.duplicates.core.database.ScanFailureReasons
 import com.emma.duplicates.core.database.ScanPhases
@@ -68,6 +69,7 @@ class ScanViewModelTest : ScanStoreDatabaseTest() {
                             ),
                         )
                     },
+                    savedStateHandle = SavedStateHandle(),
                 )
 
             val running = viewModel.state.first { it.filesIndexed == 7 }
@@ -109,7 +111,8 @@ class ScanViewModelTest : ScanStoreDatabaseTest() {
                     skipped = 2,
                 ),
             )
-            val viewModel = ScanViewModel(context, scanStore, mockk(relaxed = true))
+            val viewModel =
+                ScanViewModel(context, scanStore, mockk(relaxed = true), savedStateHandle = SavedStateHandle())
 
             val completed = viewModel.state.first { it.runStatus == ScanRunStatus.COMPLETED }
 
@@ -126,7 +129,8 @@ class ScanViewModelTest : ScanStoreDatabaseTest() {
     fun `canceled latest session exposes a calm terminal state`() =
         runTest(mainDispatcherRule.dispatcher) {
             database.scanDao().insertSession(session("canceled", ScanStatuses.CANCELED, startedAt = 10L))
-            val viewModel = ScanViewModel(context, scanStore, mockk(relaxed = true))
+            val viewModel =
+                ScanViewModel(context, scanStore, mockk(relaxed = true), savedStateHandle = SavedStateHandle())
 
             val canceled = viewModel.state.first { it.runStatus == ScanRunStatus.CANCELED }
             assertEquals(context.getString(R.string.scan_canceled_message), canceled.failureMessage)
@@ -145,8 +149,6 @@ class ScanViewModelTest : ScanStoreDatabaseTest() {
                     ScanFailureReasons.GENERIC to R.string.scan_failure_generic,
                     ScanFailureReasons.FOREGROUND_WORKER to R.string.scan_failure_foreground_worker,
                 )
-            val viewModel = ScanViewModel(context, scanStore, mockk(relaxed = true))
-
             expectedMessages.forEachIndexed { index, (reason, messageResource) ->
                 database.scanDao().insertSession(
                     session(
@@ -157,6 +159,8 @@ class ScanViewModelTest : ScanStoreDatabaseTest() {
                     ),
                 )
 
+                val viewModel =
+                    ScanViewModel(context, scanStore, mockk(relaxed = true), savedStateHandle = SavedStateHandle())
                 val expectedMessage = context.getString(messageResource)
                 val failed =
                     viewModel.state.first {

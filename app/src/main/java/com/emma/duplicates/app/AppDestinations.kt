@@ -32,8 +32,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.emma.duplicates.R
 import com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer
-import com.emma.duplicates.ui.components.RootDestination
-import com.emma.duplicates.ui.components.RootNavigationBar
 import com.emma.duplicates.ui.exclusions.ExclusionBrowserScreen
 import com.emma.duplicates.ui.exclusions.ExclusionKind
 import com.emma.duplicates.ui.exclusions.ExclusionsScreen
@@ -42,9 +40,7 @@ import com.emma.duplicates.ui.preview.GenericPreviewScreen
 import com.emma.duplicates.ui.preview.PhotoPreviewScreen
 import com.emma.duplicates.ui.results.ResultsFilter
 import com.emma.duplicates.ui.results.ResultsScreen
-import com.emma.duplicates.ui.review.ReviewDuplicatesScreen
 import com.emma.duplicates.ui.scan.ScanningScreen
-import com.emma.duplicates.ui.settings.ScanLocationsScreen
 import com.emma.duplicates.ui.settings.SettingsScreen
 import com.emma.duplicates.ui.settings.TypesToScanScreen
 import kotlinx.coroutines.flow.Flow
@@ -52,11 +48,14 @@ import kotlinx.coroutines.flow.Flow
 @Composable
 internal fun HomeDestination(
     homeViewModel: HomeViewModel,
+    settingsViewModel: SettingsViewModel,
     navController: NavHostController,
     onStartScan: () -> Unit,
     onOpenStorageSettings: () -> Unit,
+    scanStartPending: Boolean,
 ) {
     val state by homeViewModel.state.collectAsStateWithLifecycle()
+    val configuration by homeViewModel.configuration.collectAsStateWithLifecycle()
     HomeScreen(
         state = state,
         onOpenSettings = { navController.navigate(SettingsRoute) },
@@ -66,10 +65,10 @@ internal fun HomeDestination(
         onReviewDuplicates = {
             navController.navigateToResults()
         },
-        onCategorySelect = { category ->
-            navController.navigateToResults(category.name)
-        },
-        onScanAgain = onStartScan,
+        configuration = configuration,
+        scanStartPending = scanStartPending,
+        onOpenScanLocations = { navController.navigate(ScanLocationsRoute) },
+        onCategoryEnabledChange = settingsViewModel::setCategoryEnabled,
     )
 }
 
@@ -78,20 +77,37 @@ internal fun ResultsDestination(
     container: AppContainer,
     navController: NavHostController,
     onStartScan: () -> Unit,
+    deletionAuthorizer: MediaDeletionAuthorizer,
     entry: NavBackStackEntry,
     resultsViewModel: ResultsViewModel =
         viewModel(
             viewModelStoreOwner = entry,
-            factory = ViewModelFactory { ResultsViewModel(container.scanStore) },
+            factory =
+                ViewModelFactory {
+                    ResultsViewModel(
+                        container.scanStore,
+                        container.preferencesRepository,
+                        container.deletionCoordinator(deletionAuthorizer),
+                        entry.savedStateHandle,
+                    )
+                },
         ),
 ) {
     val route = entry.toRoute<ResultsRoute>()
     val state by resultsViewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(route.filter) {
-        resultsViewModel.setFilter(
-            ResultsFilter.entries.firstOrNull { it.name == route.filter } ?: ResultsFilter.ALL,
-        )
+    LaunchedEffect(Unit) {
+        if (!entry.savedStateHandle.contains("filter")) {
+            resultsViewModel.setFilter(
+                ResultsFilter.entries.firstOrNull { it.name == route.filter } ?: ResultsFilter.ALL,
+            )
+        }
     }
+
+    fun leaveResults() {
+        if (state.busy) return
+        if (state.searchVisible) resultsViewModel.setSearchVisible(false) else navController.returnHome()
+    }
+    BackHandler(enabled = state.busy || state.searchVisible, onBack = ::leaveResults)
     ResultsScreen(
         state = state,
         onSearchVisibilityChange = resultsViewModel::setSearchVisible,
@@ -103,11 +119,17 @@ internal fun ResultsDestination(
         onPreviewFile = { groupId, fileId ->
             navController.navigate(PreviewRoute(groupId, fileId))
         },
-        onReviewGroup = { navController.navigate(ReviewRoute(it)) },
         onScanAgain = onStartScan,
         onRequestClear = resultsViewModel::requestClear,
         onDismissClear = resultsViewModel::dismissClear,
         onConfirmClear = resultsViewModel::confirmClear,
+        onBack = ::leaveResults,
+        onMemberSelectionChange = resultsViewModel::changeSelection,
+        onRequestDelete = resultsViewModel::requestDelete,
+        onDismissDelete = resultsViewModel::dismissDelete,
+        onConfirmDelete = resultsViewModel::confirmDelete,
+        onDismissDeletionResult = resultsViewModel::dismissDeletionResult,
+        onShowAll = resultsViewModel::showAll,
     )
 }
 
@@ -136,6 +158,7 @@ internal fun ExclusionsDestination(
             navController.navigate(ExclusionBrowserRoute(ExclusionKind.FILE.name))
         },
         onRemove = exclusionsViewModel::remove,
+        onBack = { navController.popBackStack() },
     )
 }
 
@@ -155,6 +178,8 @@ internal fun ScanningDestination(
                         container.scanStore,
                         container.scanScheduler,
                         container.storageVolumeSource,
+                        savedStateHandle = entry.savedStateHandle,
+                        workActive = container.scanScheduler.workActive,
                     )
                 },
         ),
@@ -162,7 +187,11 @@ internal fun ScanningDestination(
     val state by scanViewModel.state.collectAsStateWithLifecycle()
 
     fun returnHome() {
-        navController.navigateToRoot(RootDestination.HOME)
+        navController.returnHome()
+    }
+    val lifecycleState by entry.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
+    LaunchedEffect(state.completionReady, state.sessionId, lifecycleState) {
+        if (state.completionReady && lifecycleState == Lifecycle.State.RESUMED) navController.navigateToResults()
     }
     BackHandler(onBack = ::returnHome)
     ScanningScreen(
@@ -172,51 +201,6 @@ internal fun ScanningDestination(
         onDismissStop = scanViewModel::dismissStop,
         onConfirmStop = scanViewModel::confirmStop,
     )
-}
-
-@Composable
-internal fun ReviewDestination(
-    container: AppContainer,
-    navController: NavHostController,
-    deletionAuthorizer: MediaDeletionAuthorizer,
-    entry: NavBackStackEntry,
-    reviewViewModel: ReviewViewModel =
-        viewModel(
-            viewModelStoreOwner = entry,
-            factory =
-                ViewModelFactory {
-                    ReviewViewModel(
-                        groupId = entry.toRoute<ReviewRoute>().groupId,
-                        scanStore = container.scanStore,
-                        preferencesRepository = container.preferencesRepository,
-                        deletionCoordinator = container.deletionCoordinator(deletionAuthorizer),
-                    )
-                },
-        ),
-) {
-    val context = LocalContext.current
-    val route = entry.toRoute<ReviewRoute>()
-    val state by reviewViewModel.state.collectAsStateWithLifecycle()
-    state?.let { reviewState ->
-        ReviewDuplicatesScreen(
-            state = reviewState,
-            onBack = { navController.popBackStack() },
-            onPreviewMember = { memberId ->
-                navController.navigate(PreviewRoute(route.groupId, memberId))
-            },
-            onMemberSelectionChange = reviewViewModel::changeSelection,
-            onSelectionBlock = {
-                Toast.makeText(context, R.string.keep_at_least_one_copy, Toast.LENGTH_SHORT).show()
-            },
-            onRequestDelete = reviewViewModel::requestDelete,
-            onDismissDelete = reviewViewModel::dismissDelete,
-            onConfirmDelete = reviewViewModel::confirmDelete,
-            onDismissDeletionResult = {
-                reviewViewModel.dismissDeletionResult()
-                if (!reviewViewModel.groupStillExists()) navController.popBackStack()
-            },
-        )
-    } ?: LoadingScreen()
 }
 
 @Composable
@@ -280,23 +264,45 @@ internal fun SettingsDestination(
         onOpenExclusions = { navController.navigate(ExclusionsRoute) },
         onOpenFileTypes = { navController.navigate(TypesToScanRoute) },
         onOpenStoragePermission = onOpenStorageSettings,
+        onThemeModeChange = settingsViewModel::setThemeMode,
     )
 }
 
 @Composable
 internal fun ScanLocationsDestination(
-    settingsViewModel: SettingsViewModel,
+    container: AppContainer,
     navController: NavHostController,
+    entry: NavBackStackEntry,
+    selectionViewModel: ScanLocationsViewModel =
+        viewModel(
+            viewModelStoreOwner = entry,
+            factory =
+                ViewModelFactory {
+                    ScanLocationsViewModel(
+                        container.storageBrowser,
+                        container.preferencesRepository,
+                    )
+                },
+        ),
 ) {
-    val context = LocalContext.current
-    val state by settingsViewModel.scanLocationsState.collectAsStateWithLifecycle()
-    ScanLocationsScreen(
+    val state by selectionViewModel.state.collectAsStateWithLifecycle()
+    val completed by selectionViewModel.completed.collectAsStateWithLifecycle()
+    LaunchedEffect(completed) { if (completed) navController.popBackStack() }
+    val back = {
+        if (!state.saving && !selectionViewModel.navigateBack()) navController.popBackStack()
+        Unit
+    }
+    BackHandler(onBack = back)
+    com.emma.duplicates.ui.settings.ScanSelectionScreen(
         state = state,
-        onBack = { navController.popBackStack() },
-        onLocationSelectionChange = settingsViewModel::setLocationSelected,
-        onSelectionBlock = {
-            Toast.makeText(context, R.string.select_at_least_one_location, Toast.LENGTH_SHORT).show()
-        },
+        onBack = back,
+        onModeChange = selectionViewModel::setSelectedItemsOnly,
+        onOpenVolume = selectionViewModel::openVolume,
+        onVolumeSelectionChange = selectionViewModel::setVolumeSelected,
+        onOpenDirectory = selectionViewModel::openDirectory,
+        onShowStorage = selectionViewModel::showStorage,
+        onPathSelectionChange = selectionViewModel::setPathSelected,
+        onDone = selectionViewModel::save,
     )
 }
 

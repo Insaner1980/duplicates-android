@@ -33,7 +33,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.emma.duplicates.R
 import com.emma.duplicates.core.designsystem.DuplicatesCard
-import com.emma.duplicates.core.designsystem.Primary
 import com.emma.duplicates.core.designsystem.PrimaryActionButton
 import com.emma.duplicates.core.format.DisplayFormatters
 import com.emma.duplicates.ui.components.ConfirmationDialog
@@ -82,6 +81,8 @@ data class ScanningUiState(
     val stopConfirmationVisible: Boolean = false,
     val skippedFileCount: Int = 0,
     val failureMessage: String? = null,
+    val sessionId: String? = null,
+    val completionReady: Boolean = false,
 )
 
 @Composable
@@ -153,7 +154,7 @@ private fun ScanPhaseRow(state: ScanPhaseUiState) {
                 Icon(
                     imageVector = Icons.Outlined.Check,
                     contentDescription = null,
-                    tint = Primary,
+                    tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(32.dp),
                 )
             }
@@ -187,84 +188,28 @@ private fun ScanPhaseRow(state: ScanPhaseUiState) {
 
 @Composable
 private fun ScanOverviewCard(state: ScanningUiState) {
-    DuplicatesCard(Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            ScanProgressRing(state.overallProgress, state.runStatus)
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                Metric(
-                    value = englishInteger(state.filesIndexed),
-                    label = stringResource(R.string.files_indexed),
-                )
-                Metric(
-                    value = englishInteger(state.groupsFound),
-                    label =
-                        stringResource(
-                            if (state.groupsAreConfirmed) {
-                                R.string.duplicate_groups_found
-                            } else {
-                                R.string.candidate_groups_found
-                            },
-                        ),
-                )
-                Metric(
-                    value = DisplayFormatters.size(LocalResources.current, state.reclaimableBytes),
-                    label = stringResource(R.string.reclaimable_so_far),
-                    emphasized = true,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScanProgressRing(
-    rawProgress: Float?,
-    runStatus: ScanRunStatus,
-) {
-    val progress = rawProgress?.coerceIn(0f, 1f)
-    val progressLabel =
-        progress?.let { stringResource(R.string.percent_value, (it * PERCENT_MULTIPLIER).toInt()) }
-            ?: stringResource(runStatus.titleRes())
-    Box(
-        modifier =
-            Modifier
-                .size(190.dp)
-                .clearAndSetSemantics {
-                    contentDescription = progressLabel
-                    progressBarRangeInfo =
-                        progress?.let { ProgressBarRangeInfo(it, 0f..1f) }
-                            ?: ProgressBarRangeInfo.Indeterminate
-                },
-        contentAlignment = Alignment.Center,
-    ) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        val progress = state.overallProgress
+        val description =
+            progress?.let { stringResource(R.string.percent_value, (it * PERCENT_MULTIPLIER).toInt()) }
+                ?: stringResource(state.runStatus.titleRes())
+        val progressModifier = Modifier.fillMaxWidth().semantics { contentDescription = description }
         if (progress == null) {
-            CircularProgressIndicator(
-                modifier = Modifier.fillMaxSize(),
-                color = Primary,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                strokeWidth = 18.dp,
-            )
+            androidx.compose.material3.LinearProgressIndicator(modifier = progressModifier)
         } else {
-            CircularProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxSize(),
-                color = Primary,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                strokeWidth = 18.dp,
-            )
-            Text(
-                text = progressLabel,
-                style = MaterialTheme.typography.displayLarge,
-                color = Primary,
-            )
+            androidx.compose.material3.LinearProgressIndicator(progress = { progress }, modifier = progressModifier)
         }
+        Metric(englishInteger(state.filesIndexed), stringResource(R.string.files_indexed))
+        Metric(
+            englishInteger(state.groupsFound),
+            stringResource(
+                if (state.groupsAreConfirmed) {
+                    R.string.duplicate_groups_found
+                } else {
+                    R.string.candidate_groups_found
+                },
+            ),
+        )
     }
 }
 
@@ -294,35 +239,14 @@ private fun englishInteger(value: Int): String = NumberFormat.getIntegerInstance
 
 @Composable
 private fun ColumnScope.ScanWorkCards(state: ScanningUiState) {
-    DuplicatesCard(Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            state.phases.forEach { phase -> ScanPhaseRow(phase) }
-        }
-    }
-    if (state.currentOperation != null || state.currentPath != null) {
-        DuplicatesCard(Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.current_work),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.semantics { heading() },
-                )
-                state.currentOperation?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
-                state.currentPath?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
+    state.phases.forEach { ScanPhaseRow(it) }
+    state.currentOperation?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+    state.currentPath?.let {
+        Text(
+            it,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -332,28 +256,12 @@ private fun ColumnScope.ScanActions(
     onRequestStop: () -> Unit,
     onBack: () -> Unit,
 ) {
-    DuplicatesCard(Modifier.fillMaxWidth()) {
-        Text(
-            text = stringResource(R.string.scan_privacy_note),
-            modifier = Modifier.padding(24.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-    if (state.runStatus == ScanRunStatus.RUNNING && !state.stopConfirmationVisible) {
-        OutlinedButton(
-            onClick = onRequestStop,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = MaterialTheme.shapes.large,
-        ) {
+    Text(stringResource(R.string.scanning_never_deletes), style = MaterialTheme.typography.bodySmall)
+    if (state.runStatus == ScanRunStatus.RUNNING) {
+        OutlinedButton(onClick = onRequestStop, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
             Text(stringResource(R.string.stop_scan))
         }
-    } else {
-        PrimaryActionButton(
-            onClick = onBack,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.back))
-        }
+    } else if (state.runStatus != ScanRunStatus.COMPLETED) {
+        PrimaryActionButton(onBack, Modifier.fillMaxWidth()) { Text(stringResource(R.string.back)) }
     }
 }

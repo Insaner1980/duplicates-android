@@ -4,6 +4,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -60,19 +61,54 @@ private val DuplicatesColorScheme =
         onTertiaryFixedVariant = PrimaryContainer,
     )
 
+private val DuplicatesLightColorScheme =
+    lightColorScheme(
+        primary = Primary,
+        onPrimary = OnPrimary,
+        primaryContainer = Primary,
+        onPrimaryContainer = OnPrimary,
+        secondary = LightSecondaryText,
+        onSecondary = PrimaryText,
+        secondaryContainer = LightSurfaceVariant,
+        onSecondaryContainer = Background,
+        tertiary = LightSecondaryText,
+        onTertiary = PrimaryText,
+        background = PrimaryText,
+        onBackground = Background,
+        surface = PrimaryText,
+        onSurface = Background,
+        surfaceVariant = LightSurfaceVariant,
+        onSurfaceVariant = LightSecondaryText,
+        surfaceTint = Color.Transparent,
+        surfaceContainer = LightSurfaceVariant,
+        surfaceContainerLow = LightSurfaceVariant,
+        surfaceContainerHigh = LightSurfaceVariant,
+        surfaceContainerHighest = LightSurfaceHighest,
+        surfaceContainerLowest = PrimaryText,
+        outline = LightOutline,
+        outlineVariant = LightOutlineVariant,
+        inverseSurface = Background,
+        inverseOnSurface = PrimaryText,
+        error = LightError,
+        onError = PrimaryText,
+    )
+
 private val DuplicatesShapes =
     Shapes(
         extraSmall = RoundedCornerShape(16.dp),
-        small = RoundedCornerShape(18.dp),
-        medium = RoundedCornerShape(20.dp),
-        large = RoundedCornerShape(24.dp),
-        extraLarge = RoundedCornerShape(28.dp),
+        small = RoundedCornerShape(12.dp),
+        medium = RoundedCornerShape(16.dp),
+        large = RoundedCornerShape(16.dp),
+        extraLarge = RoundedCornerShape(20.dp),
     )
 
 @Composable
-fun DuplicatesTheme(content: @Composable () -> Unit) {
+fun DuplicatesTheme(
+    darkTheme: Boolean = true,
+    content: @Composable () -> Unit,
+) {
     MaterialTheme(
-        colorScheme = DuplicatesColorScheme,
+        colorScheme = if (darkTheme) DuplicatesColorScheme else DuplicatesLightColorScheme,
         typography = DuplicatesTypography,
         shapes = DuplicatesShapes,
         content = content,

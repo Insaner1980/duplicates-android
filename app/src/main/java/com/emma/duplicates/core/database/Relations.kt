@@ -44,4 +44,5 @@ data class PendingDeletionOperationWithItems(
 data class MemberSelectionState(
     val groupId: String,
     val selectedForDeletion: Boolean,
+    val eligible: Boolean,
 )

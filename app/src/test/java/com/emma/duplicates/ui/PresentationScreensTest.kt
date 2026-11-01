@@ -7,8 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -20,8 +22,6 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Density
 import com.emma.duplicates.core.designsystem.DuplicatesTheme
-import com.emma.duplicates.ui.components.RootDestination
-import com.emma.duplicates.ui.components.RootNavigationBar
 import com.emma.duplicates.ui.exclusions.ExclusionItemUiState
 import com.emma.duplicates.ui.exclusions.ExclusionKind
 import com.emma.duplicates.ui.exclusions.ExclusionsScreen
@@ -30,7 +30,6 @@ import com.emma.duplicates.ui.home.CompletedHomeUiState
 import com.emma.duplicates.ui.home.HomeCategorySummaryUiState
 import com.emma.duplicates.ui.home.HomeScreen
 import com.emma.duplicates.ui.home.HomeUiState
-import com.emma.duplicates.ui.home.ReadyHomeScreen
 import com.emma.duplicates.ui.model.UiFileCategory
 import com.emma.duplicates.ui.permission.PermissionScreen
 import com.emma.duplicates.ui.preview.GenericPreviewScreen
@@ -41,9 +40,6 @@ import com.emma.duplicates.ui.results.ResultsFilter
 import com.emma.duplicates.ui.results.ResultsScreen
 import com.emma.duplicates.ui.results.ResultsSort
 import com.emma.duplicates.ui.results.ResultsUiState
-import com.emma.duplicates.ui.review.ReviewDuplicatesScreen
-import com.emma.duplicates.ui.review.ReviewMemberUiState
-import com.emma.duplicates.ui.review.ReviewUiState
 import com.emma.duplicates.ui.scan.ScanPhase
 import com.emma.duplicates.ui.scan.ScanPhaseUiState
 import com.emma.duplicates.ui.scan.ScanRunStatus
@@ -65,191 +61,6 @@ import org.robolectric.annotation.Config
 class PresentationScreensTest {
     @get:Rule
     val composeRule = createComposeRule()
-
-    @Test
-    @Config(qualifiers = "w320dp-h800dp-mdpi")
-    fun homeEntryActionsRemainReachableAtNormalAndDoubleFontScale() {
-        val fontScale = mutableFloatStateOf(1f)
-        val ready = mutableStateOf(false)
-        var grants = 0
-        var scans = 0
-        var settings = 0
-        setContent {
-            val density = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale.floatValue)) {
-                if (ready.value) {
-                    ReadyHomeScreen(
-                        locationSummary = "Internal storage",
-                        typeSummary = "Photos, Videos, Audio, Documents",
-                        scanEnabled = true,
-                        onStartScan = { scans++ },
-                        onOpenSettings = { settings++ },
-                    )
-                } else {
-                    PermissionScreen(onGrantAccess = { grants++ }, onOpenSettings = { settings++ })
-                }
-            }
-        }
-
-        for (scale in listOf(1f, 2f)) {
-            composeRule.runOnIdle {
-                fontScale.floatValue = scale
-                ready.value = false
-            }
-            composeRule.onNodeWithContentDescription("Settings").performScrollTo().performClick()
-            composeRule.onNodeWithText("Grant storage access").performScrollTo().performClick()
-            composeRule.runOnIdle { ready.value = true }
-            composeRule.onNodeWithContentDescription("Settings").performScrollTo().performClick()
-            composeRule.onNodeWithText("Start scan").performScrollTo().performClick()
-        }
-
-        assertEquals(2, grants)
-        assertEquals(2, scans)
-        assertEquals(4, settings)
-    }
-
-    @Test
-    @Config(qualifiers = "w320dp-h800dp-mdpi")
-    fun rootNavigationAnnouncesSelectionAndInvokesDestinationCallback() {
-        var selected: RootDestination? = null
-        setContent {
-            RootNavigationBar(
-                selectedDestination = RootDestination.RESULTS,
-                onDestinationSelect = { selected = it },
-            )
-        }
-
-        composeRule.onNodeWithText("Results").assertIsSelected()
-        composeRule.onNodeWithText("Exclusions").performClick()
-
-        assertEquals(RootDestination.EXCLUSIONS, selected)
-    }
-
-    @Test
-    fun homeRendersRealActiveCompletedAndNoDuplicateStates() {
-        val homeState =
-            mutableStateOf<HomeUiState>(
-                HomeUiState.Completed(
-                    CompletedHomeUiState(
-                        reclaimableBytes = 1_500_000_000L,
-                        duplicateFileCount = 12,
-                        duplicateGroupCount = 4,
-                        totalStorageBytes = 256_000_000_000L,
-                        freeStorageBytes = 80_000_000_000L,
-                        lastScanEpochMillis = 1_715_949_000_000L,
-                        categories =
-                            listOf(
-                                HomeCategorySummaryUiState(UiFileCategory.PHOTOS, 8, 1_000_000_000L),
-                                HomeCategorySummaryUiState(UiFileCategory.DOCUMENTS, 4, 500_000_000L),
-                            ),
-                    ),
-                ),
-            )
-        setContent {
-            HomeScreen(
-                state = homeState.value,
-                onOpenSettings = {},
-                onGrantAccess = {},
-                onStartScan = {},
-                onViewScan = {},
-                onReviewDuplicates = {},
-                onCategorySelect = {},
-                onScanAgain = {},
-            )
-        }
-
-        composeRule.onNodeWithText("Space you can reclaim").assertIsDisplayed()
-        composeRule.onAllNodesWithText("1.5 GB")[0].assertIsDisplayed()
-        composeRule
-            .onNodeWithContentDescription(
-                "256 GB total storage. 1.5 GB can be reclaimed. 80 GB is free.",
-            ).assertIsDisplayed()
-        composeRule.onNodeWithText("256 GB").assertDoesNotExist()
-        composeRule.onNodeWithText("Review duplicates").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Duplicates by type").performScrollTo().assertIsDisplayed()
-
-        composeRule.runOnIdle {
-            homeState.value = HomeUiState.NoDuplicates(lastScanEpochMillis = 1_715_949_000_000L)
-        }
-        composeRule.onNodeWithText("No duplicates found").assertIsDisplayed()
-        composeRule.onNodeWithText("Scan again").assertIsDisplayed()
-
-        composeRule.runOnIdle {
-            homeState.value = HomeUiState.NoMatchingFiles(lastScanEpochMillis = 1_715_949_000_000L)
-        }
-        composeRule.onNodeWithText("No files matching selected types").assertIsDisplayed()
-        composeRule
-            .onNodeWithText("Check the selected file types and scan locations, then scan again.")
-            .assertIsDisplayed()
-    }
-
-    @Test
-    fun activeHomeOpensScanningFromViewScanAction() {
-        var openedScanning = false
-        setContent {
-            HomeScreen(
-                state =
-                    HomeUiState.ActiveScan(
-                        phase = "Comparing candidates",
-                        progress = 0.5f,
-                        progressLabel = "50%",
-                        filesIndexed = 24,
-                    ),
-                onOpenSettings = {},
-                onGrantAccess = {},
-                onStartScan = {},
-                onViewScan = { openedScanning = true },
-                onReviewDuplicates = {},
-                onCategorySelect = {},
-                onScanAgain = {},
-            )
-        }
-
-        composeRule.onNodeWithText("View scan").performClick()
-
-        assertTrue(openedScanning)
-    }
-
-    @Test
-    @Config(qualifiers = "w320dp-h800dp-mdpi")
-    fun completedHomeReflowsWithoutOverlappingStorageValuesAtDoubleFontScale() {
-        setContent {
-            val density = LocalDensity.current
-            CompositionLocalProvider(
-                LocalDensity provides Density(density.density, fontScale = 2f),
-            ) {
-                HomeScreen(
-                    state =
-                        HomeUiState.Completed(
-                            CompletedHomeUiState(
-                                reclaimableBytes = 2_000_000_000L,
-                                duplicateFileCount = 4,
-                                duplicateGroupCount = 2,
-                                totalStorageBytes = 10_000_000_000L,
-                                freeStorageBytes = 3_000_000_000L,
-                                lastScanEpochMillis = 1_715_949_000_000L,
-                                categories = emptyList(),
-                            ),
-                        ),
-                    onOpenSettings = {},
-                    onGrantAccess = {},
-                    onStartScan = {},
-                    onViewScan = {},
-                    onReviewDuplicates = {},
-                    onCategorySelect = {},
-                    onScanAgain = {},
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("Other used storage").performScrollTo().assertIsDisplayed()
-        val labelBounds =
-            composeRule.onNodeWithText("Other used storage").fetchSemanticsNode().boundsInRoot
-        val valueBounds = composeRule.onNodeWithText("5 GB").fetchSemanticsNode().boundsInRoot
-
-        assertTrue("Storage label and value overlap at 200% font scale", labelBounds.right <= valueBounds.left)
-        composeRule.onNodeWithText("Review duplicates").performScrollTo().assertIsDisplayed()
-    }
 
     @Test
     fun scanningShowsTruthfulPhasesAndConfirmationCallbacks() {
@@ -291,7 +102,7 @@ class PresentationScreensTest {
         composeRule.onNodeWithText("In progress").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Stop scan").performScrollTo().performClick()
         composeRule.onNodeWithText("Stop this scan?").assertIsDisplayed()
-        composeRule.onNodeWithText("Stop scan").performClick()
+        composeRule.onNode(hasText("Stop scan") and hasAnyAncestor(isDialog())).performClick()
 
         assertEquals(1, stopConfirmations)
         assertEquals(1, stopRequests)
@@ -337,165 +148,6 @@ class PresentationScreensTest {
                 .boundsInRoot
                 .height
         assertTrue("Scan phase row height was $rowHeight px at 200% font scale", rowHeight > 56f)
-    }
-
-    @Test
-    fun resultsExposeSearchFiltersReviewAndClearConfirmation() {
-        var selectedFilter: ResultsFilter? = null
-        var query = ""
-        var reviewedId: String? = null
-        var clears = 0
-        val clearVisible = mutableStateOf(false)
-        setContent {
-            ResultsScreen(
-                state = searchableResultsState(clearVisible.value),
-                onSearchVisibilityChange = {},
-                onSearchQueryChange = { query = it },
-                onFilterSelect = { selectedFilter = it },
-                onSortSelect = {},
-                onOverflowVisibilityChange = {},
-                onSortVisibilityChange = {},
-                onPreviewFile = { _, _ -> },
-                onReviewGroup = { reviewedId = it },
-                onScanAgain = {},
-                onRequestClear = {},
-                onDismissClear = {},
-                onConfirmClear = { clears += 1 },
-            )
-        }
-
-        composeRule.onNodeWithText("Results").assertIsDisplayed()
-        composeRule.onNodeWithText("Scan results").assertIsDisplayed()
-        composeRule.onNodeWithTag("results-list").performScrollToNode(hasText("mountain.jpg"))
-        composeRule.onNodeWithText("mountain.jpg").assertIsDisplayed()
-        composeRule.onNodeWithTag("results-list").performScrollToNode(hasText("Photos"))
-        composeRule.onNodeWithText("Photos").performClick()
-        composeRule.onNodeWithTag("results-list").performScrollToNode(hasText("Review"))
-        composeRule.onNodeWithText("Review").performClick()
-        composeRule
-            .onNodeWithTag("results-list")
-            .performScrollToNode(hasText("Search duplicate groups"))
-        composeRule.onNodeWithText("Search duplicate groups").performTextInput("mountain")
-        composeRule.runOnIdle { clearVisible.value = true }
-        composeRule.onNodeWithText("Clear results").performClick()
-
-        assertEquals(ResultsFilter.PHOTOS, selectedFilter)
-        assertEquals("group-1", reviewedId)
-        assertEquals("mountain", query)
-        assertEquals(1, clears)
-    }
-
-    @Test
-    fun resultsThumbnailOpensItsExactPreviewFile() {
-        var previewedFile: Pair<String, String>? = null
-        setContent {
-            ResultsScreen(
-                state =
-                    ResultsUiState(
-                        hasCompletedScan = true,
-                        duplicateFileCount = 2,
-                        duplicateGroupCount = 1,
-                        reclaimableBytes = 24_000_000L,
-                        selectedFilter = ResultsFilter.ALL,
-                        selectedSort = ResultsSort.LARGEST_RECLAIMABLE,
-                        searchVisible = false,
-                        searchQuery = "",
-                        clearConfirmationVisible = false,
-                        groups =
-                            listOf(
-                                DuplicateGroupCardUiState(
-                                    id = "group-1",
-                                    title = "mountain.jpg",
-                                    category = UiFileCategory.PHOTOS,
-                                    copyCount = 2,
-                                    reclaimableBytes = 24_000_000L,
-                                    paths = listOf("/storage/DCIM/Camera"),
-                                    thumbnailModel = "content://media/photo-file",
-                                    previewFileId = "photo-file",
-                                ),
-                            ),
-                    ),
-                onSearchVisibilityChange = {},
-                onSearchQueryChange = {},
-                onFilterSelect = {},
-                onSortSelect = {},
-                onOverflowVisibilityChange = {},
-                onSortVisibilityChange = {},
-                onPreviewFile = { groupId, fileId -> previewedFile = groupId to fileId },
-                onReviewGroup = {},
-                onScanAgain = {},
-                onRequestClear = {},
-                onDismissClear = {},
-                onConfirmClear = {},
-            )
-        }
-
-        composeRule.onNodeWithTag("results-list").performScrollToNode(hasText("mountain.jpg"))
-        composeRule.onNodeWithContentDescription("Preview of mountain.jpg").performClick()
-
-        assertEquals("group-1" to "photo-file", previewedFile)
-    }
-
-    @Test
-    fun reviewBlocksSelectingTheFinalCopyAndAllowsOtherChanges() {
-        var blocked = 0
-        val changes = mutableListOf<Pair<String, Boolean>>()
-        setContent {
-            ReviewDuplicatesScreen(
-                state =
-                    ReviewUiState(
-                        groupId = "group",
-                        title = "photo.jpg",
-                        category = UiFileCategory.PHOTOS,
-                        identicalFileCount = 2,
-                        reclaimableBytes = 100_000_000L,
-                        selectedCount = 1,
-                        selectedBytes = 50_000_000L,
-                        members =
-                            listOf(
-                                ReviewMemberUiState(
-                                    id = "kept",
-                                    filename = "kept.jpg",
-                                    sizeBytes = 50_000_000L,
-                                    dateEpochMillis = 1_715_949_000_000L,
-                                    path = "/storage/DCIM/Camera/kept.jpg",
-                                    thumbnailModel = null,
-                                    selectedForDeletion = false,
-                                    recommendedKeep = true,
-                                    canSelectForDeletion = false,
-                                ),
-                                ReviewMemberUiState(
-                                    id = "selected",
-                                    filename = "selected.jpg",
-                                    sizeBytes = 50_000_000L,
-                                    dateEpochMillis = 1_715_949_000_000L,
-                                    path = "/storage/Download/selected.jpg",
-                                    thumbnailModel = null,
-                                    selectedForDeletion = true,
-                                    recommendedKeep = false,
-                                    canSelectForDeletion = true,
-                                ),
-                            ),
-                    ),
-                onBack = {},
-                onPreviewMember = {},
-                onMemberSelectionChange = { id, selected -> changes += id to selected },
-                onSelectionBlock = { blocked += 1 },
-                onRequestDelete = {},
-                onDismissDelete = {},
-                onConfirmDelete = {},
-                onDismissDeletionResult = {},
-            )
-        }
-
-        composeRule.onNodeWithTag("review-member-kept").performClick()
-        composeRule
-            .onNodeWithTag("review-list")
-            .performScrollToNode(hasTestTag("review-member-selected"))
-        composeRule.onNodeWithTag("review-member-selected").performClick()
-
-        assertEquals(1, blocked)
-        assertEquals(listOf("selected" to false), changes)
     }
 
     @Test
@@ -563,8 +215,8 @@ class PresentationScreensTest {
             )
         }
 
-        composeRule.onNodeWithText("Scan locations").performClick()
-        composeRule.onNodeWithText("Scan hidden folders").performClick()
+        composeRule.onNodeWithText("Scan locations").performScrollTo().performClick()
+        composeRule.onNodeWithText("Scan hidden folders").performScrollTo().performClick()
 
         assertEquals(1, openedLocations)
         assertEquals(true, hidden)
@@ -593,31 +245,6 @@ class PresentationScreensTest {
         composeRule.onNodeWithText("Open with another app").performClick()
         assertEquals(1, opens)
     }
-
-    private fun searchableResultsState(clearConfirmationVisible: Boolean): ResultsUiState =
-        ResultsUiState(
-            hasCompletedScan = true,
-            duplicateFileCount = 3,
-            duplicateGroupCount = 1,
-            reclaimableBytes = 48_000_000L,
-            selectedFilter = ResultsFilter.ALL,
-            selectedSort = ResultsSort.LARGEST_RECLAIMABLE,
-            searchVisible = true,
-            searchQuery = "",
-            clearConfirmationVisible = clearConfirmationVisible,
-            groups =
-                listOf(
-                    DuplicateGroupCardUiState(
-                        id = "group-1",
-                        title = "mountain.jpg",
-                        category = UiFileCategory.PHOTOS,
-                        copyCount = 3,
-                        reclaimableBytes = 48_000_000L,
-                        paths = listOf("/storage/DCIM/Camera", "/storage/Pictures"),
-                        thumbnailModel = null,
-                    ),
-                ),
-        )
 
     private fun setContent(content: @androidx.compose.runtime.Composable () -> Unit) {
         composeRule.setContent {

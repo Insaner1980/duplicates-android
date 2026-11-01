@@ -2,6 +2,24 @@
   "schemaVersion": 1,
   "exceptions": [
     {
+      "id": "mobsf-results-list-item-keys",
+      "tool": "mobsfscan",
+      "rule": "android_kotlin_hardcoded",
+      "scope": "app/src/main/java/com/emma/duplicates/ui/results/ResultsList.kt android_kotlin_hardcoded header/gap item keys",
+      "reason": "False positive in mobsfscan 0.4.5: these two key arguments identify LazyColumn group headers and spacers using a UI prefix and the duplicate group ID. They are Compose item identities, not credentials or cryptographic keys. Match only the reviewed header and gap expressions; other hardcoded-value findings remain blocking.",
+      "owner": "project-maintainers",
+      "added": "2026-11-01",
+      "expires": "2026-12-01",
+      "tracking": "local-review:mobsf-results-list-item-keys",
+      "sourcePath": "app/src/main/java/com/emma/duplicates/ui/results/ResultsList.kt",
+      "selector": "private fun LazyListScope.duplicateGroups(",
+      "findingPath": "app/src/main/java/com/emma/duplicates/ui/results/ResultsList.kt",
+      "findingSelectors": [
+        "key = \"header-${group.id}\"",
+        "key = \"gap-${group.id}\", contentType = \"gap\""
+      ]
+    },
+    {
       "id": "mobsf-task-hijacking2-gradle-sdk",
       "tool": "mobsfscan",
       "rule": "android_task_hijacking2",

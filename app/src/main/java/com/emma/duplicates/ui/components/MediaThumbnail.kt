@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -32,8 +33,6 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.video.VideoFrameDecoder
 import com.emma.duplicates.R
-import com.emma.duplicates.core.designsystem.Primary
-import com.emma.duplicates.core.designsystem.Surface
 import com.emma.duplicates.data.AudioAlbumArtLoader
 import com.emma.duplicates.ui.model.UiFileCategory
 
@@ -46,7 +45,7 @@ fun MediaThumbnail(
     videoImageLoader: ImageLoader,
     audioArtworkVisible: Boolean,
     modifier: Modifier = Modifier,
-    size: Dp = 72.dp,
+    size: Dp = 56.dp,
     fallbackIconSize: Dp = size,
 ) {
     val thumbnailSizePx = with(LocalDensity.current) { size.roundToPx() }
@@ -163,13 +162,13 @@ private fun VideoPlayIndicator(modifier: Modifier = Modifier) {
                 .padding(4.dp)
                 .size(24.dp)
                 .clip(CircleShape)
-                .background(Surface.copy(alpha = 0.88f)),
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.75f)),
         contentAlignment = Alignment.Center,
     ) {
         androidx.compose.material3.Icon(
             painter = painterResource(R.drawable.ic_play_arrow),
             contentDescription = null,
-            tint = Primary,
+            tint = androidx.compose.ui.graphics.Color.White,
             modifier = Modifier.size(16.dp).testTag("video-play-indicator"),
         )
     }

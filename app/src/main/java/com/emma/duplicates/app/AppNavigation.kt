@@ -30,8 +30,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.emma.duplicates.R
 import com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer
-import com.emma.duplicates.ui.components.RootDestination
-import com.emma.duplicates.ui.components.RootNavigationBar
 import com.emma.duplicates.ui.exclusions.ExclusionBrowserScreen
 import com.emma.duplicates.ui.exclusions.ExclusionKind
 import com.emma.duplicates.ui.exclusions.ExclusionsScreen
@@ -40,9 +38,7 @@ import com.emma.duplicates.ui.preview.GenericPreviewScreen
 import com.emma.duplicates.ui.preview.PhotoPreviewScreen
 import com.emma.duplicates.ui.results.ResultsFilter
 import com.emma.duplicates.ui.results.ResultsScreen
-import com.emma.duplicates.ui.review.ReviewDuplicatesScreen
 import com.emma.duplicates.ui.scan.ScanningScreen
-import com.emma.duplicates.ui.settings.ScanLocationsScreen
 import com.emma.duplicates.ui.settings.SettingsScreen
 import com.emma.duplicates.ui.settings.TypesToScanScreen
 import kotlinx.coroutines.flow.Flow
@@ -54,7 +50,8 @@ fun AppNavigation(
     onStartScan: () -> Unit,
     onOpenStorageSettings: () -> Unit,
     openScanningInitially: Boolean,
-    openScanningRequests: Flow<Unit>,
+    openScanningRequests: Flow<ScanNavigationRequest>,
+    scanStartPending: Boolean = false,
 ) {
     val navController = rememberNavController()
 
@@ -62,7 +59,7 @@ fun AppNavigation(
         if (openScanningInitially) navController.openScanning()
     }
     LaunchedEffect(navController, openScanningRequests) {
-        openScanningRequests.collect { navController.openScanning() }
+        openScanningRequests.collect { navController.openScanning(it) }
     }
 
     AppNavHost(
@@ -71,6 +68,7 @@ fun AppNavigation(
         navController,
         onStartScan,
         onOpenStorageSettings,
+        scanStartPending,
     )
 }
 
@@ -81,19 +79,10 @@ private fun AppNavHost(
     navController: NavHostController,
     onStartScan: () -> Unit,
     onOpenStorageSettings: () -> Unit,
+    scanStartPending: Boolean,
 ) {
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val rootDestination = backStackEntry?.destination?.rootDestination()
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
-            rootDestination?.let { selected ->
-                RootNavigationBar(
-                    selectedDestination = selected,
-                    onDestinationSelect = { navController.navigateToRoot(it) },
-                )
-            }
-        },
     ) { contentPadding ->
         AppNavigationGraph(
             container,
@@ -101,6 +90,7 @@ private fun AppNavHost(
             navController,
             onStartScan,
             onOpenStorageSettings,
+            scanStartPending,
             Modifier.padding(contentPadding),
         )
     }
@@ -113,6 +103,7 @@ private fun AppNavigationGraph(
     navController: NavHostController,
     onStartScan: () -> Unit,
     onOpenStorageSettings: () -> Unit,
+    scanStartPending: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val homeViewModel = rememberHomeViewModel(container)
@@ -125,11 +116,18 @@ private fun AppNavigationGraph(
         modifier = modifier,
     ) {
         composable<HomeRoute> {
-            HomeDestination(homeViewModel, navController, onStartScan, onOpenStorageSettings)
+            HomeDestination(
+                homeViewModel,
+                settingsViewModel,
+                navController,
+                onStartScan,
+                onOpenStorageSettings,
+                scanStartPending,
+            )
         }
 
         composable<ResultsRoute> { entry ->
-            ResultsDestination(container, navController, onStartScan, entry)
+            ResultsDestination(container, navController, onStartScan, deletionAuthorizer, entry)
         }
 
         composable<ExclusionsRoute> { entry ->
@@ -140,10 +138,6 @@ private fun AppNavigationGraph(
             ScanningDestination(container, navController, entry)
         }
 
-        composable<ReviewRoute> { entry ->
-            ReviewDestination(container, navController, deletionAuthorizer, entry)
-        }
-
         composable<PreviewRoute> { entry ->
             PreviewDestination(container, navController, entry)
         }
@@ -152,8 +146,8 @@ private fun AppNavigationGraph(
             SettingsDestination(settingsViewModel, navController, onOpenStorageSettings)
         }
 
-        composable<ScanLocationsRoute> {
-            ScanLocationsDestination(settingsViewModel, navController)
+        composable<ScanLocationsRoute> { entry ->
+            ScanLocationsDestination(container, navController, entry)
         }
 
         composable<TypesToScanRoute> {
@@ -219,14 +213,3 @@ private fun ObservePlatformState(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 }
-
-private fun NavDestination.rootDestination(): RootDestination? =
-    when {
-        route.matchesRoute(HomeRoute::class.qualifiedName) -> RootDestination.HOME
-        route.matchesRoute(ResultsRoute::class.qualifiedName) -> RootDestination.RESULTS
-        route.matchesRoute(ExclusionsRoute::class.qualifiedName) -> RootDestination.EXCLUSIONS
-        else -> null
-    }
-
-private fun String?.matchesRoute(qualifiedName: String?): Boolean =
-    qualifiedName != null && (this == qualifiedName || this?.startsWith("$qualifiedName?") == true)

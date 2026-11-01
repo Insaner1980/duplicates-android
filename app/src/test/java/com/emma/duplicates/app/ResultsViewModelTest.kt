@@ -1,6 +1,7 @@
 package com.emma.duplicates.app
 
 import android.app.Application
+import androidx.lifecycle.SavedStateHandle
 import com.emma.duplicates.core.database.DuplicateGroupEntity
 import com.emma.duplicates.core.database.DuplicateMemberEntity
 import com.emma.duplicates.core.database.IndexedFileEntity
@@ -26,16 +27,61 @@ class ResultsViewModelTest : ScanStoreDatabaseTest() {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun selectionDoesNotChangePotentialOrSortAndHiddenSelectionsRemainGlobal() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedResults()
+            val model = ResultsViewModel(scanStore, savedStateHandle = SavedStateHandle())
+            val initial = model.state.first { it.hasCompletedScan }
+            assertEquals(7, initial.selectedCount)
+            assertEquals(700L, initial.selectedBytes)
+            model.changeSelection("video-1", false)
+            val changed = model.state.first { it.selectedCount == 6 }
+            assertEquals(700L, changed.availableBytes)
+            assertEquals(initial.groups.map { it.id }, changed.groups.map { it.id })
+            model.setFilter(ResultsFilter.PHOTOS)
+            val filtered = model.state.first { it.selectedFilter == ResultsFilter.PHOTOS }
+            assertEquals(6, filtered.selectedCount)
+            assertEquals(5, filtered.hiddenSelectedCount)
+            model.setSearchQuery("no match")
+            assertEquals(6, model.state.first { it.searchQuery == "no match" }.hiddenSelectedCount)
+            model.showAll()
+            assertEquals(
+                0,
+                model.state
+                    .first {
+                        it.selectedFilter == ResultsFilter.ALL && it.searchQuery.isEmpty()
+                    }.hiddenSelectedCount,
+            )
+        }
+
+    @Test
+    fun restoredControlsPreserveQueryFilterAndSort() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedResults()
+            val saved = SavedStateHandle()
+            val model = ResultsViewModel(scanStore, savedStateHandle = saved)
+            model.setFilter(ResultsFilter.DOCUMENTS)
+            model.setSearchVisible(true)
+            model.setSearchQuery("budget")
+            model.setSort(ResultsSort.NEWEST)
+            val restored = ResultsViewModel(scanStore, savedStateHandle = saved).state.first { it.hasCompletedScan }
+            assertEquals(ResultsFilter.DOCUMENTS, restored.selectedFilter)
+            assertEquals(ResultsSort.NEWEST, restored.selectedSort)
+            assertEquals("budget", restored.searchQuery)
+            assertEquals(listOf("docs"), restored.groups.map { it.id })
+        }
+
+    @Test
     fun `filters search and every sort operate on persisted completed groups`() =
         runTest(mainDispatcherRule.dispatcher) {
             seedResults()
-            val viewModel = ResultsViewModel(scanStore)
+            val viewModel = ResultsViewModel(scanStore, savedStateHandle = SavedStateHandle())
 
             val initial = viewModel.state.first { it.hasCompletedScan }
             assertEquals(11, initial.duplicateFileCount)
             assertEquals(4, initial.duplicateGroupCount)
-            assertEquals(1_600L, initial.reclaimableBytes)
-            assertEquals(listOf("audio", "photo", "video", "docs"), initial.groups.map { it.id })
+            assertEquals(700L, initial.availableBytes)
+            assertEquals(listOf("video", "audio", "docs", "photo"), initial.groups.map { it.id })
             assertEquals(
                 4,
                 initial.groups
@@ -65,8 +111,8 @@ class ResultsViewModelTest : ScanStoreDatabaseTest() {
             viewModel.setSearchVisible(false)
             assertEquals("", viewModel.state.first { !it.searchVisible && it.searchQuery.isEmpty() }.searchQuery)
 
-            assertSort(viewModel, ResultsSort.LARGEST_RECLAIMABLE, listOf("audio", "photo", "video", "docs"))
-            assertSort(viewModel, ResultsSort.MOST_COPIES, listOf("video", "audio", "photo", "docs"))
+            assertSort(viewModel, ResultsSort.LARGEST_RECLAIMABLE, listOf("video", "audio", "docs", "photo"))
+            assertSort(viewModel, ResultsSort.MOST_COPIES, listOf("video", "audio", "docs", "photo"))
             assertSort(viewModel, ResultsSort.FILE_NAME, listOf("video", "audio", "docs", "photo"))
             assertSort(viewModel, ResultsSort.NEWEST, listOf("docs", "photo", "video", "audio"))
             assertSort(viewModel, ResultsSort.OLDEST, listOf("docs", "photo", "audio", "video"))
@@ -76,7 +122,7 @@ class ResultsViewModelTest : ScanStoreDatabaseTest() {
     fun `clear confirmation removes scan metadata and resets result state`() =
         runTest(mainDispatcherRule.dispatcher) {
             seedResults()
-            val viewModel = ResultsViewModel(scanStore)
+            val viewModel = ResultsViewModel(scanStore, savedStateHandle = SavedStateHandle())
             viewModel.state.first { it.hasCompletedScan }
 
             viewModel.setOverflowVisible(true)
@@ -111,6 +157,73 @@ class ResultsViewModelTest : ScanStoreDatabaseTest() {
                 .map { it.id },
         )
     }
+
+    @Test
+    fun audioRowsKeepContentUrisForLazyArtworkLoading() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedResults()
+            val audio =
+                ResultsViewModel(scanStore, savedStateHandle = SavedStateHandle())
+                    .state
+                    .first { it.groups.isNotEmpty() }
+                    .groups
+                    .first { it.id == "audio" }
+            assertEquals("content://media/audio-0", audio.members.first().audioContentUri)
+            assertEquals(null, audio.members.first().thumbnailModel)
+        }
+
+    @Test
+    fun duplicateSummaryCountsMembersInsteadOfScannedFilesOrSelectedCopies() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val definitions =
+                (0 until 52).map { index ->
+                    val copies = if (index < 4) 3 else 2
+                    GroupDefinition(
+                        "group-$index",
+                        "file-$index.txt",
+                        "DOCUMENTS",
+                        copies,
+                        0L,
+                        (0 until copies).map { it.toLong() },
+                        "/storage/Documents/$index",
+                    )
+                }
+            val files = files(definitions)
+            val groups =
+                definitions.map {
+                    DuplicateGroupEntity(
+                        it.id,
+                        SESSION_ID,
+                        it.category,
+                        "hash-${it.id}",
+                        100L,
+                        it.copies,
+                        0L,
+                        it.title,
+                    )
+                }
+            val members =
+                files.map { file ->
+                    DuplicateMemberEntity(
+                        "member-${file.id}",
+                        file.id.substringBeforeLast('-'),
+                        file.id,
+                        file.id.endsWith("-0"),
+                        false,
+                        false,
+                    )
+                }
+            scanStore.startSession(SESSION_ID, 1L)
+            scanStore.replaceStagedResults(SESSION_ID, files, groups, members)
+            scanStore.completeSession(SESSION_ID, 2L, ScanCompletionMetrics(999, 99900L, 108, 52, 0L, 0, 0))
+            val state =
+                ResultsViewModel(scanStore, savedStateHandle = SavedStateHandle()).state.first { it.groups.size == 52 }
+            assertEquals(108, state.duplicateFileCount)
+            assertEquals(52, state.duplicateGroupCount)
+            assertEquals(5600L, state.availableBytes)
+            assertEquals(0L, state.selectedBytes)
+            assertEquals(999, state.scannedFileCount)
+        }
 
     private suspend fun seedResults() {
         val definitions =

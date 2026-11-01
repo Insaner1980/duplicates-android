@@ -1,6 +1,5 @@
 package com.emma.duplicates.core.designsystem
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
@@ -22,9 +21,8 @@ fun DuplicatesCard(
     Surface(
         modifier = modifier,
         shape = shape,
-        color = SurfaceContainer,
-        border = BorderStroke(1.dp, OutlineVariant),
-        tonalElevation = 1.dp,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 0.dp,
         content = {
             androidx.compose.foundation.layout
                 .Column(content = content)
@@ -37,6 +35,7 @@ fun PrimaryActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    destructive: Boolean = false,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {
     Button(
@@ -46,10 +45,12 @@ fun PrimaryActionButton(
         shape = MaterialTheme.shapes.large,
         colors =
             ButtonDefaults.buttonColors(
-                containerColor = Primary,
-                contentColor = OnPrimary,
-                disabledContainerColor = SurfaceContainerHighest,
-                disabledContentColor = DisabledText,
+                containerColor =
+                    if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                contentColor =
+                    if (destructive) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 16.dp),
         content = content,
