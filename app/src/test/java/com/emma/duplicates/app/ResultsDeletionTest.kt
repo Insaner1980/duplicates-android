@@ -10,6 +10,7 @@ import com.emma.duplicates.core.database.DuplicateMemberEntity
 import com.emma.duplicates.core.database.IndexedFileEntity
 import com.emma.duplicates.core.database.ScanCompletionMetrics
 import com.emma.duplicates.core.database.ScanStoreDatabaseTest
+import com.emma.duplicates.data.ScanStore
 import com.emma.duplicates.data.preferences.PreferencesRepository
 import com.emma.duplicates.domain.deletion.DeletionCoordinator
 import com.emma.duplicates.domain.deletion.DeletionDatabaseUpdate
@@ -20,6 +21,7 @@ import com.emma.duplicates.domain.deletion.FileDeletionOutcome
 import com.emma.duplicates.ui.results.ResultsFilter
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.CompletableDeferred
@@ -155,6 +157,59 @@ class ResultsDeletionTest : ScanStoreDatabaseTest() {
             model.state.first { it.deletionResult != null && !it.busy }
             coVerify(exactly = 1) { coordinator.delete(any()) }
         }
+
+    @Test
+    fun queuedUncheckIsSavedBeforeDeletionWithoutConfirmation() =
+        runTest(dispatcher.dispatcher) { checkQueuedSelection(confirm = false) }
+
+    @Test
+    fun queuedUncheckIsSavedBeforeDeletionConfirmation() =
+        runTest(dispatcher.dispatcher) { checkQueuedSelection(confirm = true) }
+
+    private suspend fun TestScope.checkQueuedSelection(confirm: Boolean) {
+        seed()
+        val preferences = preferences()
+        preferences.setConfirmBeforeDelete(confirm)
+        val started = CompletableDeferred<Unit>()
+        val releaseWrite = CompletableDeferred<Unit>()
+        val delayedStore = mockk<ScanStore>()
+        every { delayedStore.activeResults } returns scanStore.activeResults
+        every { delayedStore.runningSession } returns scanStore.runningSession
+        coEvery { delayedStore.pendingDeletions() } returns emptyList()
+        coEvery { delayedStore.setMemberSelected("member-photo-1", true) } coAnswers {
+            started.complete(Unit)
+            releaseWrite.await()
+            scanStore.setMemberSelected("member-photo-1", true)
+        }
+        coEvery { delayedStore.setMemberSelected("member-doc-1", false) } coAnswers {
+            scanStore.setMemberSelected("member-doc-1", false)
+        }
+        val captured = slot<List<DeletionGroup>>()
+        val coordinator = mockk<DeletionCoordinator>()
+        coEvery { coordinator.delete(capture(captured)) } returns outcome()
+        val model = ResultsViewModel(delayedStore, preferences, coordinator, savedStateHandle = SavedStateHandle())
+        model.changeSelection("member-photo-1", true)
+        started.await()
+        model.changeSelection("member-doc-1", false)
+        model.requestDelete()
+        model.changeSelection("member-photo-1", false)
+        releaseWrite.complete(Unit)
+        if (confirm) {
+            val confirmation = model.state.first { it.deleteConfirmationVisible && !it.busy }
+            assertEquals(1, confirmation.confirmationCount)
+            model.confirmDelete()
+        }
+        model.state.first { it.deletionResult != null && !it.busy }
+        coVerify(exactly = 1) { delayedStore.setMemberSelected("member-doc-1", false) }
+        coVerify(exactly = 0) { delayedStore.setMemberSelected("member-photo-1", false) }
+        assertEquals(
+            listOf("member-photo-1"),
+            captured.captured
+                .flatMap { it.files }
+                .filter { it.selectedForDeletion }
+                .map { it.memberId },
+        )
+    }
 
     @Test
     fun unexpectedFailureReportsUnknownProgressInsteadOfInventingZeroDeleted() =

@@ -26,6 +26,13 @@
     <string name="deletion_incomplete">The operation was interrupted. Some files may have been deleted. Saved progress will be reconciled before another deletion.</string>
     <string name="deletion_selection_changed">The results or selected files changed. Review them and request deletion again.</string>
     <string name="deletion_outcome">Deleted: %1$d\nFreed: %2$s\nNot deleted: %3$d</string>
+    <string name="deletion_reason_vanished">Some files were already missing. They were not counted as deleted or freed space.</string>
+    <string name="deletion_reason_changed">Some files changed since the scan and were kept. Scan again before reviewing them.</string>
+    <string name="deletion_reason_revalidation_failed">Some files could not be verified as duplicates and were kept for safety.</string>
+    <string name="deletion_reason_not_accessible">Some files could not be accessed. Check storage access before trying again.</string>
+    <string name="deletion_reason_authorization_canceled">Android deletion approval was canceled. The affected files were kept.</string>
+    <string name="deletion_reason_failed">Some files could not be deleted. Review the remaining copies before trying again.</string>
+    <string name="deletion_reason_no_valid_copy">Some files were kept because no other valid copy could be confirmed.</string>
     <string name="show_all">Show all</string>
     <string name="scan_files">Scan files</string>
     <string name="scan_location">Scan location</string>

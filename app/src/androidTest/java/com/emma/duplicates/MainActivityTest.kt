@@ -1,10 +1,13 @@
 package com.emma.duplicates
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.os.Environment
+import android.provider.MediaStore
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -83,12 +86,42 @@ class MainActivityTest {
             composeRule.onNodeWithText("Previous scan").performScrollTo().performClick()
             composeRule.onNodeWithTag("delete-selected").performClick()
             composeRule.onNodeWithText("Delete permanently").performClick()
-            composeRule.waitUntil(30_000) { root.listFiles().orEmpty().size == 2 }
+            awaitFixtureDeletion(root)
             assertEquals(1, root.listFiles().orEmpty().count { it.extension == "png" })
             assertEquals(1, root.listFiles().orEmpty().count { it.extension == "txt" })
         } finally {
             restoreDisplay(display)
             cleanupFixture(root, container, previousPreferences, scanStarted)
+        }
+    }
+
+    private fun awaitFixtureDeletion(root: File) {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val automation = instrumentation.uiAutomation
+        val providerPackage =
+            checkNotNull(instrumentation.targetContext.packageManager.resolveContentProvider(MediaStore.AUTHORITY, 0))
+                .packageName
+        val originalFlags = automation.serviceInfo.flags
+        automation.serviceInfo =
+            automation.serviceInfo.apply {
+                flags = flags or AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+            }
+        try {
+            composeRule.waitUntil(30_000) {
+                if (root.listFiles().orEmpty().size == 2) {
+                    true
+                } else {
+                    // Match the MediaProvider's positive action by ID, independent of its translated label.
+                    automation.rootInActiveWindow
+                        ?.takeIf { it.packageName?.toString() == providerPackage }
+                        ?.findAccessibilityNodeInfosByViewId("android:id/button1")
+                        ?.firstOrNull { it.isEnabled && it.isClickable }
+                        ?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    false
+                }
+            }
+        } finally {
+            automation.serviceInfo = automation.serviceInfo.apply { flags = originalFlags }
         }
     }
 

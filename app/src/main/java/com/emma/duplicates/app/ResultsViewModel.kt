@@ -89,7 +89,8 @@ class ResultsViewModel(
         if (locked()) return
         viewModelScope.launch {
             mutationMutex.withLock {
-                if (!locked() && !scanStore.setMemberSelected(memberId, selected)) {
+                // Finish changes accepted before deletion locked new input.
+                if (!scanStore.setMemberSelected(memberId, selected)) {
                     update { copy(message = R.string.keep_at_least_one_copy) }
                 }
             }

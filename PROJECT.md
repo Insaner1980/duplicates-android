@@ -231,7 +231,7 @@ Selection changes are persisted in `duplicate_members`. The DAO rejects selectin
 
 ## Deletion safety
 
-The deletion path is user initiated from inline Results:
+The user starts deletion from inline Results:
 
 1. The ViewModel reads the current persisted group and selected members.
 2. The default in-app dialog summarizes selected file count and selected bytes. The `confirm_before_delete` preference can disable this app dialog, but the Results selection remains required and Android authorization still applies where required.

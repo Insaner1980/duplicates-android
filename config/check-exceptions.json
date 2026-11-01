@@ -16,7 +16,7 @@
       "findingPath": "app/src/main/java/com/emma/duplicates/ui/results/ResultsList.kt",
       "findingSelectors": [
         "key = \"header-${group.id}\"",
-        "key = \"gap-${group.id}\", contenttype = \"gap\""
+        "key = \"gap-${group.id}\", contentType = \"gap\""
       ]
     },
     {

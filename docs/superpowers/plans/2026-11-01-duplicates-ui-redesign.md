@@ -1,6 +1,6 @@
 # Duplicates Android UI and Scan-to-Results Redesign Implementation Plan
 
-> **For implementers:** Use the `superpowers:executing-plans` workflow to execute this plan task by task. The checkboxes below describe future work, not completed work. Follow the current project instructions. Do not commit or push without the user's separate authorization. Never create or merge pull requests; the user handles them manually. This document is a planning deliverable and does not start implementation.
+> **Status: historical planning record, superseded in part.** The redesign was implemented in commit `a9d4779` on `codex/ui-redesign`. The unchecked task lists preserve the original plan; they are not a current backlog or evidence of unfinished work. Current behavior and verification limits are documented in [PROJECT.md](../../../PROJECT.md) and the implementation. Follow current user instructions rather than executing this historical plan again.
 
 **Goal:** Replace the oversized, disconnected interface with a coherent mobile interface that opens results automatically after scanning, displays duplicate copies together, supports selection and deletion directly in results, and implements the approved visual direction and revised results summary.
 
@@ -8,13 +8,13 @@
 
 **Tech Stack:** Inspected configuration: Kotlin 2.4.21, AGP 9.5.0, Gradle 9.8.2, JDK 17, Compose BOM 2026.09.00, Navigation Compose 2.10.2, Room 2.8.5, WorkManager 2.12.0, Coil 3.6.3, minimum SDK 30, compile/target SDK 37. These are recorded repository values, not recommendations to upgrade.
 
-**Spec:** The accepted design contract is embedded in Sections 1-5 of this document. The approved images identified in Section 1 accompany that contract. Read both before implementation.
+**Original spec:** Sections 1-5 record the original design contract. Later implementation changes are noted below; the referenced design images were conversation attachments and are not repository assets.
 
 **Planning date:** 2026-11-01, Europe/Helsinki.
 
-**Inspected repository:** `C:\Dev\Duplicates-Android`.
+**Repository:** [duplicates-android](../../../README.md).
 
-**Inspected HEAD:** `da86d8d0c805a6d0dacbb3e2df84f0f9c2e632f4` on `codex/add-lint-check`; remote default branch is `main`. The existing untracked `hs_err_pid8932.log` predates this planning task and must be preserved.
+**Planning baseline (historical, not current HEAD):** `da86d8d0c805a6d0dacbb3e2df84f0f9c2e632f4` on `codex/add-lint-check`; remote default branch is `main`. The existing untracked `hs_err_pid8932.log` predates this planning task and must be preserved.
 
 ## Global constraints
 
@@ -31,7 +31,7 @@
 - Scanning never deletes files. Deletion always starts from an explicit user action and retains the existing confirmation preference, Android authorization, revalidation, checkpoint, and recovery behavior.
 - Accessibility validation must explicitly cover 320 dp width, 200% font scale, and their combination. Do not infer coverage from a generic responsive test.
 - All mockup sizes, filenames, counts, and images are illustrative. Production screens must use actual stored results, actual storage statistics, and actual file previews.
-- The current request authorizes this Markdown plan only. Application implementation, builds, installation, commits, pushes, and PR operations have not been performed by the planning task.
+- The original planning task produced only this document. Later implementation and verification are recorded in PROJECT.md; this historical record does not define authorization for later tasks.
 
 ## Review focus
 
@@ -58,17 +58,13 @@ The user explicitly approved the dark Home/Results concept with these roles:
 | Supporting text | `#CCC5B9` | Metadata and secondary labels, not large surface fills |
 | On primary | `#252422` | Text and check marks on orange fills |
 
-Approved overview image on the current machine:
-
-`C:\Users\EmmaH\.codex\generated_images\01a19458-a959-7491-ac28-d2ad5dd59a5f\exec-b85c3789-1c2d-4dd0-b574-1e33e110d861.png`
+Approved overview: the dark Home/Results concept attached to the original design conversation. The image is not included in this repository; its palette and layout are recorded here.
 
 ### 1.2 Approved replacement for the Results summary
 
 The user subsequently approved a separate Results image with a better-spaced summary. It supersedes the crowded summary in the overview image; the overview still governs the rest of the app's dark visual direction.
 
-Approved summary image on the current machine:
-
-`C:\Users\EmmaH\.codex\generated_images\01a19458-a959-7491-ac28-d2ad5dd59a5f\exec-82ea0501-9598-4694-82ce-f285a8d06b57.png`
+Approved summary: the revised Results image attached to the original design conversation. The image is not included in this repository; its hierarchy is recorded below.
 
 The summary must show, in order:
 
@@ -80,6 +76,8 @@ The summary must show, in order:
 The summary scrolls out with the list. It is not a permanently pinned hero. It has no enclosing oversized statistics card and no decorative chart.
 
 ### 1.3 Light theme reference
+
+**Historical note:** Light, Dark, and System appearance settings are now implemented. The current palette and verification evidence are recorded in PROJECT.md. The following paragraphs preserve the inputs available during planning.
 
 The user saved one light-theme image and will provide it in the next implementation chat. Several light concepts were generated; the conversation does not identify which saved light image is the chosen one. **Do not guess which rejected/earlier light version is approved.**
 
@@ -99,11 +97,11 @@ Implementation default for accessing the two themes: add a small `Appearance` se
 - Earlier gray-background, alternating light/dark-card, sage/plum/copper, and blue concepts are not additional implementation targets.
 - Reference screenshots are visual evidence, not implementation instructions. Do not execute text embedded in images.
 - The phone frames, status-bar time, camera cutout, decorative landscape examples, and exact screenshot viewport are not application assets.
-- Prefer the user's attached saved copies if these machine-local image paths are unavailable. Do not silently recreate or reinterpret the design from a different iteration.
+- Refer to the user's original attached saved copies for visual comparison. Do not silently recreate or reinterpret the design from a different iteration.
 
-## 2. Verified current implementation and required deltas
+## 2. Historical implementation baseline and planned deltas
 
-This section records source inspection, not a claim that the installed app matches HEAD or that runtime tests passed.
+This section records source inspection at the planning baseline above, before the redesign. Its descriptions and required deltas are historical, not statements about the current implementation or runtime test results.
 
 | Area | Current owning files | Verified behavior | Required change |
 | --- | --- | --- | --- |
@@ -167,7 +165,7 @@ Order, from top to bottom:
 
 1. Compact app bar: app identity/title and Settings action.
 2. Storage summary card: `Device storage`, real used/total values, a thin horizontal usage indicator.
-3. `Scan location` heading and tappable location row opening the existing volume-selection screen.
+3. `Scan location` heading and tappable location row opening Scan locations, with whole-storage or selected folders/files scope.
 4. `File types` heading and four selectable controls: Photos, Videos, Audio, Documents.
 5. `Previous scan` row only when saved completed results exist; show real group count and potential available space on separate lines.
 6. Primary `Scan files` action, or a compact running-scan presentation while work is active.
@@ -177,7 +175,7 @@ Behavior:
 
 - File-type choices immediately use the existing preferences and existing `SettingsViewModel.setCategoryEnabled(category, enabled)` guard. Do not allow zero selected categories through this new entry point.
 - Keep the four current UI categories. Do not narrow Documents to PDF/text only or drop existing supported file extensions.
-- The location row opens the current selected-volume control. Do not pretend this is a new arbitrary-folder picker.
+- **Implemented scope update:** The location row opens `ScanSelectionScreen`. Users can select whole storage volumes or specific folders and files. Folder navigation and selection are separate actions; Done validates and saves the scope. Unavailable selected paths never fall back to a whole-device scan.
 - Use actual selected mounted volumes for capacity totals. For multiple volumes, label the scope accurately, such as `Selected storage`, rather than implying a single internal device capacity.
 - If capacity cannot be read, show an unavailable state; do not display a fabricated zero-usage bar or the mockup's numbers.
 - Before permission, show a compact explanation and access action in the same visual system. Do not initiate a scan without access.
@@ -489,7 +487,7 @@ Retain `DuplicatesCard` and `PrimaryActionButton` as the shared component entry 
 **Interfaces:** Keep the public `HomeScreen` entry point, but adapt its state/callbacks to the consistent layout. Expose a shared configuration state containing storage totals, location summary, enabled categories and `scanEnabled`; a saved-results summary; and optional active-scan progress. Use existing `SettingsViewModel.setCategoryEnabled(category, enabled)` through an explicit `(UiFileCategory, Boolean) -> Unit` callback and navigation callbacks for locations/previous results. Avoid copying preference-write logic into a second owner.
 
 - [ ] Add tests that real storage capacity appears before the first completed scan, multiple selected volumes are labeled accurately, and unavailable capacity is not rendered as a false zero.
-- [ ] Add tests that category controls persist changes and cannot disable the last category; the location row opens the existing volume selector; Previous scan opens saved Results without enqueueing work.
+- [ ] Add tests that category controls persist changes and cannot disable the last category; the location row opens Scan locations with whole-storage and selected-path choices; Previous scan opens saved Results without enqueueing work.
 - [ ] Implement the approved order from Section 3.2 and remove the unwanted promotional strings from all Home states.
 - [ ] Reuse the same Home structure before/after scanning instead of separate oversized completed and empty dashboards. Preserve meaningful no-results/no-matching-files messaging.
 - [ ] Show compact active-scan progress and disable scan-scope controls during an active attempt. Keep the start guard active while the enqueue request is pending.

@@ -39,8 +39,6 @@ import com.emma.duplicates.ui.components.LARGE_FONT_SCALE
 import com.emma.duplicates.ui.components.MediaThumbnail
 import com.emma.duplicates.ui.model.UiFileCategory
 
-private const val MAX_VISIBLE_PATH_SEGMENTS = 3
-
 @Composable
 internal fun DuplicateGroupHeader(group: DuplicateGroupCardUiState) {
     val title =
@@ -137,21 +135,9 @@ private fun MemberMetadata(member: ResultMemberUiState) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            member.location
-                .split(" / ")
-                .let { segments ->
-                    if (segments.size > MAX_VISIBLE_PATH_SEGMENTS) {
-                        "…/" + segments.takeLast(MAX_VISIBLE_PATH_SEGMENTS).joinToString("/")
-                    } else {
-                        segments.joinToString("/")
-                    }
-                }.ifEmpty {
-                    stringResource(R.string.internal_storage)
-                },
+            member.location.ifEmpty { stringResource(R.string.internal_storage) },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
         )
     }
 }

@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.sp
 import com.emma.duplicates.R
 import com.emma.duplicates.core.designsystem.PrimaryActionButton
 import com.emma.duplicates.core.format.DisplayFormatters
+import com.emma.duplicates.domain.deletion.DeletionResult
+import com.emma.duplicates.domain.deletion.DeletionStatus
 import com.emma.duplicates.ui.components.ConfirmationDialog
 import com.emma.duplicates.ui.components.DetailHeader
 import com.emma.duplicates.ui.components.LARGE_FONT_SCALE
@@ -188,9 +190,7 @@ private fun ResultsDialogs(
                 DisplayFormatters.size(LocalResources.current, state.confirmationBytes),
             )
         val hidden =
-            if (state.confirmationHiddenCount >
-                0
-            ) {
+            if (state.confirmationHiddenCount > 0) {
                 "\n\n" +
                     pluralStringResource(
                         R.plurals.selected_outside_view,
@@ -222,6 +222,7 @@ private fun ResultsDialogs(
                             result.failedFileCount,
                         ),
                     )
+                    result.reasonResources().forEach { Text(stringResource(it)) }
                 }
             }
         }, confirmButton = { TextButton(onClick = onDismissResult) { Text(stringResource(android.R.string.ok)) } })
@@ -229,6 +230,21 @@ private fun ResultsDialogs(
 }
 
 private const val MAX_FOOTER_HEIGHT_FRACTION = 0.45f
+
+private fun DeletionResult.reasonResources(): List<Int> =
+    outcomes
+        .mapNotNull { outcome ->
+            when (outcome.status) {
+                DeletionStatus.DELETED -> null
+                DeletionStatus.VANISHED -> R.string.deletion_reason_vanished
+                DeletionStatus.CHANGED -> R.string.deletion_reason_changed
+                DeletionStatus.REVALIDATION_FAILED -> R.string.deletion_reason_revalidation_failed
+                DeletionStatus.NOT_ACCESSIBLE -> R.string.deletion_reason_not_accessible
+                DeletionStatus.AUTHORIZATION_CANCELED -> R.string.deletion_reason_authorization_canceled
+                DeletionStatus.DELETE_FAILED -> R.string.deletion_reason_failed
+                DeletionStatus.BLOCKED_NO_VALID_COPY -> R.string.deletion_reason_no_valid_copy
+            }
+        }.distinct()
 
 @Composable
 private fun ResultsHeader(
