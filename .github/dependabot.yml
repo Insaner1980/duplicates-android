@@ -4,6 +4,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # Compose Rules 0.5+ requires Detekt 2; this project uses stable Detekt 1.
+      - dependency-name: "io.nlopez.compose.rules:detekt"
+        versions: ["[0.5.0,)"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
