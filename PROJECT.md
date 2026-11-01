@@ -57,18 +57,17 @@ The CodeQL workflow proves that its analysis build completed when that hosted jo
 
 ## Screens and navigation
 
-Navigation uses serializable typed routes with `composable<T>()`. The bottom navigation bar is visible only on Home, Results, and Exclusions. Root navigation uses `saveState` and `restoreState` so root destination state can be restored when switching tabs. Secondary routes do not show the bottom bar.
+Navigation uses serializable typed routes with `composable<T>()`. Home opens Scanning and saved Results without bottom navigation. Successful scanning opens the same completed session only after its persisted results are active. Results replaces Scanning above Home. Exclusions is reached through Settings.
 
 | Route or state | Presentation and behavior |
 | --- | --- |
-| `HomeRoute` | Root Home destination. Shows the storage access explanation, Ready to scan, active scan, completed duplicate summary, or no-duplicates state from real permission, preference, Room, and storage-volume state. The gear opens Settings. Category cards open filtered Results. |
-| `ResultsRoute(filter)` | Root Results destination. Shows saved totals, search, category filters, sorting, content-based duplicate cards, media thumbnails, and Review actions. Photos show image thumbnails, videos show decoded frames with a play marker, visible audio rows load album artwork when available, and other cases retain the category icon. Search covers group title, member filenames, and parent paths. Sorting supports largest reclaimable space, most copies, filename, newest, and oldest. Clear scan results confirms before deleting Room scan metadata only. |
-| `ExclusionsRoute` | Root Exclusions destination. Shows excluded folders and files, removes entries immediately, and opens a single add sheet for folder or file selection. |
-| `ScanningRoute` | Shows persisted progress, indexed files, candidate or confirmed group counts, reclaimable space, three phase states, current path, skipped-file note, and failure or cancellation state. All Back actions return to Home without canceling. A failed scan also shows a reason-specific recovery message. Stop requires confirmation and cancels the unique WorkManager request. |
-| `ReviewRoute(groupId)` | Shows one confirmed group and all members, the same media-thumbnail behavior as Results, recommendation, keep or delete state, metadata, preview entry, selected total, deletion confirmation, and result dialog. The final valid copy cannot be selected. |
-| `PreviewRoute(groupId, fileId)` | Photos use an in-app dark preview with pinch zoom, double-tap zoom, filename, path, size, and date. Other categories show metadata and open a secure local system viewer when available. |
-| `SettingsRoute` | Scanning, review and deletion, file type, and About sections. Values come from DataStore, mounted volumes, the real storage permission state, and `BuildConfig.VERSION_NAME`. |
-| `ScanLocationsRoute` | Lists only mounted shared volumes with label, total size, free size, and selection state. At least one mounted location must remain selected. |
+| `HomeRoute` | Storage access explanation or real selected-volume storage, scan location, file-type checkboxes, previous scan, compact active-scan status, and Scan files. The gear opens Settings. |
+| `ResultsRoute(filter)` | Scrollable potential-savings summary, duplicate group/member counts, search, category filters, sorting, and every member with its exact preview and persisted selection. A fixed footer shows global selected files/bytes and discloses hidden selections. Clear results removes scan metadata only after confirmation. |
+| `ExclusionsRoute` | Settings child destination. Shows excluded folders and files, removes entries immediately, and opens a single add sheet for folder or file selection. |
+| `ScanningRoute(baselineSessionId, awaitNewSession)` | Compact persisted progress, indexed/candidate counts, phases, path, and failure/cancellation state. Back returns Home without canceling. Stop requires confirmation. Successful completion navigates only while this entry is resumed. |
+| `PreviewRoute(groupId, fileId)` | Photos use an in-app preview with pinch zoom, double-tap zoom, filename, path, size, and date. Other categories show metadata and open a secure local system viewer when available. |
+| `SettingsRoute` | Appearance (System, Light, Dark), scanning, review and deletion, file type, and About sections. Values come from DataStore, mounted volumes, the real storage permission state, and `BuildConfig.VERSION_NAME`. |
+| `ScanLocationsRoute` | Selects entire shared volumes or specific folders and files using the in-app browser. Folder navigation and selection are separate actions. Done validates and saves the selection; Back leaves unsaved changes behind. Overlapping paths are collapsed, unavailable selections cannot be saved, and an empty scope cannot start a scan. |
 | `TypesToScanRoute` | Four large rows for Photos, Videos, Audio, and Documents. At least one category must remain enabled. |
 | `ExclusionBrowserRoute(kind)` | In-app browser for mounted shared volumes. It keeps navigation inside a selected volume, sorts folders first, returns canonical paths, excludes app-private and restricted Android locations, and reports duplicate, parent-covered, and inaccessible selections. |
 
@@ -76,78 +75,20 @@ Storage permission is a Home state and an Android system settings flow, not a fa
 
 ## Design system
 
-The app is dark-only and does not use dynamic color. It uses the system sans-serif through standard Compose typography.
+The default appearance is Dark. DataStore also supports Light and System. Both use the same layouts and semantic Material roles; dynamic color is disabled.
 
-### Colors
-
-| Token | Value |
-| --- | --- |
-| Background | `#000000` |
-| Surface | `#111111` |
-| Surface container low | `#151515` |
-| Surface container | `#191919` |
-| Surface container high | `#202020` |
-| Surface container highest | `#272727` |
-| Primary | `#D4AF37` |
-| Primary pressed | `#B8962F` |
-| Primary focus | `#E0C45F` |
-| On primary | `#171200` |
-| Primary container | `#3B300A` |
-| On primary container | `#F7DE8A` |
-| Primary text | `#F5F5F5` |
-| Secondary text | `#B8B8B8` |
-| Disabled text | `#747474` |
-| Outline | `#3A3A3A` |
-| Outline variant | `#292929` |
-| Other used storage | `#5A5A5A` |
-| Free storage | `#242424` |
-| Scrim | `#000000` |
-| Error | `#FFB4AB` |
-| On error | `#690005` |
-| Error container | `#93000A` |
-| On error container | `#FFDAD6` |
-
-Gold is used for primary actions, selected navigation and filters, active progress, reclaimable-space emphasis, category icons, recommendation, and kept state. Error colors are reserved for destructive actions, selected-for-deletion state, failures, and inaccessible browser messages.
-
-### Typography
-
-| Material style | Size and line height | Weight |
+| Role | Dark | Light |
 | --- | --- | --- |
-| `displayLarge` | 48 sp / 56 sp | Bold |
-| `headlineLarge` | 38 sp / 46 sp | Bold |
-| `headlineMedium` | 34 sp / 42 sp | Bold |
-| `titleLarge` | 24 sp / 32 sp | SemiBold |
-| `titleMedium` | 20 sp / 28 sp | SemiBold |
-| `bodyLarge` | 17 sp / 26 sp | Normal |
-| `bodyMedium` | 16 sp / 24 sp | Normal |
-| `bodySmall` | 15 sp / 22 sp | Normal |
-| `labelLarge` | 18 sp / 24 sp | SemiBold |
-| `labelMedium` | 15 sp / 20 sp | Normal |
-| `labelSmall` | 14 sp / 20 sp | Normal |
+| Background | `#252422` | `#FFFCF2` |
+| Card | `#403D39` | `#F0EBE1` |
+| Primary text | `#FFFCF2` | `#252422` |
+| Secondary text | `#CCC5B9` | `#625E58` |
+| Primary action | `#EB5E28` | `#EB5E28` |
+| On primary | `#252422` | `#252422` |
 
-### Shape and layout tokens
+Results uses a 36 sp size value with a separate 20 sp unit, then 22 sp statistics and 14 sp labels. Body text is 16 sp, secondary text 14 sp, and section titles 18 sp. Cards have 16 dp corners and zero tonal elevation. Compact screens use 16 dp horizontal padding; wide layouts are centered within 720 dp. Buttons and interactive targets retain their minimum touch sizes. Member thumbnails are 56 dp.
 
-| Token | Value |
-| --- | --- |
-| Extra-small shape | 16 dp radius |
-| Small shape | 18 dp radius |
-| Medium shape | 20 dp radius |
-| Large shape | 24 dp radius |
-| Extra-large shape | 28 dp radius |
-| Compact horizontal screen padding | 24 dp |
-| Wide horizontal screen padding | 32 dp at 600 dp and wider |
-| Standard vertical screen padding | 24 dp |
-| Minimum icon action target | 48 dp |
-| Settings and browser row minimum | 72 dp |
-| Scan location and file-type card minimum | 96 dp |
-| Primary button minimum height | 56 dp |
-| Primary button content padding | 24 dp horizontal / 16 dp vertical |
-| Media thumbnail | 72 dp square |
-| Video play badge | 24 dp circle, 16 dp icon, 4 dp bottom and end inset |
-
-`DuplicatesCard` uses Surface container, a 1 dp Outline variant border, 1 dp tonal elevation, and the 24 dp large shape by default. Root navigation uses the 28 dp extra-large shape, transparent selection indicator, gold selected content, and neutral gray unselected content. Screen content scrolls rather than shrinking controls. At high font scale the category grid stacks and root navigation removes outer horizontal padding.
-
-Sizes use decimal units and at most one decimal with `Locale.ENGLISH`. Dates use `MMM d, yyyy, HH:mm`. The storage ring consists of other used bytes, selected reclaimable bytes, and free bytes, so its segments always sum to total storage.
+The summary scrolls with the member list; the deletion footer reserves its own space above system navigation. The selected count and size use separate lines, and deletion uses the theme's error colors. Unselected copies show Keeping; Keep this copy clears a copy's deletion selection so another copy can be selected instead. At large font scale Home file types and Results statistics stack, and member metadata moves below the thumbnail/name row. Displayed sizes use decimal units and at most one decimal with `Locale.ENGLISH`. Storage progress represents actual used bytes / total bytes. Cards have no decorative side stripes, and interface text does not use round separator symbols.
 
 ## Package map
 
@@ -182,7 +123,7 @@ The main scan path is:
 5. `FileDiscovery` enumerates candidates. `ExactDuplicateScanner` compares them and reports progress.
 6. `ScanResultMapper` creates indexed files, duplicate groups, member selections, and stable Room IDs.
 7. Staged rows are inserted transactionally. A successful session becomes active and replaces the previous completed session. Failure or cancellation leaves the previous active results intact.
-8. Room flows update Home, Results, Scanning, Review, and totals.
+8. Room flows update Home, Results, Scanning, and totals.
 
 ## Persistence
 
@@ -214,8 +155,10 @@ DataStore file `duplicates_settings` contains these preferences:
 | `scan_audio` | `true` | Include the Audio category |
 | `scan_documents` | `true` | Include Documents and other ordinary user files |
 | `selected_volume_ids` | `{ "primary" }` | Select the primary shared volume |
+| `scan_selected_items_only` | `false` | Restrict traversal to explicitly selected folders and files |
+| `selected_scan_paths` | Empty set | Canonical selected paths; a selected folder includes its descendants |
 
-The Settings ViewModel prevents the final mounted volume or final enabled category from being disabled.
+The scope editor enables Done only for a nonempty selection. The Settings ViewModel prevents the final enabled category from being disabled. Missing or restricted selected paths fail the scan without falling back to entire-storage scanning. Selected-path traversal retains hidden-folder, system-folder, file-type, and exclusion filters.
 
 ## Storage discovery and metadata
 
@@ -288,10 +231,10 @@ Selection changes are persisted in `duplicate_members`. The DAO rejects selectin
 
 ## Deletion safety
 
-The deletion path is user initiated from Review:
+The deletion path is user initiated from inline Results:
 
 1. The ViewModel reads the current persisted group and selected members.
-2. The default in-app dialog summarizes selected file count and selected bytes. The `confirm_before_delete` preference can disable this app dialog, but the Review selection remains required and Android authorization still applies where required.
+2. The default in-app dialog summarizes selected file count and selected bytes. The `confirm_before_delete` preference can disable this app dialog, but the Results selection remains required and Android authorization still applies where required.
 3. `DeletionCoordinator` snapshots every group member. A matching size and last-modified time accepts current membership. Changed metadata triggers full SHA-256 and byte comparison against another readable group member.
 4. Missing, changed, unreadable, non-writable, or failed-revalidation selected files are kept or recorded as vanished. No selected file proceeds unless a readable matching unselected keeper exists.
 5. Before mutation, `RoomDeletionResultStore` writes an operation and every selected group, member, indexed-file, path, identity, and content-URI snapshot to the pending-deletion journal.
@@ -311,7 +254,7 @@ The browser canonicalizes every opened path, prevents traversal outside the moun
 
 ## Preview behavior
 
-Results and Review use one 72 dp `MediaThumbnail` component with the category icon as its fallback. Photos load through Coil from the saved content URI or canonical path. Videos use a 72 dp request with Coil's explicit `VideoFrameDecoder`, including for extensionless MediaStore URIs, and add a Primary gold play icon over a Surface badge at 88 percent alpha. Audio artwork is requested only for currently visible lazy-list rows. `AudioAlbumArtLoader` converts the stored MediaStore Files URI to the volume-specific Audio Media URI, queries `ALBUM_ID`, builds the matching album URI, and calls `ContentResolver.loadThumbnail` on `Dispatchers.IO`. Missing rows, artwork, access, or provider support leave the Audio icon in place. Documents keep their category icon.
+Results uses a 56 dp `MediaThumbnail` component with the category icon as its fallback. Photos load through Coil from the saved content URI or canonical path. Videos use a thumbnail-size request with Coil's explicit `VideoFrameDecoder`, including for extensionless MediaStore URIs, and add a contrasting play icon over a Surface badge at 88 percent alpha. Audio artwork is requested only for currently visible lazy-list rows. `AudioAlbumArtLoader` converts the stored MediaStore Files URI to the volume-specific Audio Media URI, queries `ALBUM_ID`, builds the matching album URI, and calls `ContentResolver.loadThumbnail` on `Dispatchers.IO`. Missing rows, artwork, access, or provider support leave the Audio icon in place. Documents keep their category icon.
 
 Photos are rendered with Coil from the MediaStore content URI or canonical path. Gesture scale is clamped from 1x through 5x; double tap toggles 1x and 2x. Preview is read-only.
 
@@ -332,7 +275,7 @@ Verification commands are:
 .\gradlew.bat connectedDebugAndroidTest
 ```
 
-The final connected run contains two passing tests on `Duplicates_Pixel9_API37(AVD) - 17`: `MainActivityTest` verifies launch, the storage permission explanation, navigation to Results, the empty-results state, and return to Home, while `DuplicatesDatabaseMigrationTest` validates the Room 2 to 3 upgrade.
+The pre-redesign connected run contained two passing tests on `Duplicates_Pixel9_API37(AVD) - 17`: `MainActivityTest` verifies launch, the storage permission explanation, navigation to Results, the empty-results state, and return to Home, while `DuplicatesDatabaseMigrationTest` validates the Room 2 to 3 upgrade.
 
 Manual runtime verification on the same Pixel 9 API 37 Android 17 AVD used only isolated `DuplicatesQa-20260812` fixture directories under `/sdcard/DCIM`, `/sdcard/Pictures`, and `/sdcard/Movies`. A real scan indexed 9 files into 3 exact groups. Photo preview opened, Android authorization was approved for one 1.2 MB duplicate, the file disappeared, and Room-backed results and totals updated. Notification denial still allowed the scan to continue in the background. Notification allowance showed the ongoing notification, its tap opened Scanning, and Stop canceled work. A canceled scan preserved earlier completed results. The UI was also checked at 200 percent font scale and in landscape, and exclusion add and remove were exercised. All three fixture directories were removed afterward and their absence was verified.
 
@@ -340,4 +283,7 @@ Scanner and deletion edge cases are additionally validated with isolated local t
 
 The interrupted-deletion journal and reconciliation paths are covered by local tests. The production database builder registers `MIGRATION_1_2` and `MIGRATION_2_3`, exported schemas 1 through 3 are present in the source tree, and `MigrationTestHelper` validates the 2 to 3 upgrade on Android 17. No recorded device run forces an operating-system process kill during a live MediaStore authorization.
 
+The 2026-11-01 scan-selection and UI refinement passed 217 local tests with no failures or skips, Android Lint, Detekt, and ktlint for the touched Kotlin files. Layout tests cover light and dark themes at 320 dp and 411 dp with 100 and 200 percent font scales. The debug and instrumentation APKs built successfully.
+
+On the isolated API 36 emulator, selecting a folder through Settings, saving the scope, scanning four fixture files into two groups, opening a preview, and switching themes worked. The complete fixture-deletion test did not pass: the text duplicate was deleted, but the image duplicate remained and the app reported one file not deleted. The cause is unresolved; this is not recorded as a passing deletion check. Emulator system-app ANR dialogs affected earlier attempts. No physical-device run was performed for this refinement. Test fixtures were removed and the owned read-only emulator was stopped. Visual evidence is in `app/build/outputs/ui-refinement`.
 The debug APK output is `app/build/outputs/apk/debug/app-debug.apk`.

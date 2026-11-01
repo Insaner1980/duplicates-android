@@ -2,27 +2,30 @@ package com.emma.duplicates.ui.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.emma.duplicates.R
 import com.emma.duplicates.core.designsystem.DuplicatesCard
@@ -30,14 +33,11 @@ import com.emma.duplicates.core.designsystem.PrimaryActionButton
 import com.emma.duplicates.core.format.DisplayFormatters
 import com.emma.duplicates.ui.components.CategoryIcon
 import com.emma.duplicates.ui.components.HomeHeader
+import com.emma.duplicates.ui.components.LARGE_FONT_SCALE
 import com.emma.duplicates.ui.components.ScreenColumn
 import com.emma.duplicates.ui.components.labelRes
 import com.emma.duplicates.ui.model.UiFileCategory
 import com.emma.duplicates.ui.permission.PermissionScreen
-import java.text.NumberFormat
-import java.util.Locale
-
-private const val LARGE_FONT_SCALE = 1.5f
 
 sealed interface HomeUiState {
     data object PermissionRequired : HomeUiState
@@ -87,6 +87,20 @@ data class HomeCategorySummaryUiState(
     val reclaimableBytes: Long,
 )
 
+data class HomeConfiguration(
+    val locationSummary: String = "",
+    val multipleVolumes: Boolean = false,
+    val totalBytes: Long? = null,
+    val freeBytes: Long = 0L,
+    val categories: Map<UiFileCategory, Boolean> = emptyMap(),
+    val hasPreviousScan: Boolean = false,
+    val previousGroups: Int = 0,
+    val previousAvailableBytes: Long = 0L,
+    val scanEnabled: Boolean = false,
+    val selectedItemsOnly: Boolean = false,
+    val selectedItemCount: Int = 0,
+)
+
 @Composable
 fun HomeScreen(
     state: HomeUiState,
@@ -95,248 +109,158 @@ fun HomeScreen(
     onStartScan: () -> Unit,
     onViewScan: () -> Unit,
     onReviewDuplicates: () -> Unit,
-    onCategorySelect: (UiFileCategory) -> Unit,
-    onScanAgain: () -> Unit,
     modifier: Modifier = Modifier,
+    configuration: HomeConfiguration = HomeConfiguration(),
+    onOpenScanLocations: () -> Unit = {},
+    onCategoryEnabledChange: (UiFileCategory, Boolean) -> Unit = { _, _ -> },
+    scanStartPending: Boolean = false,
 ) {
-    when (state) {
-        HomeUiState.PermissionRequired -> {
-            PermissionScreen(
-                onGrantAccess = onGrantAccess,
-                onOpenSettings = onOpenSettings,
-                modifier = modifier,
-            )
-        }
-
-        is HomeUiState.Ready -> {
-            ReadyHomeScreen(
-                locationSummary = state.locationSummary,
-                typeSummary = state.typeSummary,
-                scanEnabled = state.scanEnabled,
-                onStartScan = onStartScan,
-                onOpenSettings = onOpenSettings,
-                modifier = modifier,
-            )
-        }
-
-        is HomeUiState.ActiveScan -> {
-            ActiveScanHome(state, onOpenSettings, onViewScan, modifier)
-        }
-
-        is HomeUiState.Completed -> {
-            CompletedHomeScreen(
-                state.summary,
-                onOpenSettings,
-                onReviewDuplicates,
-                onCategorySelect,
-                onScanAgain,
-                modifier,
-            )
-        }
-
-        is HomeUiState.NoDuplicates -> {
-            EmptyScanHome(
-                title = stringResource(R.string.no_duplicates_found),
-                explanation = stringResource(R.string.no_duplicates_explanation),
-                timestamp = state.lastScanEpochMillis,
-                skippedFileCount = state.skippedFileCount,
-                onOpenSettings = onOpenSettings,
-                onScanAgain = onScanAgain,
-                modifier = modifier,
-            )
-        }
-
-        is HomeUiState.NoMatchingFiles -> {
-            EmptyScanHome(
-                title = stringResource(R.string.no_matching_files),
-                explanation = stringResource(R.string.no_matching_files_explanation),
-                timestamp = state.lastScanEpochMillis,
-                skippedFileCount = state.skippedFileCount,
-                onOpenSettings = onOpenSettings,
-                onScanAgain = onScanAgain,
-                modifier = modifier,
-            )
-        }
+    if (state == HomeUiState.PermissionRequired) {
+        PermissionScreen(onGrantAccess, onOpenSettings, modifier)
+        return
     }
-}
-
-@Composable
-private fun EmptyScanHome(
-    title: String,
-    explanation: String,
-    timestamp: Long,
-    skippedFileCount: Int,
-    onOpenSettings: () -> Unit,
-    onScanAgain: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    HomeScrollableContent(modifier) {
+    val running = state as? HomeUiState.ActiveScan
+    val scopeEnabled = running == null && !scanStartPending
+    ScreenColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         HomeHeader(onOpenSettings)
-        Spacer(Modifier.height(32.dp))
-        DuplicatesCard(Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.semantics { heading() },
-                )
-                Text(
-                    text = explanation,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = DisplayFormatters.dateTime(LocalResources.current, timestamp),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                if (skippedFileCount > 0) {
-                    Text(
-                        text = stringResource(R.string.scan_skipped_files),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                PrimaryActionButton(
-                    onClick = onScanAgain,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.scan_again))
-                }
+        StorageSummaryCard(configuration.totalBytes, configuration.freeBytes, configuration.multipleVolumes)
+        ScanLocationSection(configuration, scopeEnabled, onOpenScanLocations)
+        FileTypesSection(configuration, scopeEnabled, onCategoryEnabledChange)
+        if (running != null) {
+            Text(running.phase, style = MaterialTheme.typography.bodyMedium)
+            val progress = running.progress
+            if (progress == null) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            } else {
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
             }
         }
+        PrimaryActionButton(
+            onClick = if (running != null) onViewScan else onStartScan,
+            enabled = running != null || (configuration.scanEnabled && !scanStartPending),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(if (running != null) R.string.view_scan else R.string.scan_files))
+        }
+        if (configuration.hasPreviousScan) PreviousScanCard(configuration, onReviewDuplicates)
     }
 }
 
 @Composable
-private fun HomeScrollableContent(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    ScreenColumn(
-        modifier = modifier,
-        fillHeight = false,
-        bottomPadding = 24.dp,
-        content = content,
+private fun HomeSectionTitle(resource: Int) {
+    Text(
+        stringResource(resource),
+        style = MaterialTheme.typography.titleMedium,
+        modifier =
+            Modifier.semantics {
+                heading()
+            },
     )
 }
 
 @Composable
-private fun ActiveScanCard(
-    state: HomeUiState.ActiveScan,
-    onViewScan: () -> Unit,
+private fun FileTypeTile(
+    category: UiFileCategory,
+    selected: Boolean,
+    enabled: Boolean,
+    onChange: (UiFileCategory, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    DuplicatesCard(Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+    DuplicatesCard(
+        modifier.fillMaxWidth().toggleable(
+            value = selected,
+            enabled = enabled,
+            role = Role.Checkbox,
+            onValueChange = { onChange(category, it) },
+        ),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            CategoryIcon(category, Modifier.size(24.dp))
             Text(
-                text = stringResource(R.string.scan_in_progress),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.semantics { heading() },
+                stringResource(category.labelRes()),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
             )
-            Text(state.phase, style = MaterialTheme.typography.bodyLarge)
-            if (state.progress != null) {
-                val safeProgress = state.progress.coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = { safeProgress },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .semantics {
-                                progressBarRangeInfo =
-                                    androidx.compose.ui.semantics.ProgressBarRangeInfo(
-                                        safeProgress,
-                                        0f..1f,
-                                    )
-                            },
-                )
-                state.progressLabel?.let {
+            Checkbox(checked = selected, onCheckedChange = null, enabled = enabled, modifier = Modifier.size(32.dp))
+        }
+    }
+}
+
+@Composable
+private fun ScanLocationSection(
+    configuration: HomeConfiguration,
+    scopeEnabled: Boolean,
+    onOpenScanLocations: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        HomeSectionTitle(R.string.scan_location)
+        DuplicatesCard(Modifier.fillMaxWidth().clickable(enabled = scopeEnabled, onClick = onOpenScanLocations)) {
+            Row(
+                Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Icon(painterResource(R.drawable.ic_folder), null, Modifier.size(32.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
+                        configuration.locationSummary,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        if (configuration.selectedItemsOnly) {
+                            pluralStringResource(
+                                R.plurals.scan_items_selected,
+                                configuration.selectedItemCount,
+                                configuration.selectedItemCount,
+                            )
+                        } else {
+                            stringResource(R.string.all_accessible_folders)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            } else {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-            Text(
-                text =
-                    stringResource(
-                        R.string.files_indexed_value,
-                        englishInteger(state.filesIndexed),
-                    ),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            OutlinedButton(
-                onClick = onViewScan,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                shape = MaterialTheme.shapes.large,
-            ) {
-                Text(stringResource(R.string.view_scan))
+                Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(24.dp))
             }
         }
     }
 }
 
 @Composable
-private fun CategoryGrid(
-    categories: List<HomeCategorySummaryUiState>,
-    onCategorySelect: (UiFileCategory) -> Unit,
+private fun FileTypesSection(
+    configuration: HomeConfiguration,
+    scopeEnabled: Boolean,
+    onCategoryEnabledChange: (UiFileCategory, Boolean) -> Unit,
 ) {
-    BoxWithConstraints {
-        val stack = maxWidth < 400.dp || LocalConfiguration.current.fontScale >= LARGE_FONT_SCALE
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            categories.chunked(if (stack) 1 else 2).forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    rowItems.forEach { category ->
-                        DuplicatesCard(
-                            modifier =
-                                Modifier
-                                    .weight(1f)
-                                    .clickable { onCategorySelect(category.category) }
-                                    .semantics(mergeDescendants = true) {},
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                CategoryIcon(category.category)
-                                Text(
-                                    text = stringResource(category.category.labelRes()),
-                                    style = MaterialTheme.typography.titleMedium,
-                                )
-                                Text(
-                                    text =
-                                        stringResource(
-                                            R.string.duplicates_value,
-                                            englishInteger(category.duplicateCount),
-                                        ),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    text =
-                                        DisplayFormatters.size(
-                                            LocalResources.current,
-                                            category.reclaimableBytes,
-                                        ),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                )
-                            }
-                        }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        HomeSectionTitle(R.string.file_types)
+        if (LocalDensity.current.fontScale >= LARGE_FONT_SCALE) {
+            UiFileCategory.entries.forEach { category ->
+                FileTypeTile(
+                    category,
+                    configuration.categories[category] == true,
+                    scopeEnabled,
+                    onCategoryEnabledChange,
+                )
+            }
+        } else {
+            UiFileCategory.entries.chunked(2).forEach { categories ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    categories.forEach { category ->
+                        FileTypeTile(
+                            category,
+                            configuration.categories[category] == true,
+                            scopeEnabled,
+                            onCategoryEnabledChange,
+                            Modifier.weight(1f),
+                        )
                     }
-                    if (!stack && rowItems.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -344,109 +268,38 @@ private fun CategoryGrid(
 }
 
 @Composable
-private fun LastScanCard(
-    timestamp: Long,
-    duplicateCount: Int,
-    reclaimableBytes: Long,
-    skippedFileCount: Int,
-    onScanAgain: () -> Unit,
+private fun PreviousScanCard(
+    configuration: HomeConfiguration,
+    onReviewDuplicates: () -> Unit,
 ) {
-    DuplicatesCard(Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+    Column(Modifier.fillMaxWidth().clickable(onClick = onReviewDuplicates)) {
+        Row(
+            Modifier.padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = stringResource(R.string.last_scan),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                DisplayFormatters.dateTime(LocalResources.current, timestamp),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text =
-                    stringResource(
-                        R.string.last_scan_summary,
-                        englishInteger(duplicateCount),
-                        DisplayFormatters.size(LocalResources.current, reclaimableBytes),
-                    ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (skippedFileCount > 0) {
+            Icon(painterResource(R.drawable.ic_history), null, Modifier.size(24.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.previous_scan), style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    text = stringResource(R.string.scan_skipped_files),
-                    style = MaterialTheme.typography.bodyMedium,
+                    pluralStringResource(
+                        R.plurals.groups_found,
+                        configuration.previousGroups,
+                        configuration.previousGroups,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    stringResource(
+                        R.string.available_space,
+                        DisplayFormatters.size(LocalResources.current, configuration.previousAvailableBytes),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            OutlinedButton(
-                onClick = onScanAgain,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                shape = MaterialTheme.shapes.large,
-            ) {
-                Text(stringResource(R.string.scan_again))
-            }
+            Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(24.dp))
         }
-    }
-}
-
-private fun englishInteger(value: Int): String = NumberFormat.getIntegerInstance(Locale.ENGLISH).format(value)
-
-@Composable
-private fun CompletedHomeScreen(
-    summary: CompletedHomeUiState,
-    onOpenSettings: () -> Unit,
-    onReviewDuplicates: () -> Unit,
-    onCategorySelect: (UiFileCategory) -> Unit,
-    onScanAgain: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    HomeScrollableContent(modifier) {
-        HomeHeader(onOpenSettings)
-        Spacer(Modifier.height(32.dp))
-        CompletedSummaryCard(summary)
-        Spacer(Modifier.height(20.dp))
-        PrimaryActionButton(
-            onClick = onReviewDuplicates,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(stringResource(R.string.review_duplicates))
-        }
-        Spacer(Modifier.height(32.dp))
-        Text(
-            text = stringResource(R.string.duplicates_by_type),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.semantics { heading() },
-        )
-        Spacer(Modifier.height(16.dp))
-        CategoryGrid(summary.categories, onCategorySelect)
-        Spacer(Modifier.height(32.dp))
-        LastScanCard(
-            timestamp = summary.lastScanEpochMillis,
-            duplicateCount = summary.duplicateFileCount,
-            reclaimableBytes = summary.reclaimableBytes,
-            skippedFileCount = summary.skippedFileCount,
-            onScanAgain = onScanAgain,
-        )
-    }
-}
-
-@Composable
-private fun ActiveScanHome(
-    state: HomeUiState.ActiveScan,
-    onOpenSettings: () -> Unit,
-    onViewScan: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    HomeScrollableContent(modifier) {
-        HomeHeader(onOpenSettings)
-        Spacer(Modifier.height(32.dp))
-        ActiveScanCard(state, onViewScan)
     }
 }

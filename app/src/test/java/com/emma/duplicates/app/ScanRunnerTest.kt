@@ -49,6 +49,99 @@ class ScanRunnerTest : ScanStoreDatabaseTest() {
     val temporaryFolder = TemporaryFolder()
 
     @Test
+    fun `selected items restrict discovery without overlap`() =
+        runTest {
+            val root = temporaryFolder.newFolder("selected-scope")
+            val folder = root.resolve("Pictures").apply { mkdirs() }
+            val nested = folder.resolve("Nested").apply { mkdirs() }
+            folder.resolve("first.txt").writeText("matching")
+            nested.resolve("second.txt").writeText("matching")
+            val file = root.resolve("chosen.txt").apply { writeText("matching") }
+            root.resolve("outside.txt").writeText("matching")
+            val preferences = preferences("selected-scope.preferences_pb")
+            preferences.setScanSelection(
+                true,
+                setOf(folder.canonicalPath, nested.canonicalPath, file.canonicalPath),
+                setOf("primary"),
+            )
+
+            assertEquals(
+                ScanRunOutcome.COMPLETED,
+                runner(volume(root), TestMetadataIndex(), preferences).run("selected"),
+            )
+            val results = scanStore.activeResults.first()!!
+            assertEquals(3, results.session.scannedFileCount)
+            assertEquals(
+                setOf("first.txt", "second.txt", "chosen.txt"),
+                results.groups
+                    .single()
+                    .members
+                    .map {
+                        it.file.displayName
+                    }.toSet(),
+            )
+        }
+
+    @Test
+    fun `missing selected path preserves previous results`() =
+        runTest {
+            val root = duplicateFixture("missing-target")
+            val volume = volume(root)
+            seedPreviousActive(volume, TestMetadataIndex())
+            val preferences = preferences("missing-target.preferences_pb")
+            preferences.setScanSelection(true, setOf(root.resolve("missing").path), setOf("primary"))
+            assertEquals(ScanRunOutcome.EMPTY_SCOPE, runner(volume, TestMetadataIndex(), preferences).run("missing"))
+            assertEquals(
+                "previous",
+                scanStore.activeResults
+                    .first()!!
+                    .session.id,
+            )
+        }
+
+    @Test
+    fun `empty selected scope never scans the entire volume`() =
+        runTest {
+            val root = duplicateFixture("empty-target")
+            val preferences = preferences("empty-target.preferences_pb")
+            preferences.setScanSelection(true, emptySet(), setOf("primary"))
+            assertEquals(
+                ScanRunOutcome.EMPTY_SCOPE,
+                runner(volume(root), TestMetadataIndex(), preferences).run("empty"),
+            )
+            assertNull(scanStore.activeResults.first())
+        }
+
+    @Test
+    fun `selected files respect hidden folder settings`() =
+        runTest {
+            val root = temporaryFolder.newFolder("hidden-selection")
+            val hidden = root.resolve(".hidden").apply { mkdirs() }
+            val first = hidden.resolve("first.txt").apply { writeText("matching") }
+            val second = hidden.resolve("second.txt").apply { writeText("matching") }
+            val preferences = preferences("hidden-selection.preferences_pb")
+            preferences.setScanSelection(true, setOf(first.canonicalPath, second.canonicalPath), setOf("primary"))
+            assertEquals(ScanRunOutcome.COMPLETED, runner(volume(root), TestMetadataIndex(), preferences).run("hidden"))
+            assertEquals(
+                0,
+                scanStore.activeResults
+                    .first()!!
+                    .session.scannedFileCount,
+            )
+            preferences.setScanHiddenFolders(true)
+            assertEquals(
+                ScanRunOutcome.COMPLETED,
+                runner(volume(root), TestMetadataIndex(), preferences).run("visible"),
+            )
+            assertEquals(
+                2,
+                scanStore.activeResults
+                    .first()!!
+                    .session.scannedFileCount,
+            )
+        }
+
+    @Test
     fun `real files complete a namespaced staging scan and prune old active results`() =
         runTest {
             val root = duplicateFixture("complete")

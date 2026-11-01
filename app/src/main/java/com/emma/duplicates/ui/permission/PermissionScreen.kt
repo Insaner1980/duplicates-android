@@ -34,10 +34,6 @@ fun PermissionScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = stringResource(R.string.files_stay_on_phone),
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Text(
             text = stringResource(R.string.scanning_never_deletes),
             style = MaterialTheme.typography.bodyLarge,
         )

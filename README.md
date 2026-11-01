@@ -2,6 +2,8 @@
 
 Duplicates is a native Android utility for finding byte-identical files in mounted shared storage and removing reviewed redundant copies. It scans photos, videos, audio, documents, archives, installers, and other ordinary user files. It does not use filenames, timestamps, media metadata, or visual similarity as evidence that two files are duplicates.
 
+Scan locations supports entire storage or a saved selection of folders and individual files. Open a folder by its name, select it with its checkbox, and save with Done. Selected folders include their subfolders. Missing selections never cause a fallback to scanning the whole device. The interface supports both light and dark themes.
+
 All scanning and comparison happens on the device. The app has no `INTERNET` permission, backend, analytics, advertising, account, or cloud upload.
 
 ## Exact duplicate detection
@@ -24,7 +26,7 @@ The persistent fingerprint cache is keyed by canonical path and storage volume. 
 | Target SDK | Android 17, API 37 |
 | Verified emulator | Google Pixel 9, Android 17, API 37 |
 
-The final connected run contains two passing tests on the Pixel 9 API 37 emulator: a UI smoke test for launch, the storage permission explanation, and root navigation, plus the Room 2 to 3 migration test. A separate manual runtime check used isolated fixture directories under `DCIM`, `Pictures`, and `Movies`: a real scan found 9 files in 3 exact groups, photo preview opened, one approved 1.2 MB duplicate was deleted, and Room results updated. The check also covered denied and allowed notification states, notification tap and Stop, canceled-result preservation, 200 percent font scale, landscape, and exclusion add and remove. All fixture directories were removed and their absence was verified. Automated tests do not delete unrelated device files.
+The pre-redesign connected run contained two passing tests on the Pixel 9 API 37 emulator: a UI smoke test for launch, the storage permission explanation, and root navigation, plus the Room 2 to 3 migration test. A separate manual runtime check used isolated fixture directories under `DCIM`, `Pictures`, and `Movies`: a real scan found 9 files in 3 exact groups, photo preview opened, one approved 1.2 MB duplicate was deleted, and Room results updated. The check also covered denied and allowed notification states, notification tap and Stop, canceled-result preservation, 200 percent font scale, landscape, and exclusion add and remove. All fixture directories were removed and their absence was verified. Automated tests do not delete unrelated device files.
 
 ## Prerequisites
 
@@ -450,7 +452,7 @@ Every Back action on the Scanning screen returns to Home without canceling the w
 
 ## Reviewed deletion
 
-Scanning never deletes files. Deletion starts only from Review duplicates after the user selects copies. The default selection is deterministic, protects MediaStore favorites, prefers a valid copy in a primary user location, and keeps at least one readable matching copy in each group. The user can keep additional copies.
+Scanning never deletes files. Deletion starts from inline Results after the user selects copies. The fixed footer includes selections hidden by search or filters, and the confirmation captures the complete selected batch. The default selection is deterministic, protects MediaStore favorites, prefers a valid copy in a primary user location, and keeps at least one readable matching copy in each group. The user can keep additional copies.
 
 The in-app confirmation is enabled by default. Before deletion, every selected file is checked again. Changed files are rehashed and compared, missing or inaccessible files are not claimed as deleted, and deletion stops for a group when no valid unselected copy remains. MediaStore items use Android's system deletion authorization. Other writable files are removed individually and their absence is verified. After a successful direct path deletion, an available stored content URI is also removed from MediaStore on a best-effort basis to avoid a stale row. Partial success is reported accurately and Room totals are updated transactionally.
 

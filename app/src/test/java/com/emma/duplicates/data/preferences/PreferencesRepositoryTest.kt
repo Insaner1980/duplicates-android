@@ -21,6 +21,37 @@ class PreferencesRepositoryTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
+    fun appearanceDefaultsToDarkAndRoundTripsWithoutChangingScanSettings() =
+        runTest {
+            val repository = repository("appearance.preferences_pb")
+            assertEquals(AppThemeMode.DARK, repository.preferences.first().themeMode)
+            repository.setScanPhotos(false)
+            for (mode in AppThemeMode.entries) {
+                repository.setThemeMode(mode)
+                assertEquals(mode, repository.preferences.first().themeMode)
+                assertFalse(repository.preferences.first().scanPhotos)
+                assertTrue(repository.preferences.first().confirmBeforeDelete)
+            }
+        }
+
+    @Test
+    fun unknownAppearanceFallsBackToDark() =
+        runTest {
+            val dataStore =
+                PreferenceDataStoreFactory.create(
+                    scope = backgroundScope,
+                    produceFile = { temporaryFolder.root.resolve("unknown.preferences_pb") },
+                )
+            dataStore.updateData {
+                androidx.datastore.preferences.core.preferencesOf(
+                    androidx.datastore.preferences.core
+                        .stringPreferencesKey("theme_mode") to "FUTURE",
+                )
+            }
+            assertEquals(AppThemeMode.DARK, PreferencesRepository(dataStore).preferences.first().themeMode)
+        }
+
+    @Test
     fun defaultsMatchTheSafeFirstLaunchConfiguration() =
         runTest {
             val repository = repository("defaults.preferences_pb")

@@ -2,6 +2,7 @@ package com.emma.duplicates.app
 
 import android.app.Application
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.emma.duplicates.R
 import com.emma.duplicates.core.database.DuplicateGroupEntity
 import com.emma.duplicates.core.database.DuplicateMemberEntity
 import com.emma.duplicates.core.database.IndexedFileEntity
@@ -37,6 +38,64 @@ class HomeViewModelTest : ScanStoreDatabaseTest() {
 
     @get:Rule
     val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun configurationShowsRealStorageBeforeAnyScanAndUnavailableVolumesStayUnknown() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val preferences = preferences("capacity.preferences_pb")
+            var volumes = listOf(primaryVolume())
+            val model = viewModel({ true }, { volumes }, preferences)
+            val initial = model.configuration.first { it.scanEnabled }
+            assertEquals(1_000L, initial.totalBytes)
+            assertEquals(400L, initial.freeBytes)
+            assertFalse(initial.hasPreviousScan)
+            volumes = emptyList()
+            model.refreshPlatformState()
+            assertNull(model.configuration.first { !it.scanEnabled }.totalBytes)
+        }
+
+    @Test
+    fun `home and settings preserve summaries when switching between paths and volumes`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val preferences = preferences("summaries.preferences_pb")
+            val volumes = listOf(primaryVolume())
+            val home = viewModel({ true }, { volumes }, preferences)
+            val settings =
+                SettingsViewModel(
+                    context,
+                    StorageAccessManager(context.packageName) { true },
+                    StorageVolumeSource { volumes },
+                    preferences,
+                )
+            var previousSummary = home.configuration.first { it.scanEnabled }.locationSummary
+            home.state.first { it is HomeUiState.Ready && it.scanEnabled }
+
+            val paths = linkedSetOf("/storage/Zebra", "/storage/Alpha/photo.jpg")
+            val emptySummary = context.getString(R.string.no_locations_selected)
+            val cases =
+                listOf(
+                    Triple(true, paths, "photo.jpg, Zebra"),
+                    Triple(true, emptySet<String>(), emptySummary),
+                    Triple(false, paths, "Internal storage"),
+                )
+            for ((selectedItemsOnly, selectedPaths, expected) in cases) {
+                preferences.setScanSelection(selectedItemsOnly, selectedPaths, setOf("primary"))
+                val configuration = home.configuration.first { it.locationSummary != previousSummary }
+                val ready = home.state.first { it is HomeUiState.Ready && it.locationSummary != previousSummary }
+                val settingsState = settings.settingsState.first { it.scanLocationsSummary != previousSummary }
+                assertEquals(expected, configuration.locationSummary)
+                assertEquals(expected, (ready as HomeUiState.Ready).locationSummary)
+                assertEquals(expected, settingsState.scanLocationsSummary)
+                previousSummary = expected
+            }
+
+            preferences.setScanSelection(false, emptySet(), setOf("unmounted"))
+            assertEquals(emptySummary, home.configuration.first { !it.scanEnabled }.locationSummary)
+            assertEquals(
+                emptySummary,
+                settings.settingsState.first { it.scanLocationsSummary != previousSummary }.scanLocationsSummary,
+            )
+        }
 
     @Test
     fun `initial ready state never enables scanning before available scope is known`() =

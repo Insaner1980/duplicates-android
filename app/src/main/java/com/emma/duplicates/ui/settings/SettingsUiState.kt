@@ -1,5 +1,7 @@
 package com.emma.duplicates.ui.settings
 
+import com.emma.duplicates.data.preferences.AppThemeMode
+
 data class SettingsUiState(
     val scanLocationsSummary: String,
     val scanHiddenFolders: Boolean,
@@ -9,4 +11,5 @@ data class SettingsUiState(
     val fileTypesSummary: String,
     val storagePermissionGranted: Boolean,
     val appVersion: String,
+    val themeMode: AppThemeMode = AppThemeMode.DARK,
 )

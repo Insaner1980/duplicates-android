@@ -33,7 +33,7 @@ class PermissionScreenTest {
         composeRule
             .onNodeWithText("Duplicates needs access to shared storage to compare files across your phone.")
             .assertIsDisplayed()
-        composeRule.onNodeWithText("Files stay on this phone.").assertIsDisplayed()
+        composeRule.onNodeWithText("Files stay on this phone.").assertDoesNotExist()
         composeRule.onNodeWithText("Scanning never deletes anything.").assertIsDisplayed()
         composeRule.onNodeWithText("Grant storage access").assertIsDisplayed().assertIsEnabled()
     }

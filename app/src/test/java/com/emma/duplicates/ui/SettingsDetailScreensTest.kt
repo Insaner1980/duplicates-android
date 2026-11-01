@@ -15,9 +15,6 @@ import com.emma.duplicates.ui.exclusions.ExclusionBrowserScreen
 import com.emma.duplicates.ui.exclusions.ExclusionBrowserUiState
 import com.emma.duplicates.ui.exclusions.ExclusionKind
 import com.emma.duplicates.ui.model.UiFileCategory
-import com.emma.duplicates.ui.settings.ScanLocationUiState
-import com.emma.duplicates.ui.settings.ScanLocationsScreen
-import com.emma.duplicates.ui.settings.ScanLocationsUiState
 import com.emma.duplicates.ui.settings.TypesToScanScreen
 import com.emma.duplicates.ui.settings.TypesToScanUiState
 import org.junit.Assert.assertEquals
@@ -32,38 +29,6 @@ import org.robolectric.annotation.Config
 class SettingsDetailScreensTest {
     @get:Rule
     val composeRule = createComposeRule()
-
-    @Test
-    fun scanLocationsBlocksRemovingTheOnlySelectedVolume() {
-        var blocked = 0
-        composeRule.setContent {
-            DuplicatesTheme {
-                ScanLocationsScreen(
-                    state =
-                        ScanLocationsUiState(
-                            locations =
-                                listOf(
-                                    ScanLocationUiState(
-                                        id = "primary",
-                                        displayName = "Internal storage",
-                                        totalBytes = 128_000_000_000L,
-                                        freeBytes = 32_000_000_000L,
-                                        selected = true,
-                                        mounted = true,
-                                    ),
-                                ),
-                        ),
-                    onBack = {},
-                    onLocationSelectionChange = { _, _ -> },
-                    onSelectionBlock = { blocked += 1 },
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("Internal storage").performClick()
-        composeRule.onNodeWithText("Select at least one storage location.").assertIsDisplayed()
-        assertEquals(1, blocked)
-    }
 
     @Test
     fun typesScreenUsesLargeRowsAndProtectsTheFinalEnabledType() {

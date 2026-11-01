@@ -5,7 +5,7 @@
 //   ./gradlew :app:stabilityDump
 
 @Composable
-private fun com.emma.duplicates.app.AppNavHost(container: com.emma.duplicates.app.AppContainer, deletionAuthorizer: com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer, navController: androidx.navigation.NavHostController, onStartScan: kotlin.Function0<kotlin.Unit>, onOpenStorageSettings: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.app.AppNavHost(container: com.emma.duplicates.app.AppContainer, deletionAuthorizer: com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer, navController: androidx.navigation.NavHostController, onStartScan: kotlin.Function0<kotlin.Unit>, onOpenStorageSettings: kotlin.Function0<kotlin.Unit>, scanStartPending: kotlin.Boolean): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -14,9 +14,10 @@ private fun com.emma.duplicates.app.AppNavHost(container: com.emma.duplicates.ap
     - navController: UNSTABLE (cross-module type without @Stable/@Immutable)
     - onStartScan: STABLE (function type)
     - onOpenStorageSettings: STABLE (function type)
+    - scanStartPending: STABLE (primitive type)
 
 @Composable
-public fun com.emma.duplicates.app.AppNavigation(container: com.emma.duplicates.app.AppContainer, deletionAuthorizer: com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer, onStartScan: kotlin.Function0<kotlin.Unit>, onOpenStorageSettings: kotlin.Function0<kotlin.Unit>, openScanningInitially: kotlin.Boolean, openScanningRequests: kotlinx.coroutines.flow.Flow<kotlin.Unit>): kotlin.Unit
+public fun com.emma.duplicates.app.AppNavigation(container: com.emma.duplicates.app.AppContainer, deletionAuthorizer: com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer, onStartScan: kotlin.Function0<kotlin.Unit>, onOpenStorageSettings: kotlin.Function0<kotlin.Unit>, openScanningInitially: kotlin.Boolean, openScanningRequests: kotlinx.coroutines.flow.Flow<com.emma.duplicates.app.ScanNavigationRequest>, scanStartPending: kotlin.Boolean): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -26,9 +27,10 @@ public fun com.emma.duplicates.app.AppNavigation(container: com.emma.duplicates.
     - onOpenStorageSettings: STABLE (function type)
     - openScanningInitially: STABLE (primitive type)
     - openScanningRequests: UNKNOWN (interface or non-final class; concrete implementation unknown)
+    - scanStartPending: STABLE (primitive type)
 
 @Composable
-private fun com.emma.duplicates.app.AppNavigationGraph(container: com.emma.duplicates.app.AppContainer, deletionAuthorizer: com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer, navController: androidx.navigation.NavHostController, onStartScan: kotlin.Function0<kotlin.Unit>, onOpenStorageSettings: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+private fun com.emma.duplicates.app.AppNavigationGraph(container: com.emma.duplicates.app.AppContainer, deletionAuthorizer: com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer, navController: androidx.navigation.NavHostController, onStartScan: kotlin.Function0<kotlin.Unit>, onOpenStorageSettings: kotlin.Function0<kotlin.Unit>, scanStartPending: kotlin.Boolean, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -37,6 +39,7 @@ private fun com.emma.duplicates.app.AppNavigationGraph(container: com.emma.dupli
     - navController: UNSTABLE (cross-module type without @Stable/@Immutable)
     - onStartScan: STABLE (function type)
     - onOpenStorageSettings: STABLE (function type)
+    - scanStartPending: STABLE (primitive type)
     - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
@@ -60,14 +63,16 @@ internal fun com.emma.duplicates.app.ExclusionsDestination(container: com.emma.d
     - exclusionsViewModel: UNSTABLE (has mutable properties or unstable members)
 
 @Composable
-internal fun com.emma.duplicates.app.HomeDestination(homeViewModel: com.emma.duplicates.app.HomeViewModel, navController: androidx.navigation.NavHostController, onStartScan: kotlin.Function0<kotlin.Unit>, onOpenStorageSettings: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+internal fun com.emma.duplicates.app.HomeDestination(homeViewModel: com.emma.duplicates.app.HomeViewModel, settingsViewModel: com.emma.duplicates.app.SettingsViewModel, navController: androidx.navigation.NavHostController, onStartScan: kotlin.Function0<kotlin.Unit>, onOpenStorageSettings: kotlin.Function0<kotlin.Unit>, scanStartPending: kotlin.Boolean): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - homeViewModel: UNSTABLE (has mutable properties or unstable members)
+    - settingsViewModel: UNSTABLE (has mutable properties or unstable members)
     - navController: UNSTABLE (cross-module type without @Stable/@Immutable)
     - onStartScan: STABLE (function type)
     - onOpenStorageSettings: STABLE (function type)
+    - scanStartPending: STABLE (primitive type)
 
 @Composable
 internal fun com.emma.duplicates.app.LoadingScreen(): kotlin.Unit
@@ -94,34 +99,26 @@ internal fun com.emma.duplicates.app.PreviewDestination(container: com.emma.dupl
     - previewViewModel: UNSTABLE (has mutable properties or unstable members)
 
 @Composable
-internal fun com.emma.duplicates.app.ResultsDestination(container: com.emma.duplicates.app.AppContainer, navController: androidx.navigation.NavHostController, onStartScan: kotlin.Function0<kotlin.Unit>, entry: androidx.navigation.NavBackStackEntry, resultsViewModel: com.emma.duplicates.app.ResultsViewModel): kotlin.Unit
+internal fun com.emma.duplicates.app.ResultsDestination(container: com.emma.duplicates.app.AppContainer, navController: androidx.navigation.NavHostController, onStartScan: kotlin.Function0<kotlin.Unit>, deletionAuthorizer: com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer, entry: androidx.navigation.NavBackStackEntry, resultsViewModel: com.emma.duplicates.app.ResultsViewModel): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - container: UNSTABLE (has mutable properties or unstable members)
     - navController: UNSTABLE (cross-module type without @Stable/@Immutable)
     - onStartScan: STABLE (function type)
+    - deletionAuthorizer: UNKNOWN (interface or non-final class; concrete implementation unknown)
     - entry: UNSTABLE (cross-module type without @Stable/@Immutable)
     - resultsViewModel: UNSTABLE (has mutable properties or unstable members)
 
 @Composable
-internal fun com.emma.duplicates.app.ReviewDestination(container: com.emma.duplicates.app.AppContainer, navController: androidx.navigation.NavHostController, deletionAuthorizer: com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer, entry: androidx.navigation.NavBackStackEntry, reviewViewModel: com.emma.duplicates.app.ReviewViewModel): kotlin.Unit
+internal fun com.emma.duplicates.app.ScanLocationsDestination(container: com.emma.duplicates.app.AppContainer, navController: androidx.navigation.NavHostController, entry: androidx.navigation.NavBackStackEntry, selectionViewModel: com.emma.duplicates.app.ScanLocationsViewModel): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - container: UNSTABLE (has mutable properties or unstable members)
     - navController: UNSTABLE (cross-module type without @Stable/@Immutable)
-    - deletionAuthorizer: UNKNOWN (interface or non-final class; concrete implementation unknown)
     - entry: UNSTABLE (cross-module type without @Stable/@Immutable)
-    - reviewViewModel: UNSTABLE (has mutable properties or unstable members)
-
-@Composable
-internal fun com.emma.duplicates.app.ScanLocationsDestination(settingsViewModel: com.emma.duplicates.app.SettingsViewModel, navController: androidx.navigation.NavHostController): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - settingsViewModel: UNSTABLE (has mutable properties or unstable members)
-    - navController: UNSTABLE (cross-module type without @Stable/@Immutable)
+    - selectionViewModel: UNSTABLE (has mutable properties or unstable members)
 
 @Composable
 internal fun com.emma.duplicates.app.ScanningDestination(container: com.emma.duplicates.app.AppContainer, navController: androidx.navigation.NavHostController, entry: androidx.navigation.NavBackStackEntry, context: android.content.Context, scanViewModel: com.emma.duplicates.app.ScanViewModel): kotlin.Unit
@@ -175,20 +172,22 @@ public fun com.emma.duplicates.core.designsystem.DuplicatesCard(modifier: androi
     - content: STABLE (composable function type)
 
 @Composable
-public fun com.emma.duplicates.core.designsystem.DuplicatesTheme(content: @[Composable] androidx.compose.runtime.internal.ComposableFunction0<kotlin.Unit>): kotlin.Unit
+public fun com.emma.duplicates.core.designsystem.DuplicatesTheme(darkTheme: kotlin.Boolean, content: @[Composable] androidx.compose.runtime.internal.ComposableFunction0<kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
+    - darkTheme: STABLE (primitive type)
     - content: STABLE (composable function type)
 
 @Composable
-public fun com.emma.duplicates.core.designsystem.PrimaryActionButton(onClick: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, enabled: kotlin.Boolean, content: @[Composable] @[ExtensionFunctionType] androidx.compose.runtime.internal.ComposableFunction1<androidx.compose.foundation.layout.RowScope, kotlin.Unit>): kotlin.Unit
+public fun com.emma.duplicates.core.designsystem.PrimaryActionButton(onClick: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, enabled: kotlin.Boolean, destructive: kotlin.Boolean, content: @[Composable] @[ExtensionFunctionType] androidx.compose.runtime.internal.ComposableFunction1<androidx.compose.foundation.layout.RowScope, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - onClick: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
     - enabled: STABLE (primitive type)
+    - destructive: STABLE (primitive type)
     - content: STABLE (composable function type)
 
 @Composable
@@ -264,22 +263,12 @@ public fun com.emma.duplicates.ui.components.MediaThumbnail(category: com.emma.d
     - fallbackIconSize: STABLE (marked @Stable or @Immutable)
 
 @Composable
-public fun com.emma.duplicates.ui.components.Metric(value: kotlin.String, label: kotlin.String, modifier: androidx.compose.ui.Modifier, emphasized: kotlin.Boolean): kotlin.Unit
+public fun com.emma.duplicates.ui.components.Metric(value: kotlin.String, label: kotlin.String, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - value: STABLE (String is immutable)
     - label: STABLE (String is immutable)
-    - modifier: STABLE (marked @Stable or @Immutable)
-    - emphasized: STABLE (primitive type)
-
-@Composable
-public fun com.emma.duplicates.ui.components.RootNavigationBar(selectedDestination: com.emma.duplicates.ui.components.RootDestination, onDestinationSelect: kotlin.Function1<com.emma.duplicates.ui.components.RootDestination, kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - selectedDestination: STABLE (class with no mutable properties)
-    - onDestinationSelect: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
@@ -375,14 +364,7 @@ private fun com.emma.duplicates.ui.exclusions.ExclusionsExplanation(): kotlin.Un
   params:
 
 @Composable
-private fun com.emma.duplicates.ui.exclusions.ExclusionsHeader(onRequestAdd: kotlin.Function0<kotlin.Unit>): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - onRequestAdd: STABLE (function type)
-
-@Composable
-public fun com.emma.duplicates.ui.exclusions.ExclusionsScreen(state: com.emma.duplicates.ui.exclusions.ExclusionsUiState, onRequestAdd: kotlin.Function0<kotlin.Unit>, onDismissAddSheet: kotlin.Function0<kotlin.Unit>, onChooseFolder: kotlin.Function0<kotlin.Unit>, onChooseFile: kotlin.Function0<kotlin.Unit>, onRemove: kotlin.Function1<kotlin.String, kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+public fun com.emma.duplicates.ui.exclusions.ExclusionsScreen(state: com.emma.duplicates.ui.exclusions.ExclusionsUiState, onRequestAdd: kotlin.Function0<kotlin.Unit>, onDismissAddSheet: kotlin.Function0<kotlin.Unit>, onChooseFolder: kotlin.Function0<kotlin.Unit>, onChooseFile: kotlin.Function0<kotlin.Unit>, onRemove: kotlin.Function1<kotlin.String, kotlin.Unit>, modifier: androidx.compose.ui.Modifier, onBack: kotlin.Function0<kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -393,6 +375,7 @@ public fun com.emma.duplicates.ui.exclusions.ExclusionsScreen(state: com.emma.du
     - onChooseFile: STABLE (function type)
     - onRemove: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
+    - onBack: STABLE (function type)
 
 @Composable
 private fun com.emma.duplicates.ui.exclusions.SectionHeader(title: kotlin.String, count: kotlin.Int): kotlin.Unit
@@ -403,65 +386,27 @@ private fun com.emma.duplicates.ui.exclusions.SectionHeader(title: kotlin.String
     - count: STABLE (primitive type)
 
 @Composable
-private fun com.emma.duplicates.ui.home.ActiveScanCard(state: com.emma.duplicates.ui.home.HomeUiState.ActiveScan, onViewScan: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.home.FileTypeTile(category: com.emma.duplicates.ui.model.UiFileCategory, selected: kotlin.Boolean, enabled: kotlin.Boolean, onChange: kotlin.Function2<com.emma.duplicates.ui.model.UiFileCategory, kotlin.Boolean, kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
-    - state: STABLE (class with no mutable properties)
-    - onViewScan: STABLE (function type)
-
-@Composable
-private fun com.emma.duplicates.ui.home.ActiveScanHome(state: com.emma.duplicates.ui.home.HomeUiState.ActiveScan, onOpenSettings: kotlin.Function0<kotlin.Unit>, onViewScan: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - state: STABLE (class with no mutable properties)
-    - onOpenSettings: STABLE (function type)
-    - onViewScan: STABLE (function type)
+    - category: STABLE (class with no mutable properties)
+    - selected: STABLE (primitive type)
+    - enabled: STABLE (primitive type)
+    - onChange: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
-private fun com.emma.duplicates.ui.home.CategoryGrid(categories: kotlin.collections.List<com.emma.duplicates.ui.home.HomeCategorySummaryUiState>, onCategorySelect: kotlin.Function1<com.emma.duplicates.ui.model.UiFileCategory, kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.home.FileTypesSection(configuration: com.emma.duplicates.ui.home.HomeConfiguration, scopeEnabled: kotlin.Boolean, onCategoryEnabledChange: kotlin.Function2<com.emma.duplicates.ui.model.UiFileCategory, kotlin.Boolean, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
-    - categories: RUNTIME (requires runtime check)
-    - onCategorySelect: STABLE (function type)
+    - configuration: RUNTIME (requires runtime check)
+    - scopeEnabled: STABLE (primitive type)
+    - onCategoryEnabledChange: STABLE (function type)
 
 @Composable
-private fun com.emma.duplicates.ui.home.CompletedHomeScreen(summary: com.emma.duplicates.ui.home.CompletedHomeUiState, onOpenSettings: kotlin.Function0<kotlin.Unit>, onReviewDuplicates: kotlin.Function0<kotlin.Unit>, onCategorySelect: kotlin.Function1<com.emma.duplicates.ui.model.UiFileCategory, kotlin.Unit>, onScanAgain: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - summary: RUNTIME (requires runtime check)
-    - onOpenSettings: STABLE (function type)
-    - onReviewDuplicates: STABLE (function type)
-    - onCategorySelect: STABLE (function type)
-    - onScanAgain: STABLE (function type)
-    - modifier: STABLE (marked @Stable or @Immutable)
-
-@Composable
-internal fun com.emma.duplicates.ui.home.CompletedSummaryCard(summary: com.emma.duplicates.ui.home.CompletedHomeUiState): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - summary: RUNTIME (requires runtime check)
-
-@Composable
-private fun com.emma.duplicates.ui.home.EmptyScanHome(title: kotlin.String, explanation: kotlin.String, timestamp: kotlin.Long, skippedFileCount: kotlin.Int, onOpenSettings: kotlin.Function0<kotlin.Unit>, onScanAgain: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - title: STABLE (String is immutable)
-    - explanation: STABLE (String is immutable)
-    - timestamp: STABLE (primitive type)
-    - skippedFileCount: STABLE (primitive type)
-    - onOpenSettings: STABLE (function type)
-    - onScanAgain: STABLE (function type)
-    - modifier: STABLE (marked @Stable or @Immutable)
-
-@Composable
-public fun com.emma.duplicates.ui.home.HomeScreen(state: com.emma.duplicates.ui.home.HomeUiState, onOpenSettings: kotlin.Function0<kotlin.Unit>, onGrantAccess: kotlin.Function0<kotlin.Unit>, onStartScan: kotlin.Function0<kotlin.Unit>, onViewScan: kotlin.Function0<kotlin.Unit>, onReviewDuplicates: kotlin.Function0<kotlin.Unit>, onCategorySelect: kotlin.Function1<com.emma.duplicates.ui.model.UiFileCategory, kotlin.Unit>, onScanAgain: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+public fun com.emma.duplicates.ui.home.HomeScreen(state: com.emma.duplicates.ui.home.HomeUiState, onOpenSettings: kotlin.Function0<kotlin.Unit>, onGrantAccess: kotlin.Function0<kotlin.Unit>, onStartScan: kotlin.Function0<kotlin.Unit>, onViewScan: kotlin.Function0<kotlin.Unit>, onReviewDuplicates: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, configuration: com.emma.duplicates.ui.home.HomeConfiguration, onOpenScanLocations: kotlin.Function0<kotlin.Unit>, onCategoryEnabledChange: kotlin.Function2<com.emma.duplicates.ui.model.UiFileCategory, kotlin.Boolean, kotlin.Unit>, scanStartPending: kotlin.Boolean): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -471,72 +416,45 @@ public fun com.emma.duplicates.ui.home.HomeScreen(state: com.emma.duplicates.ui.
     - onStartScan: STABLE (function type)
     - onViewScan: STABLE (function type)
     - onReviewDuplicates: STABLE (function type)
-    - onCategorySelect: STABLE (function type)
-    - onScanAgain: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
+    - configuration: RUNTIME (requires runtime check)
+    - onOpenScanLocations: STABLE (function type)
+    - onCategoryEnabledChange: STABLE (function type)
+    - scanStartPending: STABLE (primitive type)
 
 @Composable
-private fun com.emma.duplicates.ui.home.HomeScrollableContent(modifier: androidx.compose.ui.Modifier, content: @[Composable] @[ExtensionFunctionType] androidx.compose.runtime.internal.ComposableFunction1<androidx.compose.foundation.layout.ColumnScope, kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.home.HomeSectionTitle(resource: kotlin.Int): kotlin.Unit
   skippable: true
   restartable: true
   params:
+    - resource: STABLE (primitive type)
+
+@Composable
+private fun com.emma.duplicates.ui.home.PreviousScanCard(configuration: com.emma.duplicates.ui.home.HomeConfiguration, onReviewDuplicates: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - configuration: RUNTIME (requires runtime check)
+    - onReviewDuplicates: STABLE (function type)
+
+@Composable
+private fun com.emma.duplicates.ui.home.ScanLocationSection(configuration: com.emma.duplicates.ui.home.HomeConfiguration, scopeEnabled: kotlin.Boolean, onOpenScanLocations: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - configuration: RUNTIME (requires runtime check)
+    - scopeEnabled: STABLE (primitive type)
+    - onOpenScanLocations: STABLE (function type)
+
+@Composable
+public fun com.emma.duplicates.ui.home.StorageSummaryCard(totalBytes: kotlin.Long?, freeBytes: kotlin.Long, multipleVolumes: kotlin.Boolean, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - totalBytes: STABLE (class with no mutable properties)
+    - freeBytes: STABLE (primitive type)
+    - multipleVolumes: STABLE (primitive type)
     - modifier: STABLE (marked @Stable or @Immutable)
-    - content: STABLE (composable function type)
-
-@Composable
-private fun com.emma.duplicates.ui.home.LastScanCard(timestamp: kotlin.Long, duplicateCount: kotlin.Int, reclaimableBytes: kotlin.Long, skippedFileCount: kotlin.Int, onScanAgain: kotlin.Function0<kotlin.Unit>): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - timestamp: STABLE (primitive type)
-    - duplicateCount: STABLE (primitive type)
-    - reclaimableBytes: STABLE (primitive type)
-    - skippedFileCount: STABLE (primitive type)
-    - onScanAgain: STABLE (function type)
-
-@Composable
-private fun com.emma.duplicates.ui.home.LegendRow(label: kotlin.String, value: kotlin.String): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - label: STABLE (String is immutable)
-    - value: STABLE (String is immutable)
-
-@Composable
-public fun com.emma.duplicates.ui.home.ReadyHomeScreen(locationSummary: kotlin.String, typeSummary: kotlin.String, scanEnabled: kotlin.Boolean, onStartScan: kotlin.Function0<kotlin.Unit>, onOpenSettings: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - locationSummary: STABLE (String is immutable)
-    - typeSummary: STABLE (String is immutable)
-    - scanEnabled: STABLE (primitive type)
-    - onStartScan: STABLE (function type)
-    - onOpenSettings: STABLE (function type)
-    - modifier: STABLE (marked @Stable or @Immutable)
-
-@Composable
-private fun com.emma.duplicates.ui.home.StorageLegend(labels: com.emma.duplicates.core.format.StorageLabels): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - labels: STABLE (class with no mutable properties)
-
-@Composable
-private fun com.emma.duplicates.ui.home.StorageRing(storage: com.emma.duplicates.core.format.StorageSegments, totalLabel: kotlin.String, spokenDescription: kotlin.String): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - storage: STABLE (class with no mutable properties)
-    - totalLabel: STABLE (String is immutable)
-    - spokenDescription: STABLE (String is immutable)
-
-@Composable
-private fun com.emma.duplicates.ui.home.SummaryField(label: kotlin.String, value: kotlin.String): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - label: STABLE (String is immutable)
-    - value: STABLE (String is immutable)
 
 @Composable
 public fun com.emma.duplicates.ui.permission.PermissionScreen(onGrantAccess: kotlin.Function0<kotlin.Unit>, onOpenSettings: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
@@ -585,24 +503,24 @@ private fun com.emma.duplicates.ui.preview.ZoomablePhoto(imageModel: kotlin.Any,
     - onLoadError: STABLE (function type)
 
 @Composable
-private fun com.emma.duplicates.ui.results.ClearResultsConfirmation(visible: kotlin.Boolean, onDismissClear: kotlin.Function0<kotlin.Unit>, onConfirmClear: kotlin.Function0<kotlin.Unit>): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - visible: STABLE (primitive type)
-    - onDismissClear: STABLE (function type)
-    - onConfirmClear: STABLE (function type)
-
-@Composable
-internal fun com.emma.duplicates.ui.results.DuplicateGroupCard(group: com.emma.duplicates.ui.results.DuplicateGroupCardUiState, onPreviewFile: kotlin.Function2<kotlin.String, kotlin.String, kotlin.Unit>, onReviewGroup: kotlin.Function1<kotlin.String, kotlin.Unit>, videoImageLoader: coil3.ImageLoader, audioArtworkVisible: kotlin.Boolean): kotlin.Unit
+internal fun com.emma.duplicates.ui.results.DuplicateGroupHeader(group: com.emma.duplicates.ui.results.DuplicateGroupCardUiState): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - group: UNSTABLE (has mutable properties or unstable members)
-    - onPreviewFile: STABLE (function type)
-    - onReviewGroup: STABLE (function type)
+
+@Composable
+internal fun com.emma.duplicates.ui.results.DuplicateMemberRow(groupId: kotlin.String, member: com.emma.duplicates.ui.results.ResultMemberUiState, last: kotlin.Boolean, enabled: kotlin.Boolean, videoImageLoader: coil3.ImageLoader, onPreviewFile: kotlin.Function2<kotlin.String, kotlin.String, kotlin.Unit>, onMemberSelectionChange: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - groupId: STABLE (String is immutable)
+    - member: UNSTABLE (has mutable properties or unstable members)
+    - last: STABLE (primitive type)
+    - enabled: STABLE (primitive type)
     - videoImageLoader: UNKNOWN (interface or non-final class; concrete implementation unknown)
-    - audioArtworkVisible: STABLE (primitive type)
+    - onPreviewFile: STABLE (function type)
+    - onMemberSelectionChange: STABLE (function type)
 
 @Composable
 private fun com.emma.duplicates.ui.results.FilterRow(selected: com.emma.duplicates.ui.results.ResultsFilter, onSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsFilter, kotlin.Unit>): kotlin.Unit
@@ -613,44 +531,82 @@ private fun com.emma.duplicates.ui.results.FilterRow(selected: com.emma.duplicat
     - onSelect: STABLE (function type)
 
 @Composable
-private fun com.emma.duplicates.ui.results.GroupPaths(paths: kotlin.collections.List<kotlin.String>): kotlin.Unit
+private fun com.emma.duplicates.ui.results.MemberMetadata(member: com.emma.duplicates.ui.results.ResultMemberUiState): kotlin.Unit
   skippable: true
   restartable: true
   params:
-    - paths: RUNTIME (requires runtime check)
+    - member: UNSTABLE (has mutable properties or unstable members)
 
 @Composable
-private fun com.emma.duplicates.ui.results.NoSavedResults(onScanAgain: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.results.MemberPreview(groupId: kotlin.String, member: com.emma.duplicates.ui.results.ResultMemberUiState, enabled: kotlin.Boolean, videoImageLoader: coil3.ImageLoader, onPreviewFile: kotlin.Function2<kotlin.String, kotlin.String, kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
-    - onScanAgain: STABLE (function type)
+    - groupId: STABLE (String is immutable)
+    - member: UNSTABLE (has mutable properties or unstable members)
+    - enabled: STABLE (primitive type)
+    - videoImageLoader: UNKNOWN (interface or non-final class; concrete implementation unknown)
+    - onPreviewFile: STABLE (function type)
+    - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
-private fun com.emma.duplicates.ui.results.ResultsHeader(state: com.emma.duplicates.ui.results.ResultsUiState, onSearchVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onOverflowVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onSortVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onSortSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsSort, kotlin.Unit>, onRequestClear: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.results.MemberSelection(member: com.emma.duplicates.ui.results.ResultMemberUiState, enabled: kotlin.Boolean, onMemberSelectionChange: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - member: UNSTABLE (has mutable properties or unstable members)
+    - enabled: STABLE (primitive type)
+    - onMemberSelectionChange: STABLE (function type)
+
+@Composable
+private fun com.emma.duplicates.ui.results.ResultsDialogs(state: com.emma.duplicates.ui.results.ResultsUiState, onDismissClear: kotlin.Function0<kotlin.Unit>, onConfirmClear: kotlin.Function0<kotlin.Unit>, onDismissDelete: kotlin.Function0<kotlin.Unit>, onConfirmDelete: kotlin.Function0<kotlin.Unit>, onDismissResult: kotlin.Function0<kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - state: RUNTIME (requires runtime check)
+    - onDismissClear: STABLE (function type)
+    - onConfirmClear: STABLE (function type)
+    - onDismissDelete: STABLE (function type)
+    - onConfirmDelete: STABLE (function type)
+    - onDismissResult: STABLE (function type)
+
+@Composable
+private fun com.emma.duplicates.ui.results.ResultsEmpty(message: kotlin.Int, onScan: kotlin.Function0<kotlin.Unit>, showScan: kotlin.Boolean): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - message: STABLE (primitive type)
+    - onScan: STABLE (function type)
+    - showScan: STABLE (primitive type)
+
+@Composable
+private fun com.emma.duplicates.ui.results.ResultsHeader(state: com.emma.duplicates.ui.results.ResultsUiState, onBack: kotlin.Function0<kotlin.Unit>, onSearchVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onOverflowVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onRequestClear: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - state: RUNTIME (requires runtime check)
+    - onBack: STABLE (function type)
     - onSearchVisibilityChange: STABLE (function type)
     - onOverflowVisibilityChange: STABLE (function type)
-    - onSortVisibilityChange: STABLE (function type)
-    - onSortSelect: STABLE (function type)
     - onRequestClear: STABLE (function type)
 
 @Composable
-private fun com.emma.duplicates.ui.results.ResultsOverflowMenu(state: com.emma.duplicates.ui.results.ResultsUiState, onOverflowVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onSortVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onSortSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsSort, kotlin.Unit>, onRequestClear: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+internal fun com.emma.duplicates.ui.results.ResultsList(state: com.emma.duplicates.ui.results.ResultsUiState, onSearchQueryChange: kotlin.Function1<kotlin.String, kotlin.Unit>, onFilterSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsFilter, kotlin.Unit>, onSortSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsSort, kotlin.Unit>, onSortVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onPreviewFile: kotlin.Function2<kotlin.String, kotlin.String, kotlin.Unit>, onMemberSelectionChange: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>, onScanAgain: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - state: RUNTIME (requires runtime check)
-    - onOverflowVisibilityChange: STABLE (function type)
-    - onSortVisibilityChange: STABLE (function type)
+    - onSearchQueryChange: STABLE (function type)
+    - onFilterSelect: STABLE (function type)
     - onSortSelect: STABLE (function type)
-    - onRequestClear: STABLE (function type)
+    - onSortVisibilityChange: STABLE (function type)
+    - onPreviewFile: STABLE (function type)
+    - onMemberSelectionChange: STABLE (function type)
+    - onScanAgain: STABLE (function type)
+    - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
-public fun com.emma.duplicates.ui.results.ResultsScreen(state: com.emma.duplicates.ui.results.ResultsUiState, onSearchVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onSearchQueryChange: kotlin.Function1<kotlin.String, kotlin.Unit>, onFilterSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsFilter, kotlin.Unit>, onSortSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsSort, kotlin.Unit>, onOverflowVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onSortVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onPreviewFile: kotlin.Function2<kotlin.String, kotlin.String, kotlin.Unit>, onReviewGroup: kotlin.Function1<kotlin.String, kotlin.Unit>, onScanAgain: kotlin.Function0<kotlin.Unit>, onRequestClear: kotlin.Function0<kotlin.Unit>, onDismissClear: kotlin.Function0<kotlin.Unit>, onConfirmClear: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+public fun com.emma.duplicates.ui.results.ResultsScreen(state: com.emma.duplicates.ui.results.ResultsUiState, onSearchVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onSearchQueryChange: kotlin.Function1<kotlin.String, kotlin.Unit>, onFilterSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsFilter, kotlin.Unit>, onSortSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsSort, kotlin.Unit>, onOverflowVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onSortVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onPreviewFile: kotlin.Function2<kotlin.String, kotlin.String, kotlin.Unit>, onScanAgain: kotlin.Function0<kotlin.Unit>, onRequestClear: kotlin.Function0<kotlin.Unit>, onDismissClear: kotlin.Function0<kotlin.Unit>, onConfirmClear: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, onBack: kotlin.Function0<kotlin.Unit>, onMemberSelectionChange: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>, onRequestDelete: kotlin.Function0<kotlin.Unit>, onDismissDelete: kotlin.Function0<kotlin.Unit>, onConfirmDelete: kotlin.Function0<kotlin.Unit>, onDismissDeletionResult: kotlin.Function0<kotlin.Unit>, onShowAll: kotlin.Function0<kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -662,20 +618,27 @@ public fun com.emma.duplicates.ui.results.ResultsScreen(state: com.emma.duplicat
     - onOverflowVisibilityChange: STABLE (function type)
     - onSortVisibilityChange: STABLE (function type)
     - onPreviewFile: STABLE (function type)
-    - onReviewGroup: STABLE (function type)
     - onScanAgain: STABLE (function type)
     - onRequestClear: STABLE (function type)
     - onDismissClear: STABLE (function type)
     - onConfirmClear: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
+    - onBack: STABLE (function type)
+    - onMemberSelectionChange: STABLE (function type)
+    - onRequestDelete: STABLE (function type)
+    - onDismissDelete: STABLE (function type)
+    - onConfirmDelete: STABLE (function type)
+    - onDismissDeletionResult: STABLE (function type)
+    - onShowAll: STABLE (function type)
 
 @Composable
-private fun com.emma.duplicates.ui.results.ResultsSearchField(query: kotlin.String, onQueryChange: kotlin.Function1<kotlin.String, kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.results.ResultsSortMenu(state: com.emma.duplicates.ui.results.ResultsUiState, onSortSelect: kotlin.Function1<com.emma.duplicates.ui.results.ResultsSort, kotlin.Unit>, onSortVisibilityChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
-    - query: STABLE (String is immutable)
-    - onQueryChange: STABLE (function type)
+    - state: RUNTIME (requires runtime check)
+    - onSortSelect: STABLE (function type)
+    - onSortVisibilityChange: STABLE (function type)
 
 @Composable
 private fun com.emma.duplicates.ui.results.ResultsSummary(state: com.emma.duplicates.ui.results.ResultsUiState): kotlin.Unit
@@ -685,72 +648,23 @@ private fun com.emma.duplicates.ui.results.ResultsSummary(state: com.emma.duplic
     - state: RUNTIME (requires runtime check)
 
 @Composable
-private fun com.emma.duplicates.ui.review.DeleteConfirmation(state: com.emma.duplicates.ui.review.ReviewUiState, onDismissDelete: kotlin.Function0<kotlin.Unit>, onConfirmDelete: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.results.SelectionFooter(state: com.emma.duplicates.ui.results.ResultsUiState, onDelete: kotlin.Function0<kotlin.Unit>, onShowAll: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - state: RUNTIME (requires runtime check)
-    - onDismissDelete: STABLE (function type)
-    - onConfirmDelete: STABLE (function type)
-
-@Composable
-private fun com.emma.duplicates.ui.review.DeleteSelectedButton(state: com.emma.duplicates.ui.review.ReviewUiState, onRequestDelete: kotlin.Function0<kotlin.Unit>): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - state: RUNTIME (requires runtime check)
-    - onRequestDelete: STABLE (function type)
-
-@Composable
-private fun com.emma.duplicates.ui.review.DeletionResultDialog(result: com.emma.duplicates.ui.review.DeletionResultUiState, onDismiss: kotlin.Function0<kotlin.Unit>): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - result: STABLE (class with no mutable properties)
-    - onDismiss: STABLE (function type)
-
-@Composable
-public fun com.emma.duplicates.ui.review.ReviewDuplicatesScreen(state: com.emma.duplicates.ui.review.ReviewUiState, onBack: kotlin.Function0<kotlin.Unit>, onPreviewMember: kotlin.Function1<kotlin.String, kotlin.Unit>, onMemberSelectionChange: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>, onSelectionBlock: kotlin.Function0<kotlin.Unit>, onRequestDelete: kotlin.Function0<kotlin.Unit>, onDismissDelete: kotlin.Function0<kotlin.Unit>, onConfirmDelete: kotlin.Function0<kotlin.Unit>, onDismissDeletionResult: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - state: RUNTIME (requires runtime check)
-    - onBack: STABLE (function type)
-    - onPreviewMember: STABLE (function type)
-    - onMemberSelectionChange: STABLE (function type)
-    - onSelectionBlock: STABLE (function type)
-    - onRequestDelete: STABLE (function type)
-    - onDismissDelete: STABLE (function type)
-    - onConfirmDelete: STABLE (function type)
-    - onDismissDeletionResult: STABLE (function type)
+    - onDelete: STABLE (function type)
+    - onShowAll: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
-private fun com.emma.duplicates.ui.review.ReviewMemberCard(state: com.emma.duplicates.ui.review.ReviewMemberUiState, category: com.emma.duplicates.ui.model.UiFileCategory, videoImageLoader: coil3.ImageLoader, audioArtworkVisible: kotlin.Boolean, onPreview: kotlin.Function0<kotlin.Unit>, onToggle: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.results.SummaryMetric(value: kotlin.Int, label: kotlin.Int, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
-    - state: UNSTABLE (has mutable properties or unstable members)
-    - category: STABLE (class with no mutable properties)
-    - videoImageLoader: UNKNOWN (interface or non-final class; concrete implementation unknown)
-    - audioArtworkVisible: STABLE (primitive type)
-    - onPreview: STABLE (function type)
-    - onToggle: STABLE (function type)
-
-@Composable
-private fun com.emma.duplicates.ui.review.ReviewMemberDetails(state: com.emma.duplicates.ui.review.ReviewMemberUiState, modifier: androidx.compose.ui.Modifier): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - state: UNSTABLE (has mutable properties or unstable members)
+    - value: STABLE (primitive type)
+    - label: STABLE (primitive type)
     - modifier: STABLE (marked @Stable or @Immutable)
-
-@Composable
-private fun com.emma.duplicates.ui.review.ReviewSummaryCard(state: com.emma.duplicates.ui.review.ReviewUiState): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - state: RUNTIME (requires runtime check)
 
 @Composable
 private fun com.emma.duplicates.ui.scan.ScanActions(state: com.emma.duplicates.ui.scan.ScanningUiState, onRequestStop: kotlin.Function0<kotlin.Unit>, onBack: kotlin.Function0<kotlin.Unit>): kotlin.Unit
@@ -774,14 +688,6 @@ private fun com.emma.duplicates.ui.scan.ScanPhaseRow(state: com.emma.duplicates.
   restartable: true
   params:
     - state: STABLE (class with no mutable properties)
-
-@Composable
-private fun com.emma.duplicates.ui.scan.ScanProgressRing(rawProgress: kotlin.Float?, runStatus: com.emma.duplicates.ui.scan.ScanRunStatus): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - rawProgress: STABLE (class with no mutable properties)
-    - runStatus: STABLE (class with no mutable properties)
 
 @Composable
 private fun com.emma.duplicates.ui.scan.ScanWorkCards(state: com.emma.duplicates.ui.scan.ScanningUiState): kotlin.Unit
@@ -811,6 +717,14 @@ private fun com.emma.duplicates.ui.settings.AboutSettingsSection(state: com.emma
     - onOpenStoragePermission: STABLE (function type)
 
 @Composable
+private fun com.emma.duplicates.ui.settings.AppearanceSection(state: com.emma.duplicates.ui.settings.SettingsUiState, onThemeModeChange: kotlin.Function1<com.emma.duplicates.data.preferences.AppThemeMode, kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - state: STABLE (class with no mutable properties)
+    - onThemeModeChange: STABLE (function type)
+
+@Composable
 private fun com.emma.duplicates.ui.settings.DetailSettingsRow(title: kotlin.String, summary: kotlin.String, onClick: kotlin.Function0<kotlin.Unit>, emphasized: kotlin.Boolean): kotlin.Unit
   skippable: true
   restartable: true
@@ -830,22 +744,19 @@ private fun com.emma.duplicates.ui.settings.FileTypeCard(category: com.emma.dupl
     - onEnabledChange: STABLE (function type)
 
 @Composable
-private fun com.emma.duplicates.ui.settings.ScanLocationCard(location: com.emma.duplicates.ui.settings.ScanLocationUiState, onSelectionChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
-  skippable: true
-  restartable: true
-  params:
-    - location: STABLE (class with no mutable properties)
-    - onSelectionChange: STABLE (function type)
-
-@Composable
-public fun com.emma.duplicates.ui.settings.ScanLocationsScreen(state: com.emma.duplicates.ui.settings.ScanLocationsUiState, onBack: kotlin.Function0<kotlin.Unit>, onLocationSelectionChange: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>, onSelectionBlock: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+public fun com.emma.duplicates.ui.settings.ScanSelectionScreen(state: com.emma.duplicates.ui.settings.ScanSelectionUiState, onBack: kotlin.Function0<kotlin.Unit>, onModeChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onOpenVolume: kotlin.Function1<kotlin.String, kotlin.Unit>, onVolumeSelectionChange: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>, onOpenDirectory: kotlin.Function1<kotlin.String, kotlin.Unit>, onShowStorage: kotlin.Function0<kotlin.Unit>, onPathSelectionChange: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>, onDone: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - state: RUNTIME (requires runtime check)
     - onBack: STABLE (function type)
-    - onLocationSelectionChange: STABLE (function type)
-    - onSelectionBlock: STABLE (function type)
+    - onModeChange: STABLE (function type)
+    - onOpenVolume: STABLE (function type)
+    - onVolumeSelectionChange: STABLE (function type)
+    - onOpenDirectory: STABLE (function type)
+    - onShowStorage: STABLE (function type)
+    - onPathSelectionChange: STABLE (function type)
+    - onDone: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
@@ -869,7 +780,42 @@ private fun com.emma.duplicates.ui.settings.SelectableSettingsCard(checked: kotl
     - content: STABLE (composable function type)
 
 @Composable
-public fun com.emma.duplicates.ui.settings.SettingsScreen(state: com.emma.duplicates.ui.settings.SettingsUiState, onBack: kotlin.Function0<kotlin.Unit>, onOpenScanLocations: kotlin.Function0<kotlin.Unit>, onScanHiddenFoldersChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onIgnoreSystemFoldersChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onAutoSelectChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onConfirmBeforeDeleteChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onOpenExclusions: kotlin.Function0<kotlin.Unit>, onOpenFileTypes: kotlin.Function0<kotlin.Unit>, onOpenStoragePermission: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+private fun com.emma.duplicates.ui.settings.SelectionEntry(label: kotlin.String, directory: kotlin.Boolean, inherited: kotlin.Boolean, checked: kotlin.Boolean?, enabled: kotlin.Boolean, onOpen: kotlin.Function0<kotlin.Unit>?, onSelectionChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - label: STABLE (String is immutable)
+    - directory: STABLE (primitive type)
+    - inherited: STABLE (primitive type)
+    - checked: STABLE (class with no mutable properties)
+    - enabled: STABLE (primitive type)
+    - onOpen: STABLE (function type)
+    - onSelectionChange: STABLE (function type)
+
+@Composable
+private fun com.emma.duplicates.ui.settings.SelectionMode(label: kotlin.Int, selected: kotlin.Boolean, enabled: kotlin.Boolean, onClick: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - label: STABLE (primitive type)
+    - selected: STABLE (primitive type)
+    - enabled: STABLE (primitive type)
+    - onClick: STABLE (function type)
+
+@Composable
+private fun com.emma.duplicates.ui.settings.SelectionPathRow(state: com.emma.duplicates.ui.settings.ScanSelectionUiState, path: kotlin.String, label: kotlin.String, directory: kotlin.Boolean, onOpen: kotlin.Function0<kotlin.Unit>?, onPathSelectionChange: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - state: RUNTIME (requires runtime check)
+    - path: STABLE (String is immutable)
+    - label: STABLE (String is immutable)
+    - directory: STABLE (primitive type)
+    - onOpen: STABLE (function type)
+    - onPathSelectionChange: STABLE (function type)
+
+@Composable
+public fun com.emma.duplicates.ui.settings.SettingsScreen(state: com.emma.duplicates.ui.settings.SettingsUiState, onBack: kotlin.Function0<kotlin.Unit>, onOpenScanLocations: kotlin.Function0<kotlin.Unit>, onScanHiddenFoldersChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onIgnoreSystemFoldersChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onAutoSelectChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onConfirmBeforeDeleteChange: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onOpenExclusions: kotlin.Function0<kotlin.Unit>, onOpenFileTypes: kotlin.Function0<kotlin.Unit>, onOpenStoragePermission: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, onThemeModeChange: kotlin.Function1<com.emma.duplicates.data.preferences.AppThemeMode, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -884,6 +830,7 @@ public fun com.emma.duplicates.ui.settings.SettingsScreen(state: com.emma.duplic
     - onOpenFileTypes: STABLE (function type)
     - onOpenStoragePermission: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
+    - onThemeModeChange: STABLE (function type)
 
 @Composable
 private fun com.emma.duplicates.ui.settings.SettingsSection(titleRes: kotlin.Int, content: @[Composable] @[ExtensionFunctionType] androidx.compose.runtime.internal.ComposableFunction1<androidx.compose.foundation.layout.ColumnScope, kotlin.Unit>): kotlin.Unit

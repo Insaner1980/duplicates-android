@@ -47,45 +47,6 @@ data class ScanLocationsUiState(
     val locations: List<ScanLocationUiState>,
 )
 
-@Composable
-fun ScanLocationsScreen(
-    state: ScanLocationsUiState,
-    onBack: () -> Unit,
-    onLocationSelectionChange: (String, Boolean) -> Unit,
-    onSelectionBlock: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val selectedCount = state.locations.count { it.selected && it.mounted }
-    BoxWithConstraints(
-        modifier = modifier.fillMaxSize().safeDrawingPadding(),
-    ) {
-        val horizontalPadding = if (maxWidth >= 600.dp) 32.dp else 24.dp
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().testTag("scan-locations-list"),
-            contentPadding = screenListPadding(horizontalPadding),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            item { DetailHeader(titleRes = R.string.scan_locations, onBack = onBack) }
-            items(state.locations, key = { it.id }) { location ->
-                ScanLocationCard(location) { selected ->
-                    if (!selected && selectedCount == 1 && location.selected) {
-                        onSelectionBlock()
-                    } else {
-                        onLocationSelectionChange(location.id, selected)
-                    }
-                }
-            }
-            item {
-                Text(
-                    text = stringResource(R.string.select_at_least_one_location),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
 data class TypesToScanUiState(
     val enabled: Map<UiFileCategory, Boolean>,
 )
@@ -137,47 +98,6 @@ private fun UiFileCategory.supportingRes(): Int =
         UiFileCategory.AUDIO -> R.string.audio_supporting
         UiFileCategory.DOCUMENTS -> R.string.documents_supporting
     }
-
-@Composable
-private fun ScanLocationCard(
-    location: ScanLocationUiState,
-    onSelectionChange: (Boolean) -> Unit,
-) {
-    SelectableSettingsCard(
-        checked = location.selected,
-        enabled = location.mounted,
-        onSelectionChange = onSelectionChange,
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(location.displayName, style = MaterialTheme.typography.titleMedium)
-            Text(
-                text =
-                    stringResource(
-                        R.string.total_size,
-                        DisplayFormatters.size(LocalResources.current, location.totalBytes),
-                    ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text =
-                    if (location.mounted) {
-                        stringResource(
-                            R.string.free_size,
-                            DisplayFormatters.size(LocalResources.current, location.freeBytes),
-                        )
-                    } else {
-                        stringResource(R.string.not_mounted)
-                    },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
 
 @Composable
 private fun FileTypeCard(

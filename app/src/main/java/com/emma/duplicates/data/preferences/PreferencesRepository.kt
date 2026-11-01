@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +23,8 @@ object PreferenceDefaults {
     const val PRIMARY_VOLUME_ID = "primary"
 }
 
+enum class AppThemeMode { SYSTEM, LIGHT, DARK }
+
 data class AppPreferences(
     val scanHiddenFolders: Boolean,
     val ignoreSystemFolders: Boolean,
@@ -32,6 +35,9 @@ data class AppPreferences(
     val scanAudio: Boolean,
     val scanDocuments: Boolean,
     val selectedVolumeIds: Set<String>,
+    val themeMode: AppThemeMode = AppThemeMode.DARK,
+    val scanSelectedItemsOnly: Boolean = false,
+    val selectedScanPaths: Set<String> = emptySet(),
 )
 
 // Each persisted preference has a matching setter on this single DataStore owner.
@@ -60,6 +66,11 @@ class PreferencesRepository(
     val scanAudio = preferences.map { it.scanAudio }.distinctUntilChanged()
     val scanDocuments = preferences.map { it.scanDocuments }.distinctUntilChanged()
     val selectedVolumeIds = preferences.map { it.selectedVolumeIds }.distinctUntilChanged()
+    val themeMode = preferences.map { it.themeMode }.distinctUntilChanged()
+
+    suspend fun setThemeMode(mode: AppThemeMode) {
+        dataStore.edit { it[Keys.themeMode] = mode.name }
+    }
 
     suspend fun setScanHiddenFolders(enabled: Boolean) = setBoolean(Keys.scanHiddenFolders, enabled)
 
@@ -83,6 +94,18 @@ class PreferencesRepository(
         }
     }
 
+    suspend fun setScanSelection(
+        selectedItemsOnly: Boolean,
+        paths: Set<String>,
+        volumeIds: Set<String>,
+    ) {
+        dataStore.edit { values ->
+            values[Keys.scanSelectedItemsOnly] = selectedItemsOnly
+            values[Keys.selectedScanPaths] = paths.toSet()
+            values[Keys.selectedVolumeIds] = volumeIds.toSet()
+        }
+    }
+
     private suspend fun setBoolean(
         key: Preferences.Key<Boolean>,
         value: Boolean,
@@ -98,6 +121,9 @@ class PreferencesRepository(
             ignoreSystemFolders = values[Keys.ignoreSystemFolders] ?: true,
             autoSelectDuplicateCopies = values[Keys.autoSelectDuplicateCopies] ?: true,
             confirmBeforeDelete = values[Keys.confirmBeforeDelete] ?: true,
+            themeMode = AppThemeMode.entries.firstOrNull { it.name == values[Keys.themeMode] } ?: AppThemeMode.DARK,
+            scanSelectedItemsOnly = values[Keys.scanSelectedItemsOnly] ?: false,
+            selectedScanPaths = values[Keys.selectedScanPaths]?.toSet().orEmpty(),
             scanPhotos = values[Keys.scanPhotos] ?: true,
             scanVideos = values[Keys.scanVideos] ?: true,
             scanAudio = values[Keys.scanAudio] ?: true,
@@ -108,6 +134,9 @@ class PreferencesRepository(
         )
 
     private object Keys {
+        val themeMode = stringPreferencesKey("theme_mode")
+        val scanSelectedItemsOnly = booleanPreferencesKey("scan_selected_items_only")
+        val selectedScanPaths = stringSetPreferencesKey("selected_scan_paths")
         val scanHiddenFolders = booleanPreferencesKey("scan_hidden_folders")
         val ignoreSystemFolders = booleanPreferencesKey("ignore_system_folders")
         val autoSelectDuplicateCopies = booleanPreferencesKey("auto_select_duplicate_copies")

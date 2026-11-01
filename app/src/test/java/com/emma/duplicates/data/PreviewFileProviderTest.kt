@@ -175,26 +175,23 @@ class PreviewFileProviderTest {
             val source = File(sharedDirectory, "report.pdf").apply { writeText("content") }
             val uri = prepare(source)
             source.delete()
-            assertThrows(FileNotFoundException::class.java) { provider.openFile(uri, "r")?.close() }
-            assertNull(provider.getType(uri))
-            for (mimeType in listOf("application/pdf", "application/*", "*/*")) {
-                assertThrows(FileNotFoundException::class.java) {
-                    provider.openTypedAssetFile(uri, mimeType, null)?.close()
-                }
-            }
-            assertThrows(IllegalArgumentException::class.java) { provider.query(uri, null, null, null, null)?.close() }
+            assertUnavailable(uri)
 
             source.writeText("content")
             shadowOf(context.getSystemService(StorageManager::class.java)).resetStorageVolumeList()
-            assertThrows(FileNotFoundException::class.java) { provider.openFile(uri, "r")?.close() }
-            assertNull(provider.getType(uri))
-            for (mimeType in listOf("application/pdf", "application/*", "*/*")) {
-                assertThrows(FileNotFoundException::class.java) {
-                    provider.openTypedAssetFile(uri, mimeType, null)?.close()
-                }
-            }
-            assertThrows(IllegalArgumentException::class.java) { provider.query(uri, null, null, null, null)?.close() }
+            assertUnavailable(uri)
         }
+
+    private fun assertUnavailable(uri: Uri) {
+        assertThrows(FileNotFoundException::class.java) { provider.openFile(uri, "r")?.close() }
+        assertNull(provider.getType(uri))
+        for (mimeType in listOf("application/pdf", "application/*", "*/*")) {
+            assertThrows(FileNotFoundException::class.java) {
+                provider.openTypedAssetFile(uri, mimeType, null)?.close()
+            }
+        }
+        assertThrows(IllegalArgumentException::class.java) { provider.query(uri, null, null, null, null)?.close() }
+    }
 
     private suspend fun prepare(source: File): Uri {
         val prepared = FilePreviewLauncher(context).prepare(source.indexedFile())

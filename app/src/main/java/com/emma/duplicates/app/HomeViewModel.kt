@@ -14,6 +14,7 @@ import com.emma.duplicates.data.preferences.AppPreferences
 import com.emma.duplicates.data.preferences.PreferencesRepository
 import com.emma.duplicates.ui.home.CompletedHomeUiState
 import com.emma.duplicates.ui.home.HomeCategorySummaryUiState
+import com.emma.duplicates.ui.home.HomeConfiguration
 import com.emma.duplicates.ui.home.HomeUiState
 import com.emma.duplicates.ui.model.UiFileCategory
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,43 @@ class HomeViewModel(
     private val resources = context.applicationContext.resources
     private val permissionGranted = MutableStateFlow(storageAccessManager.hasAccess())
     private val volumes = MutableStateFlow(volumeSource.mountedVolumes())
+
+    val configuration =
+        combine(
+            volumes,
+            preferencesRepository.preferences,
+            scanStore.activeResults,
+        ) { available, preferences, results ->
+            val selected = available.filter { it.id in preferences.selectedVolumeIds }
+            HomeConfiguration(
+                locationSummary = scanLocationSummary(resources, available, preferences),
+                selectedItemsOnly = preferences.scanSelectedItemsOnly,
+                selectedItemCount = preferences.selectedScanPaths.size,
+                multipleVolumes = selected.size > 1,
+                totalBytes =
+                    selected
+                        .takeIf {
+                            it.isNotEmpty() &&
+                                it.all { volume ->
+                                    volume.totalBytes > 0
+                                }
+                        }?.sumOf { it.totalBytes },
+                freeBytes = selected.sumOf { it.freeBytes },
+                categories =
+                    mapOf(
+                        UiFileCategory.PHOTOS to preferences.scanPhotos,
+                        UiFileCategory.VIDEOS to preferences.scanVideos,
+                        UiFileCategory.AUDIO to preferences.scanAudio,
+                        UiFileCategory.DOCUMENTS to preferences.scanDocuments,
+                    ),
+                hasPreviousScan = results != null,
+                previousGroups = results?.groups.orEmpty().size,
+                previousAvailableBytes = results?.groups.orEmpty().sumOf(::availableBytes),
+                scanEnabled =
+                    selected.isNotEmpty() && preferences.hasEnabledCategory() &&
+                        (!preferences.scanSelectedItemsOnly || preferences.selectedScanPaths.isNotEmpty()),
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STATE_STOP_TIMEOUT_MILLIS), HomeConfiguration())
 
     val state: StateFlow<HomeUiState> =
         combine(
@@ -57,11 +95,12 @@ class HomeViewModel(
 
                 activeResults == null -> {
                     HomeUiState.Ready(
-                        locationSummary = locationSummary(availableVolumes, preferences),
+                        locationSummary = scanLocationSummary(resources, availableVolumes, preferences),
                         typeSummary = typeSummary(preferences),
                         scanEnabled =
                             availableVolumes.any { it.id in preferences.selectedVolumeIds } &&
-                                preferences.hasEnabledCategory(),
+                                preferences.hasEnabledCategory() &&
+                                (!preferences.scanSelectedItemsOnly || preferences.selectedScanPaths.isNotEmpty()),
                     )
                 }
 
@@ -117,12 +156,12 @@ class HomeViewModel(
                 HomeCategorySummaryUiState(
                     category = category,
                     duplicateCount = groups.sumOf { it.group.copyCount },
-                    reclaimableBytes = groups.sumOf { it.group.reclaimableBytes },
+                    reclaimableBytes = groups.sumOf(::availableBytes),
                 )
             }
         return HomeUiState.Completed(
             CompletedHomeUiState(
-                reclaimableBytes = results.session.reclaimableBytes,
+                reclaimableBytes = results.groups.sumOf(::availableBytes),
                 duplicateFileCount = results.session.duplicateFileCount,
                 duplicateGroupCount = results.session.duplicateGroupCount,
                 totalStorageBytes = selectedVolumes.sumOf { it.totalBytes },
@@ -133,15 +172,6 @@ class HomeViewModel(
             ),
         )
     }
-
-    private fun locationSummary(
-        availableVolumes: List<AvailableStorageVolume>,
-        preferences: AppPreferences,
-    ): String =
-        availableVolumes
-            .filter { it.id in preferences.selectedVolumeIds }
-            .joinToString(resources.getString(R.string.summary_separator)) { it.label }
-            .ifBlank { resources.getString(R.string.no_locations_selected) }
 
     private fun typeSummary(preferences: AppPreferences): String =
         buildList {

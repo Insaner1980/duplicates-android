@@ -14,27 +14,41 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toDrawable
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.work.await
 import com.emma.duplicates.app.AndroidMediaDeletionAuthorizer
 import com.emma.duplicates.app.AppContainer
 import com.emma.duplicates.app.AppNavigation
 import com.emma.duplicates.app.DuplicatesApplication
+import com.emma.duplicates.app.ScanNavigationRequest
 import com.emma.duplicates.app.ScanNotificationFactory
 import com.emma.duplicates.app.ViewModelFactory
 import com.emma.duplicates.core.designsystem.DuplicatesTheme
+import com.emma.duplicates.data.preferences.AppThemeMode
 import com.emma.duplicates.domain.deletion.MediaAuthorization
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private val openScanningRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val openScanningRequests = MutableSharedFlow<ScanNavigationRequest>(extraBufferCapacity = 1)
     private val deletionRecoveryGate = DeletionRecoveryGate()
     private lateinit var container: AppContainer
-    private var scanStartPending = false
+    private var scanStartPending by mutableStateOf(false)
+    private var notificationPermissionPending = false
     private val deletionAuthorizer: AndroidMediaDeletionAuthorizer by viewModels {
         ViewModelFactory {
             AndroidMediaDeletionAuthorizer(applicationContext.contentResolver)
@@ -44,6 +58,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (scanStartPending) {
                 scanStartPending = false
+                notificationPermissionPending = false
                 if (!granted) {
                     Toast
                         .makeText(
@@ -73,7 +88,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
-        scanStartPending = savedInstanceState?.getBoolean(STATE_SCAN_START_PENDING) == true
+        notificationPermissionPending = savedInstanceState?.getBoolean(STATE_SCAN_START_PENDING) == true
+        scanStartPending = notificationPermissionPending
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -90,7 +106,27 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            DuplicatesTheme {
+            val mode by container.preferencesRepository.themeMode.collectAsStateWithLifecycle(AppThemeMode.DARK)
+            val darkTheme =
+                when (mode) {
+                    AppThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    AppThemeMode.LIGHT -> false
+                    AppThemeMode.DARK -> true
+                }
+            DuplicatesTheme(darkTheme = darkTheme) {
+                val background =
+                    androidx.compose.material3.MaterialTheme.colorScheme.background
+                        .toArgb()
+                SideEffect {
+                    val barStyle =
+                        if (darkTheme) {
+                            SystemBarStyle.dark(Color.TRANSPARENT)
+                        } else {
+                            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                        }
+                    enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+                    window.setBackgroundDrawable(background.toDrawable())
+                }
                 AppNavigation(
                     container = container,
                     deletionAuthorizer = deletionAuthorizer,
@@ -100,6 +136,7 @@ class MainActivity : ComponentActivity() {
                     },
                     openScanningInitially = openScanningInitially,
                     openScanningRequests = openScanningRequests,
+                    scanStartPending = scanStartPending,
                 )
             }
         }
@@ -109,7 +146,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.consumeScanningDestination()) {
-            openScanningRequests.tryEmit(Unit)
+            openScanningRequests.tryEmit(ScanNavigationRequest())
         }
     }
 
@@ -124,11 +161,12 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putBoolean(STATE_SCAN_START_PENDING, scanStartPending)
+        outState.putBoolean(STATE_SCAN_START_PENDING, notificationPermissionPending)
         super.onSaveInstanceState(outState)
     }
 
     private fun requestScanStart() {
+        if (scanStartPending) return
         if (!container.storageAccessManager.hasAccess()) {
             container.storageAccessManager.openSettings(this)
             return
@@ -139,6 +177,7 @@ class MainActivity : ComponentActivity() {
             PackageManager.PERMISSION_GRANTED
         ) {
             scanStartPending = true
+            notificationPermissionPending = true
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             enqueueScanIfAllowed()
@@ -146,12 +185,34 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun enqueueScanIfAllowed() {
+        if (scanStartPending) return
         if (!container.storageAccessManager.hasAccess()) {
             container.storageAccessManager.openSettings(this)
             return
         }
-        container.scanScheduler.startScan()
-        openScanningRequests.tryEmit(Unit)
+        scanStartPending = true
+        lifecycleScope.launch {
+            try {
+                if (container.scanStore.pendingDeletions().isNotEmpty()) {
+                    Toast.makeText(this@MainActivity, R.string.deletion_recovery_pending, Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+                val latest = container.scanStore.latestSession.first()
+                if (latest?.status == com.emma.duplicates.core.database.ScanStatuses.RUNNING) {
+                    openScanningRequests.emit(ScanNavigationRequest())
+                } else {
+                    val request = ScanNavigationRequest(latest?.id, awaitNewSession = true)
+                    container.scanScheduler.startScan().await()
+                    openScanningRequests.emit(request)
+                }
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                Toast.makeText(this@MainActivity, R.string.scan_not_started, Toast.LENGTH_LONG).show()
+            } finally {
+                scanStartPending = false
+            }
+        }
     }
 
     private fun reconcilePendingDeletions() {

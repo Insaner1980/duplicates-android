@@ -32,7 +32,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.emma.duplicates.R
 import com.emma.duplicates.core.designsystem.DuplicatesCard
-import com.emma.duplicates.core.designsystem.Primary
 import com.emma.duplicates.ui.components.screenListPadding
 
 enum class ExclusionKind {
@@ -62,6 +61,7 @@ fun ExclusionsScreen(
     onChooseFile: () -> Unit,
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onBack: () -> Unit = {},
 ) {
     BoxWithConstraints(
         modifier =
@@ -69,14 +69,18 @@ fun ExclusionsScreen(
                 .fillMaxSize()
                 .safeDrawingPadding(),
     ) {
-        val horizontalPadding = if (maxWidth >= 600.dp) 32.dp else 24.dp
+        val horizontalPadding = if (maxWidth >= 600.dp) 32.dp else 16.dp
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = screenListPadding(horizontalPadding),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             item {
-                ExclusionsHeader(onRequestAdd)
+                com.emma.duplicates.ui.components.DetailHeader(R.string.exclusions, onBack) {
+                    IconButton(
+                        onClick = onRequestAdd,
+                    ) { Icon(Icons.Outlined.Add, stringResource(R.string.add_exclusion)) }
+                }
             }
             item { ExclusionsExplanation() }
             item {
@@ -149,7 +153,7 @@ private fun ExclusionRow(
                         },
                     ),
                 contentDescription = null,
-                tint = Primary,
+                tint = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.size(32.dp),
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -193,33 +197,9 @@ private fun AddChoiceRow(
         Icon(
             imageVector = Icons.Outlined.Add,
             contentDescription = null,
-            tint = Primary,
+            tint = MaterialTheme.colorScheme.onSurface,
         )
         Text(stringResource(textRes), style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Composable
-private fun ExclusionsHeader(onRequestAdd: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.exclusions),
-            style = MaterialTheme.typography.displayLarge,
-            modifier = Modifier.weight(1f).semantics { heading() },
-        )
-        IconButton(
-            onClick = onRequestAdd,
-            modifier = Modifier.size(48.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Add,
-                contentDescription = stringResource(R.string.add_exclusion),
-            )
-        }
     }
 }
 
@@ -233,7 +213,7 @@ private fun ExclusionsExplanation() {
             Text(
                 text = stringResource(R.string.scans_skip_excluded_items),
                 style = MaterialTheme.typography.titleLarge,
-                color = Primary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.semantics { heading() },
             )
             Text(

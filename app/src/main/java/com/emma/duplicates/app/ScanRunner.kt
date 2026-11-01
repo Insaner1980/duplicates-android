@@ -169,16 +169,31 @@ class ScanRunner(
                 failureReason = ScanFailureReasons.GENERIC,
             )
         }
-        val mountedSelectedVolumes =
-            storageVolumeSource.mountedVolumes().filter { it.id in preferences.selectedVolumeIds }
+        val selectedRoots =
+            if (preferences.scanSelectedItemsOnly) {
+                com.emma.duplicates.data
+                    .StorageBrowser(storageVolumeSource, context.applicationDirectories())
+                    .scanRoots(preferences.selectedScanPaths)
+            } else {
+                null
+            }
+        val selectedIds = selectedRoots?.map { it.id }?.toSet() ?: preferences.selectedVolumeIds
+        val mountedSelectedVolumes = storageVolumeSource.mountedVolumes().filter { it.id in selectedIds }
         val capturedRoots =
             captureSelectedRoots(mountedSelectedVolumes)
+                ?.takeIf { !preferences.scanSelectedItemsOnly || selectedRoots != null }
                 ?: throw ScanScopeUnavailableException(
                     outcome = ScanRunOutcome.EMPTY_SCOPE,
                     failureReason = ScanFailureReasons.STORAGE_VOLUME_UNAVAILABLE,
                 )
         val volumes = mountedSelectedVolumes.filter { it.id in capturedRoots }
-        return ScanScope(preferences, categories, capturedRoots, volumes)
+        return ScanScope(
+            preferences,
+            categories,
+            capturedRoots,
+            volumes,
+            selectedRoots ?: volumes.map { it.toScanRoot() },
+        )
     }
 
     private suspend fun discoverFiles(
@@ -200,6 +215,12 @@ class ScanRunner(
                         enabledCategories = scope.categories,
                         exclusions = exclusions,
                         applicationDirectories = context.applicationDirectories(),
+                        includedPaths =
+                            if (preferences.scanSelectedItemsOnly) {
+                                scope.scanRoots.map { it.directory.path }.toSet()
+                            } else {
+                                emptySet()
+                            },
                     ),
             ) { progress ->
                 val now = System.nanoTime()
@@ -325,6 +346,7 @@ class ScanRunner(
         val categories: Set<FileCategory>,
         val capturedRoots: Map<String, String>,
         val volumes: List<AvailableStorageVolume>,
+        val scanRoots: List<com.emma.duplicates.core.model.StorageVolumeRoot>,
     )
 
     private class ScanAttempt {

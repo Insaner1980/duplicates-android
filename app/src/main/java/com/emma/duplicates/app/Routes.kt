@@ -14,11 +14,14 @@ data class ResultsRoute(
 data object ExclusionsRoute
 
 @Serializable
-data object ScanningRoute
+data class ScanningRoute(
+    val baselineSessionId: String? = null,
+    val awaitNewSession: Boolean = false,
+)
 
-@Serializable
-data class ReviewRoute(
-    val groupId: String,
+data class ScanNavigationRequest(
+    val baselineSessionId: String? = null,
+    val awaitNewSession: Boolean = false,
 )
 
 @Serializable

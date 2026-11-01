@@ -1,5 +1,6 @@
 package com.emma.duplicates.data
 
+import com.emma.duplicates.core.model.StorageVolumeRoot
 import com.emma.duplicates.core.storage.AvailableStorageVolume
 import com.emma.duplicates.core.storage.StorageVolumeSource
 import kotlinx.coroutines.CoroutineDispatcher
@@ -36,6 +37,36 @@ class StorageBrowser(
 ) {
     fun mountedVolumes(): List<AvailableStorageVolume> = volumeSource.mountedVolumes()
 
+    suspend fun scanRoots(paths: Set<String>): List<StorageVolumeRoot>? =
+        withContext(ioDispatcher) {
+            if (paths.isEmpty()) return@withContext null
+            val volumes = mountedVolumes()
+            val appPaths = applicationDirectories.map { Paths.get(it).toAbsolutePath().normalize() }
+            val roots =
+                paths
+                    .map { path ->
+                        val file = File(path)
+                        val attributes = file.toPath().safeAttributes() ?: return@withContext null
+                        if (attributes.isSymbolicLink || (!attributes.isRegularFile && !attributes.isDirectory)) {
+                            return@withContext null
+                        }
+                        val canonical = file.safeCanonicalFile() ?: return@withContext null
+                        if (canonical.toPath() != file.toPath().toAbsolutePath().normalize()) return@withContext null
+                        val volume =
+                            volumes.firstOrNull { volume ->
+                                val root = volume.directory.safeCanonicalFile()?.toPath()
+                                root != null && canonical.isBrowsable(root, appPaths)
+                            } ?: return@withContext null
+                        StorageVolumeRoot(canonical, volume.id)
+                    }.distinctBy { it.directory.path }
+            roots.filter { candidate ->
+                roots.none { parent ->
+                    parent != candidate && parent.directory.isDirectory &&
+                        candidate.directory.toPath().startsWith(parent.directory.toPath())
+                }
+            }
+        }
+
     suspend fun open(
         volumeId: String,
         requestedPath: String? = null,
@@ -43,7 +74,13 @@ class StorageBrowser(
         withContext(ioDispatcher) {
             val volume = mountedVolumes().firstOrNull { it.id == volumeId } ?: return@withContext null
             val root = volume.directory.safeCanonicalFile() ?: return@withContext null
-            val requested = requestedPath?.let(::File)?.safeCanonicalFile() ?: root
+            val requested =
+                if (requestedPath == null) {
+                    root
+                } else {
+                    File(requestedPath).safeCanonicalFile()
+                        ?: return@withContext null
+                }
             if (!requested.toPath().startsWith(root.toPath()) || !requested.isDirectory || !requested.canRead()) {
                 return@withContext null
             }
@@ -51,22 +88,23 @@ class StorageBrowser(
                 applicationDirectories.mapNotNull { path ->
                     runCatching { Paths.get(path).toAbsolutePath().normalize() }.getOrNull()
                 }
+            if (!requested.isBrowsable(root.toPath(), appPaths)) return@withContext null
             val children =
                 try {
                     requested.listFiles()
                 } catch (_: SecurityException) {
                     null
                 }
+            if (children == null) return@withContext null
             val entries =
                 children
-                    ?.asSequence()
-                    ?.mapNotNull { child -> child.toBrowserEntry(root.toPath(), appPaths) }
-                    ?.sortedWith(
+                    .asSequence()
+                    .mapNotNull { child -> child.toBrowserEntry(root.toPath(), appPaths) }
+                    .sortedWith(
                         compareByDescending<StorageBrowserEntry> { it.isDirectory }
                             .thenBy(String.CASE_INSENSITIVE_ORDER) { it.displayName }
                             .thenBy { it.displayName },
-                    )?.toList()
-                    .orEmpty()
+                    ).toList()
             StorageBrowserLocation(
                 volumeId = volume.id,
                 volumeLabel = volume.label,
@@ -123,7 +161,10 @@ class StorageBrowser(
     ): Boolean {
         val path = toPath()
         val outsideAllowedPaths = !path.startsWith(root) || applicationPaths.any(path::startsWith)
-        val restricted = isDirectory && isRestrictedDirectory()
+        val restricted =
+            generateSequence(this) { it.parentFile }
+                .takeWhile { it.toPath().startsWith(root) }
+                .any { it.isDirectory && it.isRestrictedDirectory() }
         return !outsideAllowedPaths && !restricted && canRead()
     }
 

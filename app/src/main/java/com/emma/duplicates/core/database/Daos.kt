@@ -255,6 +255,10 @@ abstract class ScanDao {
     ): Boolean {
         val current = getMemberSelectionState(memberId) ?: return false
         return when {
+            selected && !current.eligible -> {
+                false
+            }
+
             current.selectedForDeletion == selected -> {
                 true
             }
@@ -275,7 +279,15 @@ abstract class ScanDao {
         }
     }
 
-    @Query("SELECT groupId, selectedForDeletion FROM duplicate_members WHERE id = :memberId LIMIT 1")
+    @Query(
+        """
+        SELECT member.groupId, member.selectedForDeletion,
+            (file.readable = 1 AND file.writable = 1 AND file.changedSinceScan = 0) AS eligible
+        FROM duplicate_members AS member
+        INNER JOIN indexed_files AS file ON file.id = member.indexedFileId
+        WHERE member.id = :memberId LIMIT 1
+    """,
+    )
     protected abstract suspend fun getMemberSelectionState(memberId: String): MemberSelectionState?
 
     @Query(

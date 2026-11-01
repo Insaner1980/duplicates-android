@@ -13,6 +13,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import com.emma.duplicates.R
 import com.emma.duplicates.core.database.ScanPhases
+import kotlinx.coroutines.flow.map
 import java.util.UUID
 
 class ScanScheduler(
@@ -20,6 +21,11 @@ class ScanScheduler(
     private val workerClass: Class<out ListenableWorker>,
 ) {
     private val workManager = WorkManager.getInstance(context.applicationContext)
+
+    val workActive =
+        workManager
+            .getWorkInfosForUniqueWorkFlow(UNIQUE_SCAN_WORK)
+            .map { work -> work.any { !it.state.isFinished } }
 
     fun startScan() =
         workManager.enqueueUniqueWork(
