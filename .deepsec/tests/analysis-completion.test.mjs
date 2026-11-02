@@ -8,7 +8,7 @@ import { incompleteReason, verify } from "../scripts/verify-analysis.mjs";
 
 const completed = {
   status: "analyzed",
-  analysisHistory: [{ usage: { outputTokens: 100 }, refusal: { refused: false, skipped: [] } }],
+  analysisHistory: [{ runId: "old-analysis", usage: { outputTokens: 100 }, refusal: { refused: false, skipped: [] } }],
 };
 
 test("completed zero-finding investigations are accepted", () => {
@@ -36,7 +36,7 @@ test("pending, running and failed records do not count as completed", () => {
   assert.match(incompleteReason({ status: "analyzed", analysisHistory: [] }), /missing/);
 });
 
-test("uncovered records remain unchanged while changed covered sources are marked for retry", () => {
+test("uncovered analyses require preparation and a fresh investigation after coverage expands", () => {
   const root = mkdtempSync(fileURLToPath(new URL(".verify-fixture-", import.meta.url)));
   try {
     const dataRoot = path.join(root, ".deepsec/data/duplicates-android");
@@ -53,19 +53,68 @@ test("uncovered records remain unchanged while changed covered sources are marke
     writeJson(uncoveredPath, uncovered);
     writeJson(coveredPath, covered);
     writeFileSync(path.join(root, "covered.kt"), "original");
-    writeJson(path.join(dataRoot, "source-scan.json"), {
-      files: { "covered.kt": createHash("sha256").update("original").digest("hex") },
-    });
+    const receiptPath = path.join(dataRoot, "source-scan.json");
+    const receipt = { files: { "covered.kt": createHash("sha256").update("original").digest("hex") } };
+    writeJson(receiptPath, receipt);
+    const readJson = file => JSON.parse(readFileSync(file, "utf8"));
+    const blockedPath = path.join(dataRoot, "coverage-blocked.json");
 
     // The uncovered source is deliberately absent: verification must not try to read it.
     assert.throws(() => verify(root), /outside the secrets scan receipt[\s\S]*outside\.kt/);
     assert.deepEqual(JSON.parse(readFileSync(uncoveredPath, "utf8")), uncovered);
     assert.deepEqual(JSON.parse(readFileSync(coveredPath, "utf8")), covered);
+    assert.deepEqual(readJson(blockedPath), { "outside.kt": {} });
+
+    // Default processing can also select pending/error records from older scans.
+    for (const status of ["analyzed", "pending", "error"]) {
+      const olderRecord = { ...uncovered, status, lastScannedRunId: "previous-scan" };
+      writeJson(uncoveredPath, olderRecord);
+      writeJson(path.join(dataRoot, "runs/scan.json"), {
+        type: "scan", phase: "done", runId: "test-scan", createdAt: "2026-11-02T00:00:00Z", stats: { filesScanned: 1 },
+      });
+      assert.throws(() => verify(root, { prepare: true }), /outside the secrets scan receipt/);
+      assert.deepEqual(readJson(uncoveredPath), olderRecord);
+    }
+    writeJson(uncoveredPath, uncovered);
+    writeJson(path.join(dataRoot, "runs/scan.json"), {
+      type: "scan", phase: "done", runId: "test-scan", createdAt: "2026-11-02T00:00:00Z", stats: { filesScanned: 2 },
+    });
+
+    writeFileSync(path.join(root, "outside.kt"), "newly covered");
+    receipt.files["outside.kt"] = createHash("sha256").update("newly covered").digest("hex");
+    writeJson(receiptPath, receipt);
+    assert.throws(() => verify(root), /analysis must be rerun after receipt coverage/);
+    verify(root, { prepare: true });
+    assert.equal(readJson(uncoveredPath).status, "pending");
+    assert.deepEqual(readJson(uncoveredPath).analysisHistory, uncovered.analysisHistory);
+
+    // Merely restoring analyzed status must not make the old investigation valid.
+    writeJson(uncoveredPath, uncovered);
+    assert.throws(() => verify(root), /analysis must be rerun after receipt coverage/);
+    writeJson(uncoveredPath, {
+      ...uncovered,
+      analysisHistory: [...uncovered.analysisHistory, { ...completed.analysisHistory[0], runId: "fresh-analysis" }],
+    });
+    verify(root);
+    assert.deepEqual(readJson(blockedPath), {});
+    verify(root, { prepare: true });
+    assert.equal(readJson(uncoveredPath).status, "analyzed");
 
     writeFileSync(path.join(root, "covered.kt"), "changed");
     assert.throws(() => verify(root), /covered.kt: source changed since the current secrets scan/);
-    assert.deepEqual(JSON.parse(readFileSync(uncoveredPath, "utf8")), uncovered);
-    assert.equal(JSON.parse(readFileSync(coveredPath, "utf8")).status, "error");
+    assert.deepEqual(readJson(blockedPath), { "covered.kt": {} });
+    assert.throws(() => verify(root, { prepare: true }), /source changed since the current secrets scan/);
+    assert.deepEqual(readJson(coveredPath), covered);
+    receipt.files["covered.kt"] = createHash("sha256").update("changed").digest("hex");
+    writeJson(receiptPath, receipt);
+    assert.throws(() => verify(root), /analysis must be rerun after receipt coverage/);
+    verify(root, { prepare: true });
+    assert.equal(readJson(coveredPath).status, "pending");
+
+    const processing = { ...covered, status: "processing", lockedByRunId: "active-run" };
+    writeJson(coveredPath, processing);
+    assert.throws(() => verify(root, { prepare: true }), /still processing/);
+    assert.deepEqual(readJson(coveredPath), processing);
   } finally {
     rmSync(root, { recursive: true });
   }
