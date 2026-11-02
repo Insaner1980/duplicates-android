@@ -373,6 +373,12 @@ emulator. Both task lists are declared in `config/android-check.json` as
 or accessing a device. The shared runner must include manifest-based `-Full`
 support; the local shared installation has been updated with that support.
 
+Run `-Full` only against an explicitly selected disposable, isolated test device
+or emulator installation. The fixture test grants storage and notification
+access, changes display settings, and permanently deletes its synthetic copies;
+permission grants and evidence screenshots remain afterward. Do not run this
+suite on a personal installation.
+
 Gradle writes test reports under `app/build/reports/`. The runner returns the
 test phase result and reports failed Gradle execution as an error.
 
@@ -434,10 +440,11 @@ Install it on a connected device or emulator with:
 .\gradlew.bat installDebug
 ```
 
-Run the connected Android test with:
+Run the connected Android tests only on a disposable, isolated installation,
+with its serial explicitly selected (replace `<test-device-serial>`):
 
 ```powershell
-.\gradlew.bat connectedDebugAndroidTest
+.\gradlew.bat :app:connectedDebugAndroidTest --serial "<test-device-serial>"
 ```
 
 ## Storage and notification access
@@ -454,11 +461,11 @@ Every Back action on the Scanning screen returns to Home without canceling the w
 
 Scanning never deletes files. Deletion starts from inline Results after the user selects copies. The fixed footer includes selections hidden by search or filters, and the confirmation captures the complete selected batch. The default selection is deterministic, protects MediaStore favorites, prefers a valid copy in a primary user location, and keeps at least one readable matching copy in each group. The user can keep additional copies.
 
-The in-app confirmation is enabled by default. Before deletion, every selected file is checked again. Changed files are rehashed and compared, missing or inaccessible files are not claimed as deleted, and deletion stops for a group when no valid unselected copy remains. MediaStore items use Android's system deletion authorization. Other writable files are removed individually and their absence is verified. After a successful direct path deletion, an available stored content URI is also removed from MediaStore on a best-effort basis to avoid a stale row. Partial success is reported accurately and Room totals are updated transactionally.
+The in-app confirmation is enabled by default. Before deletion, every selected file is checked again. Changed files are rehashed and compared, missing or inaccessible files are not claimed as deleted, and deletion stops for a group when no valid unselected copy remains. MediaStore items request Android write access without deleting anything in the permission dialog. After approval, candidates and keepers are compared again. Each selected file is atomically moved to an app-owned recovery directory on the same volume and compared with its keeper there. Unsupported moves fail without a copy-and-delete fallback. MediaStore is refreshed by path; a cached URI is never deleted. Partial success is reported accurately and Room totals are updated transactionally.
 
 Before any file mutation, Room records the selected file identities in a pending-deletion journal. Results are checkpointed after each direct deletion and each approved MediaStore batch. Normal completion applies the final database state and removes the journal in one transaction. If the process ends during authorization or deletion, the next Activity result or safe resume reconciles the journal. Only a file confirmed absent is removed from saved results, and the live authorization callback is gated against duplicate resume handling.
 
-Deletion is permanent. The journal repairs saved result state after interruption; it does not restore files. The app does not provide a recycle bin, file recovery, or fake Undo action.
+Settings > Recovery copies restores files without overwriting an existing destination. Verified copies remain recoverable for at least 30 days and are removed after expiry when that screen is opened. Interrupted or failed verification leaves a copy without automatic expiry. Recovery copies still occupy storage, so the deletion result reports zero bytes freed immediately. Uninstalling the app or clearing its data removes recovery access; restore needed files first. Offline or inaccessible storage defers journal reconciliation rather than treating every missing path as deleted.
 
 ## Privacy
 

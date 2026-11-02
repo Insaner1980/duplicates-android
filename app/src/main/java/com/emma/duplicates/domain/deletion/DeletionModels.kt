@@ -57,10 +57,13 @@ interface DeletionStorage {
         second: DeletionFile,
     ): Boolean
 
-    suspend fun deleteDirect(file: DeletionFile): DirectDeletionResult
+    suspend fun deleteDirect(
+        file: DeletionFile,
+        verifyStaged: suspend (DeletionFile) -> Boolean,
+    ): DirectDeletionResult
 }
 
-/** Returns only after the system deletion request has completed or been canceled. */
+/** Requests write access only; approval must never delete the media item. */
 fun interface MediaDeletionAuthorizer {
     suspend fun requestDeletion(files: List<DeletionFile>): MediaAuthorization
 }

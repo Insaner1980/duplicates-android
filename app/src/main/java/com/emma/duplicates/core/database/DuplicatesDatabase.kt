@@ -7,7 +7,9 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-private const val DATABASE_VERSION = 3
+private const val VERSION_SCAN_FAILURE_REASON = 3
+private const val VERSION_BYTE_PARTITIONS = 4
+private const val DATABASE_VERSION = VERSION_BYTE_PARTITIONS
 
 @Database(
     entities = [
@@ -19,6 +21,7 @@ private const val DATABASE_VERSION = 3
         PendingDeletionItemEntity::class,
         FingerprintCacheEntity::class,
         ExclusionEntity::class,
+        RecoveryFile::class,
     ],
     version = DATABASE_VERSION,
     exportSchema = true,
@@ -32,6 +35,8 @@ abstract class DuplicatesDatabase : RoomDatabase() {
 
     abstract fun exclusionDao(): ExclusionDao
 
+    abstract fun recoveryDao(): RecoveryDao
+
     companion object {
         private const val DATABASE_NAME = "duplicates.db"
 
@@ -41,7 +46,7 @@ abstract class DuplicatesDatabase : RoomDatabase() {
                     context.applicationContext,
                     DuplicatesDatabase::class.java,
                     DATABASE_NAME,
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
 
         val MIGRATION_1_2 =
@@ -89,9 +94,25 @@ abstract class DuplicatesDatabase : RoomDatabase() {
             }
 
         val MIGRATION_2_3 =
-            object : Migration(2, DATABASE_VERSION) {
+            object : Migration(2, VERSION_SCAN_FAILURE_REASON) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE `scan_sessions` ADD COLUMN `failureReason` TEXT")
+                }
+            }
+
+        val MIGRATION_3_4 =
+            object : Migration(VERSION_SCAN_FAILURE_REASON, VERSION_BYTE_PARTITIONS) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("DROP INDEX IF EXISTS `index_duplicate_groups_sessionId_contentHash_fileSize`")
+                    db.execSQL(
+                        "CREATE INDEX `index_duplicate_groups_sessionId_contentHash_fileSize` " +
+                            "ON `duplicate_groups` (`sessionId`, `contentHash`, `fileSize`)",
+                    )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS `recovery_files` (" +
+                            "`id` TEXT NOT NULL, `originalPath` TEXT NOT NULL, `storedPath` TEXT NOT NULL, " +
+                            "`createdAt` INTEGER NOT NULL, `expiresAt` INTEGER, PRIMARY KEY(`id`))",
+                    )
                 }
             }
     }

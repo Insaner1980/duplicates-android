@@ -1,0 +1,20 @@
+{
+  "promptAppend": "Review this offline exact-duplicate file utility. Prioritize canonical path and symlink boundaries, storage access, byte-for-byte duplicate validation, preservation of a readable keeper before deletion, MediaStore authorization, interrupted-deletion journal recovery, FileProvider URI grants, backup exclusions, and sensitive path logging. The app intentionally requests MANAGE_EXTERNAL_STORAGE for user-initiated shared-storage scans and has no INTERNET permission. Assess permissions in that context. The required pre-read sonar analyze secrets scan has already been performed by the parent process before starting this investigation. Its receipt is .deepsec/data/duplicates-android/source-scan.json; the receipt itself was also secrets-scanned. Read that receipt first. Before reading any other workspace file, verify its SHA-256 matches the receipt using Get-FileHash. Read only covered, unchanged files; report all others as skipped. This fulfills the pre-read scanning requirement without exposing Windows keychain credentials to the isolated AI process. Do not attempt a second authenticated scan inside the sandbox. Read source only; do not modify code, delete files, run the app, or access connected devices or personal storage. Check Test-Path before considering a supporting file. A nonexistent AGENTS.md or other nonexistent path is not an omitted source file; do not classify nonexistent files as skipped source coverage. Read source in bounded chunks of at most 150 lines per command. If any tool output is truncated, read the missing ranges before finishing the investigation; do not leave required supporting source unread merely because a previous command returned truncated output.",
+  "priorityPaths": [
+    "app/src/main/AndroidManifest.xml",
+    "app/src/main/res/xml/",
+    "app/src/main/java/com/emma/duplicates/core/storage/",
+    "app/src/main/java/com/emma/duplicates/domain/deletion/",
+    "app/src/main/java/com/emma/duplicates/data/",
+    "app/src/main/java/com/emma/duplicates/app/AndroidMediaDeletionAuthorizer.kt",
+    "app/src/main/java/com/emma/duplicates/MainActivity.kt"
+  ],
+  "ignorePaths": [
+    "reports/**",
+    ".gradle/**",
+    ".kotlin/**",
+    ".idea/**",
+    ".deepsec/**",
+    "app/src/androidTest/**"
+  ]
+}

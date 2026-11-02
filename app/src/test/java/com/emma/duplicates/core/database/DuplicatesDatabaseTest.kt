@@ -2,6 +2,7 @@ package com.emma.duplicates.core.database
 
 import android.app.Application
 import android.content.Context
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -173,6 +174,61 @@ class DuplicatesDatabaseTest {
                     .first { it.member.id == "member-a" }
                     .member.recommendedKeep,
             )
+        }
+
+    @Test
+    fun byteVerifiedPartitionsWithTheSameCachedHashCanBePersistedSeparately() =
+        runTest {
+            scanDao.insertSession(completedSession(id = "completed", active = true))
+            val first = duplicateGroup(id = "partition-a", sessionId = "completed")
+            val second = first.copy(id = "partition-b")
+
+            scanDao.insertGroups(listOf(first, second))
+
+            val groups = scanDao.observeActiveResults().first()!!.groups
+            assertEquals(setOf("partition-a", "partition-b"), groups.map { it.group.id }.toSet())
+        }
+
+    @Test
+    fun migrationFrom3To4PreservesGroupsAndRemovesOnlyHashUniqueness() =
+        runTest {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val name = "partition-migration-test"
+            val first = duplicateGroup(id = "partition-a", sessionId = "completed")
+            try {
+                val legacy = Room.databaseBuilder(context, DuplicatesDatabase::class.java, name).build()
+                try {
+                    legacy.scanDao().insertSession(completedSession(id = "completed", active = true))
+                    legacy.scanDao().insertGroups(listOf(first))
+                    val sql = legacy.openHelper.writableDatabase
+                    sql.execSQL("DROP INDEX `index_duplicate_groups_sessionId_contentHash_fileSize`")
+                    sql.execSQL(
+                        "CREATE UNIQUE INDEX `index_duplicate_groups_sessionId_contentHash_fileSize` " +
+                            "ON `duplicate_groups` (`sessionId`, `contentHash`, `fileSize`)",
+                    )
+                    sql.execSQL("DROP TABLE recovery_files")
+                    sql.execSQL("PRAGMA user_version = 3")
+                    sql.execSQL("UPDATE room_master_table SET identity_hash = 'version-3-fixture' WHERE id = 42")
+                } finally {
+                    legacy.close()
+                }
+                val migrated =
+                    Room
+                        .databaseBuilder(context, DuplicatesDatabase::class.java, name)
+                        .addMigrations(DuplicatesDatabase.MIGRATION_3_4)
+                        .build()
+                try {
+                    val migratedDao = migrated.scanDao()
+                    assertEquals(first, migratedDao.observeGroup("partition-a").first()?.group)
+                    migratedDao.insertGroups(listOf(first.copy(id = "partition-b")))
+                    val results = migratedDao.observeActiveResults().first()!!
+                    assertEquals(2, results.groups.size)
+                } finally {
+                    migrated.close()
+                }
+            } finally {
+                context.deleteDatabase(name)
+            }
         }
 
     @Test

@@ -19,6 +19,32 @@ class DuplicatesDatabaseMigrationTest {
         )
 
     @Test
+    fun migrationFrom3To4AddsRecoveryAndAllowsIndependentBytePartitions() {
+        migrationHelper
+            .createDatabase("migration-3-4", 3)
+            .close()
+        val migrated =
+            migrationHelper.runMigrationsAndValidate(
+                "migration-3-4",
+                4,
+                true,
+                DuplicatesDatabase.MIGRATION_3_4,
+            )
+        migrated.query("PRAGMA index_list('duplicate_groups')").use { cursor ->
+            var found = false
+            while (cursor.moveToNext()) {
+                val indexName = cursor.getString(cursor.getColumnIndexOrThrow("name"))
+                if (indexName == "index_duplicate_groups_sessionId_contentHash_fileSize") {
+                    assertEquals(0, cursor.getInt(cursor.getColumnIndexOrThrow("unique")))
+                    found = true
+                }
+            }
+            assertTrue(found)
+        }
+        migrated.close()
+    }
+
+    @Test
     fun migrationFrom2To3AddsNullableFailureReasonWithoutChangingExistingSessions() {
         migrationHelper.createDatabase(DATABASE_NAME, 2).apply {
             execSQL(

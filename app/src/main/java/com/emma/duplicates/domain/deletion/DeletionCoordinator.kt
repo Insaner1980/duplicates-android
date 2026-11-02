@@ -1,79 +1,84 @@
 package com.emma.duplicates.domain.deletion
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
 class DeletionCoordinator(
     private val storage: DeletionStorage,
     private val mediaDeletionAuthorizer: MediaDeletionAuthorizer,
     private val resultStore: DeletionResultStore,
     private val mediaChunkSize: Int = 2_000,
+    private val operationMutex: Mutex = Mutex(),
 ) {
     init {
         require(mediaChunkSize > 0) { "Media deletion chunk size must be positive" }
     }
 
-    suspend fun delete(groups: List<DeletionGroup>): DeletionResult {
-        validateInput(groups)
-        val selectedGroups = groups.filter { group -> group.files.any { it.selectedForDeletion } }
-        val validations = selectedGroups.associate { group -> group.id to validateGroup(group) }
-        val outcomesByFileId = linkedMapOf<String, FileDeletionOutcome>()
-        val directCandidates = mutableListOf<Candidate>()
-        val mediaCandidates = mutableListOf<Candidate>()
+    suspend fun delete(groups: List<DeletionGroup>): DeletionResult =
+        operationMutex.withLock {
+            validateInput(groups)
+            val selectedGroups = groups.filter { group -> group.files.any { it.selectedForDeletion } }
+            val validations = selectedGroups.associate { group -> group.id to validateGroup(group) }
+            val outcomesByFileId = linkedMapOf<String, FileDeletionOutcome>()
+            val directCandidates = mutableListOf<Candidate>()
+            val mediaCandidates = mutableListOf<Candidate>()
 
-        selectedGroups.forEach { group ->
-            val groupValidations = validations.getValue(group.id)
-            val hasValidKeeper =
-                groupValidations.any { validation ->
-                    !validation.file.selectedForDeletion &&
-                        validation.membership == Membership.MATCHING &&
-                        validation.snapshot?.isReadable == true
-                }
-
-            groupValidations.filter { it.file.selectedForDeletion }.forEach { validation ->
-                val immediateStatus = validation.immediateDeletionStatus()
-                when {
-                    immediateStatus != null -> {
-                        outcomesByFileId[validation.file.id] =
-                            FileDeletionOutcome(group.id, validation.file.id, immediateStatus)
+            selectedGroups.forEach { group ->
+                val groupValidations = validations.getValue(group.id)
+                val hasValidKeeper =
+                    groupValidations.any { validation ->
+                        !validation.file.selectedForDeletion &&
+                            validation.membership == Membership.MATCHING &&
+                            validation.snapshot?.isReadable == true
                     }
 
-                    !hasValidKeeper -> {
-                        outcomesByFileId[validation.file.id] =
-                            FileDeletionOutcome(group.id, validation.file.id, DeletionStatus.BLOCKED_NO_VALID_COPY)
-                    }
+                groupValidations.filter { it.file.selectedForDeletion }.forEach { validation ->
+                    val immediateStatus = validation.immediateDeletionStatus()
+                    when {
+                        immediateStatus != null -> {
+                            outcomesByFileId[validation.file.id] =
+                                FileDeletionOutcome(group.id, validation.file.id, immediateStatus)
+                        }
 
-                    validation.file.requiresMediaAuthorization -> {
-                        mediaCandidates += Candidate(group, validation)
-                    }
+                        !hasValidKeeper -> {
+                            outcomesByFileId[validation.file.id] =
+                                FileDeletionOutcome(group.id, validation.file.id, DeletionStatus.BLOCKED_NO_VALID_COPY)
+                        }
 
-                    else -> {
-                        directCandidates += Candidate(group, validation)
+                        validation.file.requiresMediaAuthorization -> {
+                            mediaCandidates += Candidate(group, validation)
+                        }
+
+                        else -> {
+                            directCandidates += Candidate(group, validation)
+                        }
                     }
                 }
             }
-        }
 
-        val operationId = resultStore.beginDeletion(selectedGroups)
+            val operationId = resultStore.beginDeletion(selectedGroups)
 
-        suspend fun checkpoint() {
-            resultStore.checkpointDeletion(
-                operationId = operationId,
-                update = buildDatabaseUpdate(selectedGroups, validations, outcomesByFileId.values.toList()),
-            )
-        }
-
-        directCandidates.forEach { candidate ->
-            outcomesByFileId[candidate.file.id] = deleteDirect(candidate)
-            checkpoint()
-        }
-        deleteMedia(mediaCandidates, outcomesByFileId, ::checkpoint)
-
-        val orderedOutcomes =
-            selectedGroups.flatMap { group ->
-                group.files.filter { it.selectedForDeletion }.map { file -> outcomesByFileId.getValue(file.id) }
+            suspend fun checkpoint() {
+                resultStore.checkpointDeletion(
+                    operationId = operationId,
+                    update = buildDatabaseUpdate(selectedGroups, validations, outcomesByFileId.values.toList()),
+                )
             }
-        val databaseUpdate = buildDatabaseUpdate(selectedGroups, validations, orderedOutcomes)
-        resultStore.completeDeletion(operationId, databaseUpdate)
-        return DeletionResult(orderedOutcomes.toList(), databaseUpdate)
-    }
+
+            directCandidates.forEach { candidate ->
+                outcomesByFileId[candidate.file.id] = deleteDirect(candidate)
+                checkpoint()
+            }
+            deleteMedia(mediaCandidates, outcomesByFileId, ::checkpoint)
+
+            val orderedOutcomes =
+                selectedGroups.flatMap { group ->
+                    group.files.filter { it.selectedForDeletion }.map { file -> outcomesByFileId.getValue(file.id) }
+                }
+            val databaseUpdate = buildDatabaseUpdate(selectedGroups, validations, orderedOutcomes)
+            resultStore.completeDeletion(operationId, databaseUpdate)
+            DeletionResult(orderedOutcomes.toList(), databaseUpdate)
+        }
 
     private suspend fun validateGroup(group: DeletionGroup): List<Validation> {
         val initial =
@@ -145,7 +150,13 @@ class DeletionCoordinator(
     }
 
     private suspend fun deleteDirect(candidate: Candidate): FileDeletionOutcome {
-        val deletionResult = storage.deleteDirect(candidate.file)
+        if (!candidate.hasCurrentIdenticalKeeper(storage)) {
+            return candidate.outcome(DeletionStatus.BLOCKED_NO_VALID_COPY)
+        }
+        val deletionResult =
+            storage.deleteDirect(candidate.file) { staged ->
+                candidate.hasCurrentIdenticalKeeper(storage, staged)
+            }
         val afterDeletion = storage.snapshot(candidate.file)
         val status =
             when {
@@ -157,7 +168,7 @@ class DeletionCoordinator(
             groupId = candidate.group.id,
             fileId = candidate.file.id,
             status = status,
-            reclaimedBytes = if (status == DeletionStatus.DELETED) candidate.validation.snapshot!!.sizeBytes else 0L,
+            reclaimedBytes = 0L,
         )
     }
 
@@ -176,42 +187,40 @@ class DeletionCoordinator(
                 continue
             }
 
-            when (mediaDeletionAuthorizer.requestDeletion(chunk.map { it.file })) {
+            val verifiedChunk =
+                chunk.filter { candidate ->
+                    candidate.verifyForMediaDeletion(storage, outcomesByFileId)
+                }
+            val authorization =
+                if (verifiedChunk.isEmpty()) {
+                    MediaAuthorization.APPROVED
+                } else {
+                    mediaDeletionAuthorizer.requestDeletion(verifiedChunk.map { it.file })
+                }
+            when (authorization) {
                 MediaAuthorization.APPROVED -> {
-                    chunk.forEach { candidate ->
-                        outcomesByFileId[candidate.file.id] = approvedMediaOutcome(candidate)
+                    verifiedChunk.forEach { candidate ->
+                        outcomesByFileId[candidate.file.id] = deleteDirect(candidate)
+                        checkpoint()
                     }
                     checkpoint()
                 }
 
                 MediaAuthorization.CANCELED -> {
-                    chunk.forEach { candidate ->
+                    verifiedChunk.forEach { candidate ->
                         outcomesByFileId[candidate.file.id] = candidate.outcome(DeletionStatus.AUTHORIZATION_CANCELED)
                     }
                     stoppedStatus = DeletionStatus.AUTHORIZATION_CANCELED
                 }
 
                 MediaAuthorization.FAILED -> {
-                    chunk.forEach { candidate ->
+                    verifiedChunk.forEach { candidate ->
                         outcomesByFileId[candidate.file.id] = candidate.outcome(DeletionStatus.DELETE_FAILED)
                     }
                     stoppedStatus = DeletionStatus.DELETE_FAILED
                 }
             }
         }
-    }
-
-    private suspend fun approvedMediaOutcome(candidate: Candidate): FileDeletionOutcome {
-        val status =
-            if (storage.snapshot(candidate.file) == null) {
-                DeletionStatus.DELETED
-            } else {
-                DeletionStatus.DELETE_FAILED
-            }
-        return candidate.outcome(
-            status = status,
-            reclaimedBytes = if (status == DeletionStatus.DELETED) candidate.validation.snapshot!!.sizeBytes else 0L,
-        )
     }
 
     private fun buildDatabaseUpdate(
@@ -334,6 +343,26 @@ class DeletionCoordinator(
         val validation: Validation,
     ) {
         val file: DeletionFile get() = validation.file
+
+        suspend fun hasCurrentIdenticalKeeper(
+            storage: DeletionStorage,
+            currentFile: DeletionFile = file,
+        ): Boolean =
+            group.files.any { keeper ->
+                !keeper.selectedForDeletion &&
+                    storage.snapshot(keeper)?.isReadable == true &&
+                    storage.contentsEqual(currentFile, keeper)
+            }
+
+        suspend fun verifyForMediaDeletion(
+            storage: DeletionStorage,
+            outcomes: MutableMap<String, FileDeletionOutcome>,
+        ): Boolean =
+            hasCurrentIdenticalKeeper(storage).also { verified ->
+                if (!verified) {
+                    outcomes[file.id] = FileDeletionOutcome(group.id, file.id, DeletionStatus.BLOCKED_NO_VALID_COPY)
+                }
+            }
     }
 
     private data class Validation(

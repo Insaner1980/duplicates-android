@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -198,7 +199,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.volumeEntries(
         items(state.selectedPaths.sorted(), key = { it }) { path ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(path, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = { onPathSelectionChange(path, false) }, enabled = !state.saving) {
+                TextButton(
+                    onClick = { onPathSelectionChange(path, false) },
+                    enabled = !state.saving,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
+                ) {
                     Text(stringResource(R.string.remove))
                 }
             }
@@ -217,6 +222,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.folderEntries(
         TextButton(
             onClick = onShowStorage,
             enabled = !state.saving,
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
         ) { Text(stringResource(R.string.storage)) }
         Text(
             location.currentPath,

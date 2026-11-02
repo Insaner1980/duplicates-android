@@ -9,6 +9,7 @@ import com.emma.duplicates.core.database.DuplicatesDatabase
 import com.emma.duplicates.core.database.ExclusionEntity
 import com.emma.duplicates.core.database.ExclusionTypes
 import com.emma.duplicates.core.database.FingerprintCacheEntity
+import com.emma.duplicates.core.database.PendingDeletionOperationEntity
 import com.emma.duplicates.core.database.ScanCompletionMetrics
 import com.emma.duplicates.core.database.ScanFailureReasons
 import com.emma.duplicates.core.database.ScanPhases
@@ -211,6 +212,27 @@ class ScanStoreTest {
             store.removeExclusion("excluded")
             assertNull(store.findFingerprint("/storage/a.jpg", "primary"))
             assertTrue(store.exclusions.first().isEmpty())
+        }
+
+    @Test
+    fun guardedClearPreservesSavedResultsAndPendingDeletion() =
+        runTest {
+            database.scanDao().insertSession(
+                ScanSessionEntity("active", ScanStatuses.COMPLETED, 1L, completedAt = 2L, active = true),
+            )
+            val operation = PendingDeletionOperationEntity("pending", 3L)
+            store.beginDeletion(operation, emptyList())
+
+            assertFalse(store.clearScanMetadataIfIdle())
+
+            assertEquals(
+                "active",
+                store.activeResults
+                    .first()
+                    ?.session
+                    ?.id,
+            )
+            assertEquals(operation, store.pendingDeletions().single().operation)
         }
 
     private fun indexedFile(sessionId: String = "session") =

@@ -17,6 +17,7 @@ import com.emma.duplicates.core.database.ScanProgressUpdate
 import com.emma.duplicates.core.database.ScanSessionEntity
 import com.emma.duplicates.core.database.ScanStatuses
 import com.emma.duplicates.domain.deletion.DeletionDatabaseUpdate
+import kotlinx.coroutines.flow.first
 
 // This facade keeps scan and deletion transactions on the same database boundary.
 @Suppress("TooManyFunctions")
@@ -41,6 +42,7 @@ class ScanStore(
         startedAt: Long,
     ) {
         database.withTransaction {
+            check(deletionOperationDao.getPending().isEmpty()) { "Deletion recovery is pending" }
             scanDao.failRunningSessions(startedAt, ScanFailureReasons.GENERIC)
             scanDao.insertSession(
                 ScanSessionEntity(
@@ -111,7 +113,17 @@ class ScanStore(
         fingerprintDao.invalidate(canonicalPath, volume)
     }
 
-    suspend fun addExclusion(exclusion: ExclusionEntity): Boolean = exclusionDao.insert(exclusion)
+    suspend fun addExclusion(
+        exclusion: ExclusionEntity,
+        coveredExclusionIds: List<String> = emptyList(),
+    ): Boolean =
+        database.withTransaction {
+            val inserted = exclusionDao.insert(exclusion)
+            if (inserted) {
+                coveredExclusionIds.forEach { exclusionDao.remove(it) }
+            }
+            inserted
+        }
 
     suspend fun removeExclusion(exclusionId: String) {
         exclusionDao.remove(exclusionId)
@@ -123,11 +135,45 @@ class ScanStore(
         scanDao.clearScanMetadata()
     }
 
+    suspend fun clearScanMetadataIfIdle(): Boolean =
+        database.withTransaction {
+            if (deletionOperationDao.getPending().isNotEmpty() || runningSession.first() != null) {
+                false
+            } else {
+                scanDao.clearScanMetadata()
+                true
+            }
+        }
+
     suspend fun beginDeletion(
         operation: PendingDeletionOperationEntity,
         items: List<PendingDeletionItemEntity>,
     ) {
-        deletionOperationDao.insert(operation, items)
+        database.withTransaction {
+            check(deletionOperationDao.getPending().isEmpty() && runningSession.first() == null) {
+                "A scan or deletion recovery is active"
+            }
+            val currentMembers =
+                activeResults
+                    .first()
+                    ?.groups
+                    .orEmpty()
+                    .flatMap { it.members }
+                    .associateBy { it.member.id }
+            check(
+                items.all { item ->
+                    currentMembers[item.memberId]?.let { current ->
+                        current.member.groupId == item.groupId &&
+                            current.member.indexedFileId == item.indexedFileId &&
+                            current.member.selectedForDeletion &&
+                            current.file.canonicalPath == item.canonicalPath &&
+                            current.file.sizeBytes == item.sizeBytes &&
+                            current.file.lastModified == item.lastModifiedMillis
+                    } == true
+                },
+            ) { "Deletion selection has changed" }
+            deletionOperationDao.insert(operation, items)
+        }
     }
 
     suspend fun pendingDeletions(): List<PendingDeletionOperationWithItems> = deletionOperationDao.getPending()

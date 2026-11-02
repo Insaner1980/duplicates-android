@@ -197,7 +197,7 @@ private fun ColumnScope.BrowserLocation(
                 Text(
                     text = breadcrumb.label,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier =
                         Modifier
                             .heightIn(min = 48.dp)

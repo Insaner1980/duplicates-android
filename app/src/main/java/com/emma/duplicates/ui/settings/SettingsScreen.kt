@@ -42,6 +42,7 @@ fun SettingsScreen(
     onOpenStoragePermission: () -> Unit,
     modifier: Modifier = Modifier,
     onThemeModeChange: (com.emma.duplicates.data.preferences.AppThemeMode) -> Unit = {},
+    onOpenRecovery: () -> Unit = {},
 ) {
     ScreenColumn(
         modifier = modifier,
@@ -56,6 +57,11 @@ fun SettingsScreen(
             onIgnoreSystemFoldersChange,
         )
         SettingsSection(R.string.review_and_deletion) {
+            DetailSettingsRow(
+                title = stringResource(R.string.recovery_files),
+                summary = stringResource(R.string.recovery_settings_summary),
+                onClick = onOpenRecovery,
+            )
             ToggleSettingsRow(
                 title = stringResource(R.string.auto_select_duplicate_copies),
                 checked = state.autoSelectDuplicateCopies,

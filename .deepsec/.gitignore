@@ -1,5 +1,8 @@
 node_modules/
-data/
+data/*
+!data/duplicates-android/
+data/duplicates-android/*
+!data/duplicates-android/config.json
 findings/
 comment.md
 .env

@@ -180,14 +180,13 @@ public fun com.emma.duplicates.core.designsystem.DuplicatesTheme(darkTheme: kotl
     - content: STABLE (composable function type)
 
 @Composable
-public fun com.emma.duplicates.core.designsystem.PrimaryActionButton(onClick: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, enabled: kotlin.Boolean, destructive: kotlin.Boolean, content: @[Composable] @[ExtensionFunctionType] androidx.compose.runtime.internal.ComposableFunction1<androidx.compose.foundation.layout.RowScope, kotlin.Unit>): kotlin.Unit
+public fun com.emma.duplicates.core.designsystem.PrimaryActionButton(onClick: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, enabled: kotlin.Boolean, content: @[Composable] @[ExtensionFunctionType] androidx.compose.runtime.internal.ComposableFunction1<androidx.compose.foundation.layout.RowScope, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - onClick: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
     - enabled: STABLE (primitive type)
-    - destructive: STABLE (primitive type)
     - content: STABLE (composable function type)
 
 @Composable
