@@ -8,7 +8,7 @@
     <string name="recovery_pending">Verification was interrupted or the file changed. This copy will not expire automatically.</string>
     <string name="restore_copy">Restore copy</string>
     <string name="recovery_failed">Could not restore this copy. Check storage access and available space, and reconnect its storage device.</string>
-    <string name="recovery_restored">Restored to %1$s. The recovery copy is retained until its expiry date.</string>
+    <string name="recovery_restored">Restored to %1$s. The recovery copy is retained.</string>
     <string name="appearance">Appearance</string>
     <string name="keep">Will be kept</string>
     <string name="sort_by">Sort: %1$s</string>

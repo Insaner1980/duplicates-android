@@ -10,12 +10,14 @@ import com.emma.duplicates.domain.deletion.DeletionFile
 import com.emma.duplicates.domain.deletion.MediaAuthorization
 import com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import kotlin.coroutines.resume
@@ -58,7 +60,8 @@ class AndroidMediaDeletionAuthorizer internal constructor(
     override suspend fun requestDeletion(files: List<DeletionFile>): MediaAuthorization =
         requestMutex.withLock {
             if (files.isEmpty() || files.any { it.contentUri == null }) return@withLock MediaAuthorization.FAILED
-            val request = buildRequest(files) ?: return@withLock MediaAuthorization.FAILED
+            val request =
+                withContext(Dispatchers.IO) { buildRequest(files) } ?: return@withLock MediaAuthorization.FAILED
 
             suspendCancellableCoroutine { continuation ->
                 synchronized(stateLock) {

@@ -342,7 +342,7 @@ The string resource policy test rejects U+2014, U+2013, U+00B7, and U+2022. Room
 | `SettingsLayoutTest`, `ScanSelectionScreenTest` | Both portrait sizes, both themes/font scales; settings reachability, separate folder navigation/selection, disabled empty Done and enabled selected Done | Does not establish every detail screen or every screen state at these sizes |
 | `PresentationScreensTest`, `SettingsDetailScreensTest`, `PermissionScreenTest` | Scanning and stop callbacks, a scan-phase row at 200 percent, exclusions, settings, file types, browser callbacks, unavailable generic preview, storage-access explanation | Not a full 320 dp x 200 percent matrix for all these screens |
 | `ResultsDeletionTest` and domain/data deletion tests | Captured batches, hidden selection, queued uncheck, changed selection/session rejection, cancellation, partial failure, keepers, checkpoints, and recovery | Fakes, local files and local Room; not proof of provider/OEM behavior |
-| `DuplicatesDatabaseMigrationTest` in `androidTest` | A real Room 2 to 3 migration preserves an existing session and adds a nullable failure reason | No 1 to 2 or 1 to 3 instrumentation migration test is defined here |
+| `DuplicatesDatabaseMigrationTest` in `androidTest` | Room 2 to 3 preserves an existing session and adds a nullable failure reason; 3 to 4 validates the recovery schema and a non-unique duplicate-group index | No 1 to 2 or 1 to 3 instrumentation migration test is defined here |
 
 For future UI changes, choose the affected screen/states and explicitly include **320 dp, 200 percent font scale, and their combination**, plus both supported themes. Use the existing 411 dp reference and short landscape checks where relevant. Check reachability, clipping, scrolling, selected-state semantics, and system-inset/footer overlap. Record which checks actually ran; the matrix above does not establish complete app-wide accessibility coverage.
 
@@ -368,15 +368,17 @@ Compose Rules are registered with ktlint and Detekt; Google's Android security l
 
 ### Current instrumentation source and execution cautions
 
-The current Android test source defines **three test methods** across two classes:
+The current Android test source defines **five test methods** across three classes:
 
 - `MainActivityTest.settingsAppearanceAndBackAreUsable`: opens Settings, switches to Light, goes Back, and sets the preference to Dark afterward.
 - `MainActivityTest.fixtureOnlyScanOpensResultsPreservesPreviewAndDeletesOnlyReviewedCopies`: requires an empty test installation (`latestSession == null`, otherwise skipped), creates `/sdcard/DuplicatesUiRedesignFixture` only if absent, prepares two PNG and two text copies, selects that scope, scans, opens preview, captures theme/layout evidence, and attempts deletion of the reviewed copies. It grants storage/notification access, changes display/font settings, and can approve the system MediaProvider deletion dialog. Its cleanup attempts to restore captured display/preferences, stop owned scan work, clear test scan metadata, and remove its fixture directory. It does not restore the permission grants, and evidence screenshots remain in the app's external-files `ui-refinement-evidence` directory.
 - `DuplicatesDatabaseMigrationTest.migrationFrom2To3AddsNullableFailureReasonWithoutChangingExistingSessions`: validates schema 2 to 3.
+- `DuplicatesDatabaseMigrationTest.migrationFrom3To4AddsRecoveryAndAllowsIndependentBytePartitions`: validates schema 3 to 4, including the recovery table and non-unique duplicate-group index.
+- `RecoveryStorageTest.sharedStorageFileCanBeStagedAndRestoredOnItsOriginalVolume`: stages a synthetic file on shared storage, restores it to its original location, and verifies that its recovery payload remains available. Cleanup removes the fixture and its recovery payload.
 
-Use a disposable, isolated test device/emulator installation for the full connected suite. This suite mutates app and device state; its fixture deletion is not a read-only smoke test. The previous two-test connected run described below is not a pass of these three current methods.
+Use a disposable, isolated test device/emulator installation for the full connected suite. This suite mutates app and device state; its fixture deletion is not a read-only smoke test. The previous two-test connected run described below is not a pass of these five current methods.
 
-**Verified source mismatch, not a newly executed failure:** the current fixture test still calls `onNodeWithText("Delete permanently")`, but `ResultsDialogs` in `ui/results/ResultsScreen.kt` now uses `R.plurals.delete_selected` (`Delete N file/files`) for the confirmation button. The selector is stale for the current UI. It was documented, not fixed or run, in this documentation-only task. This is separate from the earlier unresolved image-deletion result.
+The fixture test selects the confirmation button using `R.plurals.delete_selected` and `hasAnyAncestor(isDialog())`, matching the current UI. This source correction does not establish a passing device run or resolve the earlier image-deletion result.
 
 ### Evidence inspected on 2026-11-02
 
@@ -411,7 +413,7 @@ The debug APK output is `app/build/outputs/apk/debug/app-debug.apk`.
 
 ### Open verification limits
 
-- The current instrumentation confirmation selector is stale; the current three-test suite has no passing connected-run evidence established here.
+- The current five-test instrumentation suite has no passing connected-run evidence established here.
 - The earlier API 36 image-duplicate deletion did not pass and its cause remains unresolved in the recorded evidence. A successful older API 37 deletion does not resolve that failure.
 - No current physical-device or TalkBack verification is recorded for the Results clarity change. Robolectric tests at SDK 35 do not prove API 30/36/37 runtime behavior or full-screen accessibility coverage.
 - A real process kill during a live Android deletion authorization and migration paths 1 to 2 / 1 to 3 are not established by the existing connected test source/results described here.

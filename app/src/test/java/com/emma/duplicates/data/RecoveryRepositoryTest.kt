@@ -46,6 +46,29 @@ class RecoveryRepositoryTest {
         }
 
     @Test
+    fun `failed verification preserves a concurrently recreated original and the recovery payload`() =
+        runTest {
+            val source = temporaryFolder.newFile("selected").apply { writeText("staged content") }
+            val dao = FakeRecoveryDao()
+            val repository = recoveryRepository(temporaryFolder.newFolder("recovery"), dao)
+
+            assertEquals(
+                DirectDeletionResult.FAILED,
+                repository.move(source.deletionFile()) {
+                    source.writeText("concurrent original")
+                    false
+                },
+            )
+
+            val record = dao.entries.value.single()
+            assertNull(record.expiresAt)
+            assertEquals("concurrent original", source.readText())
+            assertEquals("staged content", File(record.storedPath).readText())
+            val restored = temporaryFolder.root.listFiles()!!.single { it.name.startsWith("selected.restored-") }
+            assertEquals("staged content", restored.readText())
+        }
+
+    @Test
     fun `cancellation after move leaves a durable recoverable payload`() =
         runTest {
             val source = temporaryFolder.newFile("selected").apply { writeText("content") }

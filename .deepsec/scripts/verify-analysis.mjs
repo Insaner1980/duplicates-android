@@ -19,8 +19,7 @@ function jsonFiles(directory) {
   });
 }
 
-function verify() {
-  const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
+export function verify(projectRoot = fileURLToPath(new URL("../../", import.meta.url))) {
   const dataRoot = path.join(projectRoot, ".deepsec/data/duplicates-android");
   const readJson = file => JSON.parse(readFileSync(file, "utf8"));
   const scan = jsonFiles(path.join(dataRoot, "runs")).map(readJson)
@@ -36,10 +35,15 @@ function verify() {
   }
   const receipt = readJson(path.join(dataRoot, "source-scan.json"));
   const problems = [];
+  const uncovered = [];
   for (const { file, record } of records) {
     const expected = receipt.files?.[record.filePath];
-    const actual = expected && createHash("sha256").update(readFileSync(path.join(projectRoot, record.filePath))).digest("hex");
-    const reason = expected && actual === expected ? incompleteReason(record) : "source is not covered by the current secrets scan";
+    if (!expected) {
+      uncovered.push(record.filePath);
+      continue;
+    }
+    const actual = createHash("sha256").update(readFileSync(path.join(projectRoot, record.filePath))).digest("hex");
+    const reason = actual === expected ? incompleteReason(record) : "source changed since the current secrets scan";
     if (!reason) continue;
     problems.push(`${record.filePath}: ${reason}`);
     if (record.status === "analyzed") {
@@ -47,7 +51,10 @@ function verify() {
       writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
     }
   }
-  if (problems.length > 0) throw new Error(`Incomplete DeepSec review; affected records will be retried:\n${problems.join("\n")}`);
+  const errors = [];
+  if (uncovered.length > 0) errors.push(`Files outside the secrets scan receipt; align scan scope before retrying (statuses unchanged):\n${uncovered.join("\n")}`);
+  if (problems.length > 0) errors.push(`Incomplete DeepSec review; affected records will be retried:\n${problems.join("\n")}`);
+  if (errors.length > 0) throw new Error(errors.join("\n"));
   console.log(`DeepSec review verified: ${records.length} candidate files, including ${kotlinCount} Kotlin files; no skipped or failed investigations.`);
 }
 

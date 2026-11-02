@@ -11,8 +11,8 @@ import com.emma.duplicates.domain.deletion.MediaAuthorization
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -113,10 +113,15 @@ class AndroidMediaDeletionAuthorizerTest {
     fun pendingAuthorizationIsClaimedOnceAndCompletedAfterRecreation() =
         runTest {
             val launchRequest = mockk<IntentSenderRequest>()
-            val authorizer = AndroidMediaDeletionAuthorizer { launchRequest }
+            val callerThread = Thread.currentThread()
+            val authorizer =
+                AndroidMediaDeletionAuthorizer {
+                    assertFalse(Thread.currentThread() === callerThread)
+                    launchRequest
+                }
 
             val result = async { authorizer.requestDeletion(listOf(mediaFile())) }
-            yield()
+            authorizer.launchRequest.first { it != null }
 
             assertTrue(authorizer.hasPendingRequest)
             assertSame(launchRequest, authorizer.claimLaunchRequest())
@@ -125,6 +130,22 @@ class AndroidMediaDeletionAuthorizerTest {
             assertTrue(authorizer.complete(MediaAuthorization.APPROVED))
 
             assertEquals(MediaAuthorization.APPROVED, result.await())
+            assertFalse(authorizer.hasPendingRequest)
+            assertNull(authorizer.launchRequest.value)
+        }
+
+    @Test
+    fun failedRequestConstructionResumesCallerWithoutLaunching() =
+        runTest {
+            val callerThread = Thread.currentThread()
+            val authorizer =
+                AndroidMediaDeletionAuthorizer {
+                    assertFalse(Thread.currentThread() === callerThread)
+                    null
+                }
+
+            assertEquals(MediaAuthorization.FAILED, authorizer.requestDeletion(listOf(mediaFile())))
+            assertSame(callerThread, Thread.currentThread())
             assertFalse(authorizer.hasPendingRequest)
             assertNull(authorizer.launchRequest.value)
         }
