@@ -19,7 +19,7 @@ function jsonFiles(directory) {
   });
 }
 
-export function verify(projectRoot = fileURLToPath(new URL("../../", import.meta.url)), { prepare = false } = {}) {
+export function verify(projectRoot = fileURLToPath(new URL("../../", import.meta.url)), { prepare = false, checkCoverage = false } = {}) {
   const dataRoot = path.join(projectRoot, ".deepsec/data/duplicates-android");
   const readJson = file => JSON.parse(readFileSync(file, "utf8"));
   const scan = jsonFiles(path.join(dataRoot, "runs")).map(readJson)
@@ -38,27 +38,38 @@ export function verify(projectRoot = fileURLToPath(new URL("../../", import.meta
   const blockedPath = path.join(dataRoot, "coverage-blocked.json");
   const blocked = existsSync(blockedPath) ? readJson(blockedPath) : {};
   const saveBlocked = () => writeFileSync(blockedPath, JSON.stringify(blocked, null, 2) + "\n");
-  const candidates = prepare ? allRecords : records;
+  const candidates = allRecords;
   if (prepare && candidates.some(({ record }) => record.status === "processing")) {
-    throw new Error("DeepSec records are still processing; do not change their coverage state during an active run.");
+    throw new Error(
+      "DeepSec records are still processing or belong to an interrupted run. If a run is active, wait for it to finish. " +
+      "Only when no run is active, recover from the repository root with:\n" +
+      "node .deepsec/scripts/verify-analysis.mjs --check-coverage && " +
+      "pnpm --dir .deepsec deepsec process --project-id duplicates-android --agent codex --model gpt-6.1-sol --thinking-level medium --concurrency 1\n" +
+      "Do not bypass a failed coverage check. Wait for recovery to finish before rerunning deepsec:process.",
+    );
   }
   const problems = [];
   const uncovered = [];
   for (const { file, record } of candidates) {
     const expected = receipt.files?.[record.filePath];
     if (!expected) {
-      blocked[record.filePath] = {};
-      saveBlocked();
+      if (!checkCoverage) {
+        blocked[record.filePath] = {};
+        saveBlocked();
+      }
       uncovered.push(record.filePath);
       continue;
     }
     const actual = createHash("sha256").update(readFileSync(path.join(projectRoot, record.filePath))).digest("hex");
     if (actual !== expected) {
-      blocked[record.filePath] = {};
-      saveBlocked();
+      if (!checkCoverage) {
+        blocked[record.filePath] = {};
+        saveBlocked();
+      }
       problems.push(`${record.filePath}: source changed since the current secrets scan`);
       continue;
     }
+    if (checkCoverage) continue;
     const marker = blocked[record.filePath];
     if (prepare) {
       if (marker) {
@@ -84,13 +95,13 @@ export function verify(projectRoot = fileURLToPath(new URL("../../", import.meta
     }
   }
   const errors = [];
-  if (uncovered.length > 0) errors.push(`Files outside the secrets scan receipt; align scan scope before retrying (statuses unchanged, coverage blocked):\n${uncovered.join("\n")}`);
+  if (uncovered.length > 0) errors.push(`Files outside the secrets scan receipt; align scan scope before retrying (statuses unchanged, processing blocked):\n${uncovered.join("\n")}`);
   if (problems.length > 0) errors.push(`Incomplete DeepSec review; prepare covered sources before retrying:\n${problems.join("\n")}`);
   if (errors.length > 0) throw new Error(errors.join("\n"));
-  if (prepare) console.log(`DeepSec processing coverage verified: ${candidates.length} files.`);
-  else console.log(`DeepSec review verified: ${records.length} candidate files, including ${kotlinCount} Kotlin files; no skipped or failed investigations.`);
+  if (prepare || checkCoverage) console.log(`DeepSec processing coverage verified: ${candidates.length} files.`);
+  else console.log(`DeepSec review verified: ${candidates.length} candidate files; latest scan includes ${kotlinCount} Kotlin files; no skipped or failed investigations.`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { verify(undefined, { prepare: process.argv.includes("--prepare") }); } catch (error) { console.error(error.message); process.exitCode = 2; }
+  try { verify(undefined, { prepare: process.argv.includes("--prepare"), checkCoverage: process.argv.includes("--check-coverage") }); } catch (error) { console.error(error.message); process.exitCode = 2; }
 }

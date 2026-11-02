@@ -100,6 +100,24 @@ test("uncovered analyses require preparation and a fresh investigation after cov
     verify(root, { prepare: true });
     assert.equal(readJson(uncoveredPath).status, "analyzed");
 
+    // Completion must cover older records too, even after a later scan succeeds.
+    writeJson(path.join(dataRoot, "runs/scan.json"), {
+      type: "scan", phase: "done", runId: "test-scan", createdAt: "2026-11-02T00:00:00Z", stats: { filesScanned: 1 },
+    });
+    const older = { ...covered, lastScannedRunId: "previous-scan" };
+    for (const status of ["pending", "error", "processing"]) {
+      writeJson(coveredPath, { ...older, status });
+      assert.throws(() => verify(root), new RegExp(`covered.kt: status=${status}`));
+    }
+    writeJson(coveredPath, { ...older, analysisHistory: [] });
+    assert.throws(() => verify(root), /covered.kt: missing completed investigation/);
+    writeJson(coveredPath, older);
+    verify(root);
+    writeJson(coveredPath, covered);
+    writeJson(path.join(dataRoot, "runs/scan.json"), {
+      type: "scan", phase: "done", runId: "test-scan", createdAt: "2026-11-02T00:00:00Z", stats: { filesScanned: 2 },
+    });
+
     writeFileSync(path.join(root, "covered.kt"), "changed");
     assert.throws(() => verify(root), /covered.kt: source changed since the current secrets scan/);
     assert.deepEqual(readJson(blockedPath), { "covered.kt": {} });
@@ -113,8 +131,29 @@ test("uncovered analyses require preparation and a fresh investigation after cov
 
     const processing = { ...covered, status: "processing", lockedByRunId: "active-run" };
     writeJson(coveredPath, processing);
-    assert.throws(() => verify(root, { prepare: true }), /still processing/);
+    assert.throws(() => verify(root, { prepare: true }), error => {
+      assert.match(error.message, /If a run is active, wait/);
+      assert.match(error.message, /Only when no run is active/);
+      assert.match(error.message, /--check-coverage && pnpm --dir \.deepsec deepsec process/);
+      assert.match(error.message, /Wait for recovery to finish/);
+      return true;
+    });
     assert.deepEqual(readJson(coveredPath), processing);
+    const previousMarker = readJson(blockedPath);
+    verify(root, { checkCoverage: true });
+    assert.deepEqual(readJson(coveredPath), processing);
+    assert.deepEqual(readJson(blockedPath), previousMarker);
+
+    delete receipt.files["covered.kt"];
+    writeJson(receiptPath, receipt);
+    assert.throws(() => verify(root, { checkCoverage: true }), /outside the secrets scan receipt/);
+    assert.deepEqual(readJson(coveredPath), processing);
+    assert.deepEqual(readJson(blockedPath), previousMarker);
+    receipt.files["covered.kt"] = createHash("sha256").update("older content").digest("hex");
+    writeJson(receiptPath, receipt);
+    assert.throws(() => verify(root, { checkCoverage: true }), /source changed since the current secrets scan/);
+    assert.deepEqual(readJson(coveredPath), processing);
+    assert.deepEqual(readJson(blockedPath), previousMarker);
   } finally {
     rmSync(root, { recursive: true });
   }
