@@ -16,7 +16,7 @@
     "deepsec:process": "deepsec process --project-id duplicates-android --agent codex --model gpt-6.1-sol --thinking-level medium --concurrency 1",
     "deepsec:revalidate": "deepsec revalidate --project-id duplicates-android --agent codex --model gpt-6.1-sol --thinking-level medium --min-severity HIGH --concurrency 1",
     "deepsec:export": "deepsec export --project-id duplicates-android --format md-dir --out ./findings",
-    "deepsec:report": "pnpm run deepsec:scan && pnpm run deepsec:process && pnpm run deepsec:export",
+    "deepsec:report": "pnpm run deepsec:scan && pwsh -NoProfile -File scripts/prepare-review.ps1 && pnpm run deepsec:process && node scripts/verify-analysis.mjs && pnpm run deepsec:export",
     "deepsec:report:custom": "pnpm run deepsec:report"
   },
   "dependencies": {

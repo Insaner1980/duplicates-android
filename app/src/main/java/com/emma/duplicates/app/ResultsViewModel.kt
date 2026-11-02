@@ -109,9 +109,7 @@ class ResultsViewModel(
         viewModelScope.launch {
             try {
                 mutationMutex.withLock {
-                    if (scanStore.pendingDeletions().isEmpty()) {
-                        scanStore.clearScanMetadata()
-                    } else {
+                    if (!scanStore.clearScanMetadataIfIdle()) {
                         update { copy(message = R.string.deletion_recovery_pending) }
                     }
                 }

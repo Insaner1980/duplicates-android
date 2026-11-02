@@ -19,12 +19,62 @@ class AndroidDeletionStorageTest {
     val temporaryFolder = TemporaryFolder()
 
     @Test
+    fun `missing path on an unavailable volume is not confirmed absent`() =
+        runTest {
+            val missing = File(temporaryFolder.root, "unmounted/missing.pdf").deletionFile()
+            var available = false
+            val storage =
+                AndroidDeletionStorage(
+                    recovery =
+                        recoveryRepository(
+                            File(temporaryFolder.root, "recovery"),
+                        ),
+                    isStorageAvailable = {
+                        available
+                    },
+                ) { }
+
+            val unavailable = storage.snapshot(missing)!!
+            assertFalse(unavailable.isReadable)
+            assertFalse(unavailable.isWritable)
+
+            available = true
+            assertNull(storage.snapshot(missing))
+        }
+
+    @Test
+    fun `volume removed during the missing file check is not confirmed absent`() =
+        runTest {
+            val missing = File(temporaryFolder.root, "missing.pdf").deletionFile()
+            var checks = 0
+            val storage =
+                AndroidDeletionStorage(
+                    recovery =
+                        recoveryRepository(
+                            File(temporaryFolder.root, "recovery"),
+                        ),
+                    isStorageAvailable = {
+                        ++checks ==
+                            1
+                    },
+                ) { }
+
+            assertFalse(storage.snapshot(missing)!!.isReadable)
+            assertEquals(2, checks)
+        }
+
+    @Test
     fun `real file boundary snapshots hashes compares deletes and verifies absence`() =
         runTest {
             val first = temporaryFolder.newFile("first.txt").apply { writeText("abc") }
             val same = temporaryFolder.newFile("same.txt").apply { writeText("abc") }
             val different = temporaryFolder.newFile("different.txt").apply { writeText("abd") }
-            val storage = AndroidDeletionStorage(ioDispatcher = StandardTestDispatcher(testScheduler)) { }
+            val storage =
+                AndroidDeletionStorage(
+                    recovery = recoveryRepository(File(temporaryFolder.root, "recovery")),
+                    ioDispatcher = StandardTestDispatcher(testScheduler),
+                ) {
+                }
             val firstFile = first.deletionFile()
 
             val snapshot = storage.snapshot(firstFile)!!
@@ -38,27 +88,27 @@ class AndroidDeletionStorageTest {
             assertTrue(storage.contentsEqual(firstFile, same.deletionFile()))
             assertFalse(storage.contentsEqual(firstFile, different.deletionFile()))
 
-            assertEquals(DirectDeletionResult.DELETED, storage.deleteDirect(firstFile))
+            assertEquals(DirectDeletionResult.DELETED, storage.deleteDirect(firstFile) { true })
             assertNull(storage.snapshot(firstFile))
-            assertEquals(DirectDeletionResult.FAILED, storage.deleteDirect(firstFile))
+            assertEquals(DirectDeletionResult.FAILED, storage.deleteDirect(firstFile) { true })
         }
 
     @Test
-    fun `successful direct deletion removes its MediaStore row after the file is absent`() =
+    fun `successful direct deletion refreshes the deleted path instead of deleting a cached URI`() =
         runTest {
             val file = temporaryFolder.newFile("indexed-document.pdf").apply { writeText("content") }
             val contentUri = "content://media/external/file/42"
-            var removedContentUri: String? = null
+            var refreshedPath: String? = null
             val storage =
-                AndroidDeletionStorage { uri ->
+                AndroidDeletionStorage(recovery = recoveryRepository(File(temporaryFolder.root, "recovery"))) { path ->
                     assertFalse(file.exists())
-                    removedContentUri = uri
+                    refreshedPath = path
                 }
 
-            val result = storage.deleteDirect(file.deletionFile(contentUri = contentUri))
+            val result = storage.deleteDirect(file.deletionFile(contentUri = contentUri)) { true }
 
             assertEquals(DirectDeletionResult.DELETED, result)
-            assertEquals(contentUri, removedContentUri)
+            assertEquals(file.canonicalPath, refreshedPath)
         }
 
     @Test
@@ -66,11 +116,16 @@ class AndroidDeletionStorageTest {
         runTest {
             val missingFile = File(temporaryFolder.root, "missing.pdf")
             val removedContentUris = mutableListOf<String>()
-            val storage = AndroidDeletionStorage { uri -> removedContentUris += uri }
+            val storage =
+                AndroidDeletionStorage(recovery = recoveryRepository(File(temporaryFolder.root, "recovery"))) { uri ->
+                    removedContentUris +=
+                        uri
+                }
 
             val result =
                 storage.deleteDirect(
                     missingFile.deletionFile(contentUri = "content://media/external/file/43"),
+                    verifyStaged = { true },
                 )
 
             assertEquals(DirectDeletionResult.FAILED, result)
@@ -82,9 +137,13 @@ class AndroidDeletionStorageTest {
         runTest {
             val file = temporaryFolder.newFile("unindexed-document.pdf").apply { writeText("content") }
             val removedContentUris = mutableListOf<String>()
-            val storage = AndroidDeletionStorage { uri -> removedContentUris += uri }
+            val storage =
+                AndroidDeletionStorage(recovery = recoveryRepository(File(temporaryFolder.root, "recovery"))) { uri ->
+                    removedContentUris +=
+                        uri
+                }
 
-            val result = storage.deleteDirect(file.deletionFile())
+            val result = storage.deleteDirect(file.deletionFile()) { true }
 
             assertEquals(DirectDeletionResult.DELETED, result)
             assertTrue(removedContentUris.isEmpty())
@@ -102,11 +161,15 @@ class AndroidDeletionStorageTest {
 
             failures.forEachIndexed { index, failure ->
                 val file = temporaryFolder.newFile("failure-$index.pdf").apply { writeText("content") }
-                val storage = AndroidDeletionStorage { throw failure }
+                val storage =
+                    AndroidDeletionStorage(
+                        recovery = recoveryRepository(File(temporaryFolder.root, "recovery")),
+                    ) { throw failure }
 
                 val result =
                     storage.deleteDirect(
                         file.deletionFile(contentUri = "content://media/external/file/${100 + index}"),
+                        verifyStaged = { true },
                     )
 
                 assertEquals(DirectDeletionResult.DELETED, result)

@@ -11,6 +11,7 @@ import com.emma.duplicates.core.storage.MediaStoreMetadataIndex
 import com.emma.duplicates.data.AndroidDeletionStorage
 import com.emma.duplicates.data.ExclusionRepository
 import com.emma.duplicates.data.FilePreviewLauncher
+import com.emma.duplicates.data.RecoveryRepository
 import com.emma.duplicates.data.RoomDeletionResultStore
 import com.emma.duplicates.data.RoomFingerprintCache
 import com.emma.duplicates.data.ScanResultMapper
@@ -21,6 +22,7 @@ import com.emma.duplicates.data.preferences.duplicatesPreferencesDataStore
 import com.emma.duplicates.domain.deletion.DeletionCoordinator
 import com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer
 import com.emma.duplicates.domain.deletion.PendingDeletionReconciler
+import kotlinx.coroutines.sync.Mutex
 
 class DuplicatesApplication : Application() {
     lateinit var container: AppContainer
@@ -51,7 +53,7 @@ class AppContainer(
     val scanResultMapper = ScanResultMapper()
     val exclusionRepository by lazy { ExclusionRepository(scanStore, storageVolumeSource) }
 
-    // These paths are excluded from browsing; no data is stored in external directories here.
+    // App-owned directories, including recovery payloads, are excluded from browsing.
     @Suppress("DEPRECATION", "kotlin:S5324")
     val storageBrowser by lazy {
         StorageBrowser(
@@ -82,12 +84,14 @@ class AppContainer(
         )
     }
     val scanScheduler = ScanScheduler(applicationContext, DuplicateScanWorker::class.java)
+    private val deletionOperationMutex = Mutex()
+    val recoveryRepository by lazy { RecoveryRepository(applicationContext, database.recoveryDao()) }
     private val deletionStorage by lazy {
-        AndroidDeletionStorage(applicationContext.contentResolver)
+        AndroidDeletionStorage(applicationContext, recoveryRepository)
     }
     private val deletionResultStore by lazy { RoomDeletionResultStore(scanStore) }
     val pendingDeletionReconciler by lazy {
-        PendingDeletionReconciler(deletionStorage, deletionResultStore)
+        PendingDeletionReconciler(deletionStorage, deletionResultStore, deletionOperationMutex)
     }
 
     fun deletionCoordinator(authorizer: MediaDeletionAuthorizer): DeletionCoordinator =
@@ -95,5 +99,6 @@ class AppContainer(
             storage = deletionStorage,
             mediaDeletionAuthorizer = authorizer,
             resultStore = deletionResultStore,
+            operationMutex = deletionOperationMutex,
         )
 }

@@ -265,6 +265,7 @@ internal fun SettingsDestination(
         onOpenFileTypes = { navController.navigate(TypesToScanRoute) },
         onOpenStoragePermission = onOpenStorageSettings,
         onThemeModeChange = settingsViewModel::setThemeMode,
+        onOpenRecovery = { navController.navigate(RecoveryRoute) },
     )
 }
 

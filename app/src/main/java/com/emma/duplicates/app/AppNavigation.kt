@@ -146,6 +146,10 @@ private fun AppNavigationGraph(
             SettingsDestination(settingsViewModel, navController, onOpenStorageSettings)
         }
 
+        composable<RecoveryRoute> {
+            RecoveryDestination(container, onBack = { navController.popBackStack() })
+        }
+
         composable<ScanLocationsRoute> { entry ->
             ScanLocationsDestination(container, navController, entry)
         }

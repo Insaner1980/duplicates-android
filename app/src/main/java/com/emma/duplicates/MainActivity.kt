@@ -27,7 +27,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.work.await
 import com.emma.duplicates.app.AndroidMediaDeletionAuthorizer
 import com.emma.duplicates.app.AppContainer
 import com.emma.duplicates.app.AppNavigation
@@ -40,7 +39,6 @@ import com.emma.duplicates.data.preferences.AppThemeMode
 import com.emma.duplicates.domain.deletion.MediaAuthorization
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -97,13 +95,7 @@ class MainActivity : ComponentActivity() {
 
         container = (application as DuplicatesApplication).container
         val openScanningInitially = intent.consumeScanningDestination()
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                deletionAuthorizer.launchRequest.collect {
-                    deletionAuthorizer.claimLaunchRequest()?.let(mediaDeletionLauncher::launch)
-                }
-            }
-        }
+        observeLifecycleRequests()
 
         setContent {
             val mode by container.preferencesRepository.themeMode.collectAsStateWithLifecycle(AppThemeMode.DARK)
@@ -138,6 +130,23 @@ class MainActivity : ComponentActivity() {
                     openScanningRequests = openScanningRequests,
                     scanStartPending = scanStartPending,
                 )
+            }
+        }
+    }
+
+    private fun observeLifecycleRequests() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    deletionAuthorizer.launchRequest.collect {
+                        deletionAuthorizer.claimLaunchRequest()?.let(mediaDeletionLauncher::launch)
+                    }
+                }
+                launch {
+                    container.scanScheduler.workActive.collect { active ->
+                        if (!active) container.scanScheduler.reconcileSession(container.scanStore)
+                    }
+                }
             }
         }
     }
@@ -197,14 +206,8 @@ class MainActivity : ComponentActivity() {
                     Toast.makeText(this@MainActivity, R.string.deletion_recovery_pending, Toast.LENGTH_LONG).show()
                     return@launch
                 }
-                val latest = container.scanStore.latestSession.first()
-                if (latest?.status == com.emma.duplicates.core.database.ScanStatuses.RUNNING) {
-                    openScanningRequests.emit(ScanNavigationRequest())
-                } else {
-                    val request = ScanNavigationRequest(latest?.id, awaitNewSession = true)
-                    container.scanScheduler.startScan().await()
-                    openScanningRequests.emit(request)
-                }
+                val request = container.scanScheduler.startScan(container.scanStore)
+                openScanningRequests.emit(request)
             } catch (canceled: CancellationException) {
                 throw canceled
             } catch (_: Exception) {

@@ -45,12 +45,15 @@ class ExclusionRepository(
         existing: List<ExclusionEntity>,
     ): AddExclusionResult {
         val candidatePath = file.toPath()
-        if (type == ExclusionType.FOLDER) {
-            existing
-                .filter { exclusion ->
-                    File(exclusion.canonicalPath).toPath().startsWith(candidatePath)
-                }.forEach { scanStore.removeExclusion(it.id) }
-        }
+        val coveredExclusionIds =
+            if (type == ExclusionType.FOLDER) {
+                existing
+                    .filter { exclusion ->
+                        File(exclusion.canonicalPath).toPath().startsWith(candidatePath)
+                    }.map { it.id }
+            } else {
+                emptyList()
+            }
         val inserted =
             scanStore.addExclusion(
                 ExclusionEntity(
@@ -60,6 +63,7 @@ class ExclusionRepository(
                     displayName = file.name.ifBlank { file.path },
                     createdAt = currentTimeMillis(),
                 ),
+                coveredExclusionIds = coveredExclusionIds,
             )
         return if (inserted) AddExclusionResult.ADDED else AddExclusionResult.ALREADY_EXCLUDED
     }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -39,6 +40,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -110,7 +112,7 @@ internal fun ResultsList(
                     item {
                         ResultsEmpty(
                             when {
-                                state.duplicateGroupCount > 0 -> R.string.no_results_for_filter
+                                state.duplicateGroupCount > 0 -> state.emptyFilterMessageRes()
                                 state.scannedFileCount == 0 -> R.string.no_matching_files
                                 else -> R.string.no_duplicates_found
                             },
@@ -132,7 +134,16 @@ private fun ResultsSummary(state: ResultsUiState) {
         Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp).testTag("results-summary"),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(stringResource(R.string.available_to_free), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            stringResource(
+                if (state.selectedFilter != ResultsFilter.ALL || state.searchQuery.isNotBlank()) {
+                    R.string.available_to_free_all_results
+                } else {
+                    R.string.available_to_free
+                },
+            ),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Text(
             buildAnnotatedString {
                 withStyle(
@@ -147,12 +158,12 @@ private fun ResultsSummary(state: ResultsUiState) {
             modifier = Modifier.semantics { contentDescription = formatted },
         )
         if (LocalDensity.current.fontScale >= LARGE_FONT_SCALE) {
-            SummaryMetric(state.duplicateGroupCount, R.string.duplicate_groups)
-            SummaryMetric(state.duplicateFileCount, R.string.files_found)
+            SummaryMetric(state.duplicateGroupCount, R.plurals.duplicate_groups)
+            SummaryMetric(state.duplicateFileCount, R.plurals.files_found)
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                SummaryMetric(state.duplicateGroupCount, R.string.duplicate_groups, Modifier.weight(1f))
-                SummaryMetric(state.duplicateFileCount, R.string.files_found, Modifier.weight(1f))
+                SummaryMetric(state.duplicateGroupCount, R.plurals.duplicate_groups, Modifier.weight(1f))
+                SummaryMetric(state.duplicateFileCount, R.plurals.files_found, Modifier.weight(1f))
             }
         }
     }
@@ -167,7 +178,7 @@ private fun SummaryMetric(
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(value.toString(), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
         Text(
-            stringResource(label),
+            pluralStringResource(label, value),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -179,16 +190,22 @@ private fun FilterRow(
     selected: ResultsFilter,
     onSelect: (ResultsFilter) -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = selected.ordinal)
+    val fontScale = LocalDensity.current.fontScale
+    LaunchedEffect(selected, fontScale) {
+        listState.animateScrollToItem(selected.ordinal)
+    }
+    LazyRow(
+        Modifier.fillMaxWidth().testTag("results-filters"),
+        state = listState,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ResultsFilter.entries.forEach { filter ->
+        itemsIndexed(ResultsFilter.entries, key = { _, filter -> filter.name }) { _, filter ->
             FilterChip(
                 selected == filter,
                 { onSelect(filter) },
                 label = { Text(stringResource(filter.labelRes())) },
-                modifier = Modifier.heightIn(min = 48.dp),
+                modifier = Modifier.heightIn(min = 48.dp).testTag("filter-${filter.name}"),
                 shape = RoundedCornerShape(28.dp),
                 colors =
                     FilterChipDefaults.filterChipColors(

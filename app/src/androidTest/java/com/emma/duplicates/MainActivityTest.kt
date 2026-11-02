@@ -9,7 +9,10 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -85,7 +88,8 @@ class MainActivityTest {
             composeRule.waitForIdle()
             composeRule.onNodeWithText("Previous scan").performScrollTo().performClick()
             composeRule.onNodeWithTag("delete-selected").performClick()
-            composeRule.onNodeWithText("Delete permanently").performClick()
+            val deleteLabel = composeRule.activity.resources.getQuantityString(R.plurals.delete_selected, 2, 2)
+            composeRule.onNode(hasText(deleteLabel) and hasAnyAncestor(isDialog())).performClick()
             awaitFixtureDeletion(root)
             assertEquals(1, root.listFiles().orEmpty().count { it.extension == "png" })
             assertEquals(1, root.listFiles().orEmpty().count { it.extension == "txt" })
@@ -203,6 +207,10 @@ class MainActivityTest {
                 .file
         composeRule.onNodeWithTag("results-list").performScrollToNode(hasTestTag("preview-${file.id}"))
         composeRule.onNodeWithTag("preview-${file.id}").performClick()
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithText("Photo preview").fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithText("File preview").fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithContentDescription("Back").performScrollTo().performClick()
         composeRule.onNodeWithTag("preview-${file.id}").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Back").performClick()

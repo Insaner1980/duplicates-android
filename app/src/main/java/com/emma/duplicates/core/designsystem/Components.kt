@@ -35,7 +35,6 @@ fun PrimaryActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    destructive: Boolean = false,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {
     Button(
@@ -45,10 +44,8 @@ fun PrimaryActionButton(
         shape = MaterialTheme.shapes.large,
         colors =
             ButtonDefaults.buttonColors(
-                containerColor =
-                    if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                contentColor =
-                    if (destructive) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                 disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),

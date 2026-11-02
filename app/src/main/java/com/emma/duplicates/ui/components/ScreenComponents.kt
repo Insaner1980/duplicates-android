@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.emma.duplicates.R
+import com.emma.duplicates.core.designsystem.PrimaryActionButton
 import com.emma.duplicates.ui.model.UiFileCategory
 
 @Composable
@@ -131,11 +132,12 @@ fun ConfirmationDialog(
         title = { Text(title) },
         text = { Text(message, modifier = Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(
-                    text = confirmLabel,
-                    color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                )
+            if (destructive) {
+                PrimaryActionButton(onClick = onConfirm) { Text(confirmLabel) }
+            } else {
+                TextButton(onClick = onConfirm) {
+                    Text(confirmLabel, color = MaterialTheme.colorScheme.onSurface)
+                }
             }
         },
         dismissButton = {

@@ -119,42 +119,49 @@ private fun SelectionFooter(
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag("selection-footer")) {
         HorizontalDivider()
         Column(
-            Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                pluralStringResource(R.plurals.files_selected, state.selectedCount, state.selectedCount),
+                pluralStringResource(
+                    R.plurals.files_selected,
+                    state.selectedCount,
+                    state.selectedCount,
+                    DisplayFormatters.size(LocalResources.current, state.selectedBytes),
+                ),
                 style = MaterialTheme.typography.bodySmall,
-            )
-            Text(
-                DisplayFormatters.size(LocalResources.current, state.selectedBytes),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (state.hiddenSelectedCount > 0) {
-                Text(
-                    pluralStringResource(
-                        R.plurals.selected_outside_view,
-                        state.hiddenSelectedCount,
-                        state.hiddenSelectedCount,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                TextButton(
-                    onClick = onShowAll,
-                ) { Text(stringResource(R.string.show_all), color = MaterialTheme.colorScheme.onSurface) }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        pluralStringResource(
+                            R.plurals.selected_outside_view,
+                            state.hiddenSelectedCount,
+                            state.hiddenSelectedCount,
+                        ),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(onClick = onShowAll) {
+                        Text(stringResource(R.string.show_all), color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
             }
             PrimaryActionButton(
                 onClick = onDelete,
                 enabled = state.selectedCount > 0 && !state.busy,
                 modifier = Modifier.fillMaxWidth().testTag("delete-selected"),
-                destructive = true,
             ) {
                 Icon(Icons.Outlined.Delete, null)
                 Text(
-                    stringResource(
-                        if (state.busy) R.string.deletion_in_progress else R.string.delete_selected,
-                    ),
+                    if (state.busy) {
+                        stringResource(R.string.deletion_in_progress)
+                    } else {
+                        pluralStringResource(R.plurals.delete_selected, state.selectedCount, state.selectedCount)
+                    },
                     Modifier.padding(start = 8.dp),
                 )
             }
@@ -203,13 +210,14 @@ private fun ResultsDialogs(
         ConfirmationDialog(
             stringResource(R.string.delete_confirmation_title),
             message + hidden,
-            stringResource(R.string.delete_permanently),
+            pluralStringResource(R.plurals.delete_selected, state.confirmationCount, state.confirmationCount),
             onDismissDelete,
             onConfirmDelete,
             true,
         )
     }
     if (state.deletionResult != null || state.messageRes != null) {
+        val color = MaterialTheme.colorScheme.onSurface
         AlertDialog(onDismissRequest = onDismissResult, title = { Text(stringResource(R.string.app_name)) }, text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 state.messageRes?.let { Text(stringResource(it)) }
@@ -225,7 +233,7 @@ private fun ResultsDialogs(
                     result.reasonResources().forEach { Text(stringResource(it)) }
                 }
             }
-        }, confirmButton = { TextButton(onClick = onDismissResult) { Text(stringResource(android.R.string.ok)) } })
+        }, confirmButton = { TextButton(onDismissResult) { Text(stringResource(android.R.string.ok), color = color) } })
     }
 }
 

@@ -26,6 +26,8 @@ class RoomDeletionResultStoreTest : ScanStoreDatabaseTest() {
     @Test
     fun `begin deletion persists selected group member and file identity`() =
         runTest {
+            seedThreeCopies("delete")
+            database.openHelper.writableDatabase.execSQL("UPDATE duplicate_members SET id = 'member-' || id")
             val store = RoomDeletionResultStore(scanStore)
 
             val operationId =

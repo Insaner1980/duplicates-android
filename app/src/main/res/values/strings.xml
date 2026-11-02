@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="recovery_files">Recovery copies</string>
+    <string name="recovery_settings_summary">Restore files moved out of their original folders</string>
+    <string name="recovery_explanation">Copies stay here for at least 30 days and still use storage. Expired copies are permanently removed when you open this screen. Restore copies before uninstalling the app or clearing its data. Keep the original storage device connected. Restoration never replaces an existing file.</string>
+    <string name="recovery_empty">No recovery copies.</string>
+    <string name="recovery_expiry">Recover before %1$s</string>
+    <string name="recovery_pending">Verification was interrupted or the file changed. This copy will not expire automatically.</string>
+    <string name="restore_copy">Restore copy</string>
+    <string name="recovery_failed">Could not restore this copy. Check storage access and available space, and reconnect its storage device.</string>
+    <string name="recovery_restored">Restored to %1$s. The recovery copy is retained until its expiry date.</string>
     <string name="appearance">Appearance</string>
-    <string name="keep">Keeping</string>
-    <string name="keep_this_copy">Keep this copy</string>
-    <string name="delete_permanently">Delete permanently</string>
+    <string name="keep">Will be kept</string>
     <string name="sort_by">Sort: %1$s</string>
     <string name="entire_storage">Entire storage</string>
     <string name="selected_folders_files">Selected folders and files</string>
@@ -18,14 +25,18 @@
         <item quantity="other">%1$d items selected</item>
     </plurals>
     <string name="available_to_free">Available to free</string>
-    <string name="files_found">Files found</string>
+    <string name="available_to_free_all_results">Available to free across all results</string>
+    <plurals name="files_found">
+        <item quantity="one">file found</item>
+        <item quantity="other">files found</item>
+    </plurals>
     <string name="extra_space">%1$s extra</string>
     <string name="preview_file_description">Preview %1$s, %2$s</string>
     <string name="deletion_in_progress">Deleting selected files</string>
     <string name="deletion_recovery_pending">A scan or deletion recovery is in progress. Try again when it finishes.</string>
     <string name="deletion_incomplete">The operation was interrupted. Some files may have been deleted. Saved progress will be reconciled before another deletion.</string>
     <string name="deletion_selection_changed">The results or selected files changed. Review them and request deletion again.</string>
-    <string name="deletion_outcome">Deleted: %1$d\nFreed: %2$s\nNot deleted: %3$d</string>
+    <string name="deletion_outcome">Moved to recovery: %1$d\nFreed now: %2$s\nNot moved: %3$d\nRestore copies in Settings. Storage is freed after the recovery period.</string>
     <string name="deletion_reason_vanished">Some files were already missing. They were not counted as deleted or freed space.</string>
     <string name="deletion_reason_changed">Some files changed since the scan and were kept. Scan again before reviewing them.</string>
     <string name="deletion_reason_revalidation_failed">Some files could not be verified as duplicates and were kept for safety.</string>
@@ -48,12 +59,12 @@
         <item quantity="other">%1$d identical files</item>
     </plurals>
     <plurals name="files_selected">
-        <item quantity="one">%1$d file selected</item>
-        <item quantity="other">%1$d files selected</item>
+        <item quantity="one">%1$d file selected for deletion (%2$s)</item>
+        <item quantity="other">%1$d files selected for deletion (%2$s)</item>
     </plurals>
     <plurals name="selected_outside_view">
-        <item quantity="one">%1$d selected outside this view</item>
-        <item quantity="other">%1$d selected outside this view</item>
+        <item quantity="one">Includes %1$d selected file not shown.</item>
+        <item quantity="other">Includes %1$d selected files not shown.</item>
     </plurals>
     <plurals name="groups_found">
         <item quantity="one">%1$d group found</item>
@@ -118,7 +129,10 @@
     <string name="notification_stop">Stop</string>
     <string name="notifications_disabled_scan_continues">Notifications are off. The scan will continue without a notification. You can enable notifications in system settings.</string>
 
-    <string name="duplicate_groups">Duplicate groups</string>
+    <plurals name="duplicate_groups">
+        <item quantity="one">duplicate group</item>
+        <item quantity="other">duplicate groups</item>
+    </plurals>
     <string name="search_duplicates">Search duplicate groups</string>
     <string name="sort_largest">Largest savings</string>
     <string name="sort_most_copies">Most copies</string>
@@ -130,15 +144,23 @@
     <string name="clear_scan_results_message">This removes saved scan metadata only. It does not delete any files.</string>
     <string name="clear_results">Clear results</string>
     <string name="no_results_for_filter">No duplicate groups match this filter.</string>
+    <string name="no_results_for_search">No duplicates match this search.</string>
+    <string name="no_duplicate_photos">No duplicate photos found.</string>
+    <string name="no_duplicate_videos">No duplicate videos found.</string>
+    <string name="no_duplicate_audio">No duplicate audio files found.</string>
+    <string name="no_duplicate_documents">No duplicate documents found.</string>
 
     <string name="keep_at_least_one_copy">Keep at least one copy.</string>
     <string name="selected_for_deletion">Selected for deletion</string>
-    <string name="delete_confirmation_title">Delete files permanently?</string>
+    <string name="delete_confirmation_title">Move files to recovery?</string>
     <plurals name="delete_confirmation_message">
-        <item quantity="one">Delete %1$d file and free up %2$s. At least one copy will remain in each group.</item>
-        <item quantity="other">Delete %1$d files and free up %2$s. At least one copy will remain in each group.</item>
+        <item quantity="one">Move %1$d selected file (%2$s) to recovery for at least 30 days? Files marked \"Will be kept\" stay in place. Storage is not freed yet. Restore copies in Settings before removing the app or clearing its data.</item>
+        <item quantity="other">Move %1$d selected files (%2$s) to recovery for at least 30 days? Files marked \"Will be kept\" stay in place. Storage is not freed yet. Restore copies in Settings before removing the app or clearing its data.</item>
     </plurals>
-    <string name="delete_selected">Delete selected</string>
+    <plurals name="delete_selected">
+        <item quantity="one">Delete %1$d file</item>
+        <item quantity="other">Delete %1$d files</item>
+    </plurals>
 
     <string name="scans_skip_excluded_items">Scans will skip excluded items</string>
     <string name="exclusions_explanation">Files and folders you exclude will not be included in duplicate scans.</string>

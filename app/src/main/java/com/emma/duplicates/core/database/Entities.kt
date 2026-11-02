@@ -114,7 +114,7 @@ data class IndexedFileEntity(
     ],
     // CPD-ON
     indices = [
-        Index(value = ["sessionId", "contentHash", "fileSize"], unique = true),
+        Index(value = ["sessionId", "contentHash", "fileSize"]),
         Index(value = ["sessionId", "category"]),
     ],
 )

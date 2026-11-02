@@ -11,6 +11,19 @@ internal fun ResultsFilter.labelRes(): Int =
         ResultsFilter.DOCUMENTS -> R.string.documents
     }
 
+internal fun ResultsUiState.emptyFilterMessageRes(): Int =
+    if (searchQuery.isNotBlank()) {
+        R.string.no_results_for_search
+    } else {
+        when (selectedFilter) {
+            ResultsFilter.ALL -> R.string.no_results_for_filter
+            ResultsFilter.PHOTOS -> R.string.no_duplicate_photos
+            ResultsFilter.VIDEOS -> R.string.no_duplicate_videos
+            ResultsFilter.AUDIO -> R.string.no_duplicate_audio
+            ResultsFilter.DOCUMENTS -> R.string.no_duplicate_documents
+        }
+    }
+
 internal fun ResultsSort.labelRes(): Int =
     when (this) {
         ResultsSort.LARGEST_RECLAIMABLE -> R.string.sort_largest

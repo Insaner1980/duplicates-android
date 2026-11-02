@@ -10,9 +10,14 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
 import androidx.work.ListenableWorker
 import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.await
 import com.emma.duplicates.R
 import com.emma.duplicates.core.database.ScanPhases
+import com.emma.duplicates.core.database.ScanStatuses
+import com.emma.duplicates.data.ScanStore
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
@@ -21,21 +26,39 @@ class ScanScheduler(
     private val workerClass: Class<out ListenableWorker>,
 ) {
     private val workManager = WorkManager.getInstance(context.applicationContext)
+    private val workInfos = workManager.getWorkInfosForUniqueWorkFlow(UNIQUE_SCAN_WORK)
 
-    val workActive =
+    val workActive = workInfos.map { work -> work.any { !it.state.isFinished } }
+
+    suspend fun startScan(scanStore: ScanStore): ScanNavigationRequest {
+        val latest = scanStore.latestSession.first()
+        val activeWork = reconcileSession(scanStore)
+        if (activeWork && latest?.status == ScanStatuses.RUNNING) return ScanNavigationRequest()
         workManager
-            .getWorkInfosForUniqueWorkFlow(UNIQUE_SCAN_WORK)
-            .map { work -> work.any { !it.state.isFinished } }
+            .enqueueUniqueWork(
+                UNIQUE_SCAN_WORK,
+                ExistingWorkPolicy.KEEP,
+                OneTimeWorkRequest
+                    .Builder(workerClass)
+                    .addTag(SCAN_WORK_TAG)
+                    .build(),
+            ).await()
+        return ScanNavigationRequest(latest?.id, awaitNewSession = true)
+    }
 
-    fun startScan() =
-        workManager.enqueueUniqueWork(
-            UNIQUE_SCAN_WORK,
-            ExistingWorkPolicy.KEEP,
-            OneTimeWorkRequest
-                .Builder(workerClass)
-                .addTag(SCAN_WORK_TAG)
-                .build(),
-        )
+    suspend fun reconcileSession(scanStore: ScanStore): Boolean {
+        val running = scanStore.runningSession.first()
+        val work = workInfos.first()
+        val activeWork = work.any { !it.state.isFinished }
+        if (!activeWork && running != null) {
+            if (work.isNotEmpty() && work.all { it.state == WorkInfo.State.CANCELLED }) {
+                scanStore.cancelSession(running.id, System.currentTimeMillis())
+            } else {
+                scanStore.failSession(running.id, System.currentTimeMillis(), running.errorCount + 1)
+            }
+        }
+        return activeWork
+    }
 
     fun stopScan() {
         workManager.cancelUniqueWork(UNIQUE_SCAN_WORK)

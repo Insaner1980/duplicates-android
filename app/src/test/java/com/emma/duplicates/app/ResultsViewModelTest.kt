@@ -2,6 +2,7 @@ package com.emma.duplicates.app
 
 import android.app.Application
 import androidx.lifecycle.SavedStateHandle
+import com.emma.duplicates.R
 import com.emma.duplicates.core.database.DuplicateGroupEntity
 import com.emma.duplicates.core.database.DuplicateMemberEntity
 import com.emma.duplicates.core.database.IndexedFileEntity
@@ -141,6 +142,30 @@ class ResultsViewModelTest : ScanStoreDatabaseTest() {
             assertEquals(0L, cleared.reclaimableBytes)
             assertTrue(cleared.groups.isEmpty())
             assertFalse(cleared.clearConfirmationVisible)
+        }
+
+    @Test
+    fun clearConfirmationPreservesResultsAndTheRunningScan() =
+        runTest(mainDispatcherRule.dispatcher) {
+            seedResults()
+            scanStore.startSession("running", 30L)
+            val viewModel = ResultsViewModel(scanStore, savedStateHandle = SavedStateHandle())
+            viewModel.state.first { it.hasCompletedScan }
+
+            viewModel.requestClear()
+            viewModel.confirmClear()
+            val refused = viewModel.state.first { it.messageRes != null || !it.hasCompletedScan }
+
+            assertEquals(R.string.deletion_recovery_pending, refused.messageRes)
+            assertTrue(refused.hasCompletedScan)
+            assertEquals("running", scanStore.runningSession.first()?.id)
+            assertEquals(
+                SESSION_ID,
+                scanStore.activeResults
+                    .first()
+                    ?.session
+                    ?.id,
+            )
         }
 
     private suspend fun assertSort(

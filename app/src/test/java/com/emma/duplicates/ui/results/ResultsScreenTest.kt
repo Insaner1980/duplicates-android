@@ -1,22 +1,40 @@
 package com.emma.duplicates.ui.results
 
 import android.app.Application
+import android.graphics.Bitmap
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import com.emma.duplicates.core.designsystem.DuplicatesTheme
 import com.emma.duplicates.domain.deletion.DeletionStatus
@@ -31,6 +49,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, qualifiers = "w320dp-h800dp-mdpi")
@@ -50,7 +69,7 @@ class ResultsScreenTest {
     fun shortLandscapeKeepsListAndHiddenSelectionActionsReachableAtDoubleFont() {
         composeRule.setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f, 2f)) {
-                DuplicatesTheme {
+                ResultsTestTheme {
                     ResultsScreen(
                         fixture().copy(hiddenSelectedCount = 3),
                         {},
@@ -81,46 +100,116 @@ class ResultsScreenTest {
         val state = mutableStateOf(fixture())
         var confirmed = 0
         val selected = mutableListOf<Pair<String, Boolean>>()
+        setSelectionContent(
+            state,
+            onMemberSelectionChange = { id, value -> selected += id to value },
+            onRequestDelete = {
+                state.value =
+                    state.value.copy(
+                        deleteConfirmationVisible = true,
+                        confirmationCount = 11,
+                        confirmationBytes = 1100L,
+                        confirmationHiddenCount = 2,
+                        selectedCount = 7,
+                    )
+            },
+            onConfirmDelete = { confirmed++ },
+        )
+        composeRule.onNodeWithTag("results-list").performScrollToNode(hasTestTag("selection-member-1"))
+        composeRule.onNodeWithTag("selection-member-1").performClick()
+        assertEquals(listOf("member-1" to false), selected)
+        composeRule.onNodeWithText("Keep this copy").assertDoesNotExist()
+        composeRule.onNodeWithTag("delete-selected").performClick()
+        composeRule.onNodeWithText("Move files to recovery?").assertIsDisplayed()
+        composeRule
+            .onNodeWithText(
+                "Move 11 selected files (1.1 KB) to recovery for at least 30 days? " +
+                    "Files marked \"Will be kept\" stay in place. Storage is not freed yet. " +
+                    "Restore copies in Settings before removing the app or clearing its data.\n\n" +
+                    "Includes 2 selected files not shown.",
+            ).assertIsDisplayed()
+        assertEquals(0, confirmed)
+        composeRule.onNode(hasText("Delete 11 files") and hasAnyAncestor(isDialog())).performClick()
+        assertEquals(1, confirmed)
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h900dp-mdpi")
+    fun visibleStatesTrackTheExactCopySelectedForDeletion() {
+        val state = mutableStateOf(twoCopyFixture())
+        val selected = mutableListOf<Pair<String, Boolean>>()
+        setSelectionContent(
+            state,
+            onMemberSelectionChange = { id, value -> selected += id to value },
+        )
+        composeRule.onNodeWithTag("selection-state-member-0").assertTextEquals("Will be kept")
+        composeRule.onNodeWithTag("selection-member-0").assertIsNotEnabled()
+        composeRule.onNodeWithTag("selection-state-member-1").assertTextEquals("Selected for deletion")
+        composeRule.onNodeWithText("Delete 1 file").assertIsDisplayed()
+        composeRule.onNodeWithText("duplicate group").assertIsDisplayed()
+        val pixels = composeRule.onNodeWithTag("delete-selected").captureToImage().toPixelMap()
+        assertEquals(Color(0xFFEB5E28), pixels[8, pixels.height / 2])
+        captureReviewScreenshot("results-dark-411")
+
+        composeRule.onNodeWithTag("selection-member-1").performClick()
+        assertEquals(listOf("member-1" to false), selected)
+        composeRule.runOnIdle { state.value = twoCopyFixture(selectedIndex = null) }
+        composeRule.onNodeWithTag("selection-state-member-1").assertTextEquals("Will be kept")
+        composeRule.onNodeWithTag("delete-selected").assertIsNotEnabled()
+        composeRule.onNodeWithTag("selection-member-0").performClick()
+        assertEquals("member-0" to true, selected.last())
+        composeRule.runOnIdle { state.value = twoCopyFixture(selectedIndex = 0) }
+        composeRule.onNodeWithTag("selection-state-member-0").assertTextEquals("Selected for deletion")
+        composeRule.onNodeWithTag("selection-state-member-1").assertTextEquals("Will be kept")
+        composeRule.onNodeWithText("Delete 1 file").assertIsDisplayed()
+    }
+
+    @Test
+    fun filteredEmptyResultsExplainGlobalSelectionsAndRevealTheSelectedChip() {
+        val state =
+            mutableStateOf(
+                fixture().copy(
+                    groups = emptyList(),
+                    selectedFilter = ResultsFilter.DOCUMENTS,
+                    hiddenSelectedCount = 11,
+                ),
+            )
+        var showAll = 0
         composeRule.setContent {
-            DuplicatesTheme {
+            ResultsTestTheme {
                 ResultsScreen(
                     state.value,
                     {},
                     {},
+                    { state.value = state.value.copy(selectedFilter = it) },
+                    {},
+                    {},
+                    {},
+                    { _, _ -> },
                     {},
                     {},
                     {},
                     {},
-                    { _, _ -> error("Selection must not preview") },
-                    {},
-                    {},
-                    {},
-                    {},
-                    onMemberSelectionChange = { id, value -> selected += id to value },
-                    onRequestDelete = {
-                        state.value =
-                            state.value.copy(
-                                deleteConfirmationVisible = true,
-                                confirmationCount = 11,
-                                confirmationBytes = 1100L,
-                                confirmationHiddenCount = 2,
-                            )
-                    },
-                    onConfirmDelete = { confirmed++ },
+                    onShowAll = { showAll++ },
                 )
             }
         }
-        composeRule.onNodeWithTag("results-list").performScrollToNode(hasTestTag("selection-member-1"))
-        composeRule.onNodeWithTag("selection-member-1").performClick()
-        assertEquals(listOf("member-1" to false), selected)
-        composeRule.onNodeWithTag("results-list").performScrollToNode(hasTestTag("keep-member-1"))
-        composeRule.onNodeWithTag("keep-member-1").performClick()
-        assertEquals(listOf("member-1" to false, "member-1" to false), selected)
-        composeRule.onNodeWithTag("delete-selected").performClick()
-        composeRule.onNodeWithText("Delete files permanently?").assertIsDisplayed()
-        assertEquals(0, confirmed)
-        composeRule.onNodeWithText("Delete permanently").performClick()
-        assertEquals(1, confirmed)
+        composeRule.onNodeWithText("Available to free across all results").assertIsDisplayed()
+        composeRule.onNodeWithText("No duplicate documents found.").assertIsDisplayed()
+        composeRule.onNodeWithText("Includes 11 selected files not shown.").assertIsDisplayed()
+        composeRule.onNodeWithText("Delete 11 files").assertIsDisplayed()
+        composeRule.onNodeWithText("Show all").performClick()
+        assertEquals(1, showAll)
+        val filters = composeRule.onNodeWithTag("results-filters")
+        filters.performScrollToNode(hasTestTag("filter-PHOTOS"))
+        composeRule.onNodeWithTag("filter-PHOTOS").performClick()
+        composeRule.waitForIdle()
+        val selectedChip = composeRule.onNodeWithTag("filter-PHOTOS").fetchSemanticsNode().boundsInRoot
+        val filterBounds = filters.fetchSemanticsNode().boundsInRoot
+        assertTrue(selectedChip.left >= filterBounds.left && selectedChip.right <= filterBounds.right)
+        composeRule.onNodeWithText("No duplicate photos found.").assertIsDisplayed()
+        composeRule.runOnIdle { state.value = state.value.copy(searchQuery = "missing") }
+        composeRule.onNodeWithText("No duplicates match this search.").assertIsDisplayed()
     }
 
     @Test
@@ -149,7 +238,7 @@ class ResultsScreenTest {
                 ),
             )
         composeRule.setContent {
-            DuplicatesTheme {
+            ResultsTestTheme {
                 ResultsScreen(
                     fixture().copy(groups = emptyList(), duplicateGroupCount = 0, deletionResult = result),
                     {},
@@ -166,7 +255,11 @@ class ResultsScreenTest {
                 )
             }
         }
-        composeRule.onNodeWithText("Deleted: 1\nFreed: 50 MB\nNot deleted: 1").assertIsDisplayed()
+        composeRule
+            .onNodeWithText(
+                "Moved to recovery: 1\nFreed now: 50 MB\nNot moved: 1\n" +
+                    "Restore copies in Settings. Storage is freed after the recovery period.",
+            ).assertIsDisplayed()
         composeRule
             .onNodeWithText("Android deletion approval was canceled. The affected files were kept.")
             .performScrollTo()
@@ -191,7 +284,7 @@ class ResultsScreenTest {
             )
         composeRule.setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f, 2f)) {
-                DuplicatesTheme {
+                ResultsTestTheme {
                     ResultsScreen(
                         fixture().copy(deletionResult = result),
                         {},
@@ -221,6 +314,35 @@ class ResultsScreenTest {
         composeRule.onNodeWithText("OK").assertIsDisplayed()
     }
 
+    private fun setSelectionContent(
+        state: State<ResultsUiState>,
+        onMemberSelectionChange: (String, Boolean) -> Unit,
+        onRequestDelete: () -> Unit = {},
+        onConfirmDelete: () -> Unit = {},
+    ) {
+        composeRule.setContent {
+            ResultsTestTheme {
+                ResultsScreen(
+                    state.value,
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    { _, _ -> error("Selection must not preview") },
+                    {},
+                    {},
+                    {},
+                    {},
+                    onMemberSelectionChange = onMemberSelectionChange,
+                    onRequestDelete = onRequestDelete,
+                    onConfirmDelete = onConfirmDelete,
+                )
+            }
+        }
+    }
+
     private fun checkLayout() {
         val scale = mutableFloatStateOf(1f)
         val dark = mutableStateOf(true)
@@ -229,7 +351,7 @@ class ResultsScreenTest {
         var deletes = 0
         composeRule.setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f, scale.floatValue)) {
-                DuplicatesTheme(dark.value) {
+                ResultsTestTheme(dark.value) {
                     ResultsScreen(
                         fixture(),
                         {},
@@ -266,30 +388,40 @@ class ResultsScreenTest {
                 composeRule.onNodeWithTag("results-list").performScrollToNode(hasTestTag("preview-file-11"))
                 composeRule.onNodeWithTag("preview-file-11").performClick()
                 assertEquals("group" to "file-11", previews.last())
-                assertCompleteLocation(font)
+                assertFinalMemberLayout(font)
                 assertTrue(selections.isEmpty())
-                val row = composeRule.onNodeWithTag("preview-file-11").fetchSemanticsNode().boundsInRoot
-                val footer = composeRule.onNodeWithTag("selection-footer").fetchSemanticsNode().boundsInRoot
-                assertTrue("The final file must not overlap the footer", row.bottom <= footer.top)
                 composeRule.onNodeWithTag("results-list").performScrollToNode(hasTestTag("preview-file-0"))
                 composeRule.onNodeWithText("Pictures / Trips / 2025 / June", useUnmergedTree = true).assertIsDisplayed()
+                captureLayoutScreenshot(theme, font)
                 composeRule.onNodeWithTag("delete-selected").performClick()
             }
         }
         assertEquals(4, deletes)
     }
 
-    private fun assertCompleteLocation(font: Float) {
+    private fun assertFinalMemberLayout(font: Float) {
+        assertCompactLocation(font)
+        composeRule.onNodeWithTag("results-list").performScrollToNode(hasTestTag("selection-state-member-11"))
+        composeRule
+            .onNodeWithTag("selection-state-member-11")
+            .assertIsDisplayed()
+            .assertTextEquals("Selected for deletion")
+        val row = composeRule.onNodeWithTag("preview-file-11").fetchSemanticsNode().boundsInRoot
+        val footer = composeRule.onNodeWithTag("selection-footer").fetchSemanticsNode().boundsInRoot
+        assertTrue("The final file must not overlap the footer", row.bottom <= footer.top)
+    }
+
+    private fun assertCompactLocation(font: Float) {
         val pathLayout = mutableListOf<TextLayoutResult>()
         composeRule
-            .onNodeWithText("Download / Trips / 2025 / June", useUnmergedTree = true)
+            .onNodeWithTag("location-member-11", useUnmergedTree = true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(pathLayout) }
         assertTrue(pathLayout.isNotEmpty())
         pathLayout.forEach { layout ->
-            assertEquals(layout.layoutInput.text.length, layout.getLineEnd(layout.lineCount - 1))
+            assertEquals(1, layout.lineCount)
+            assertEquals(TextOverflow.MiddleEllipsis, layout.layoutInput.overflow)
             // The paragraph can retain a wider constraint than the Text; check actual line bounds.
             for (line in 0 until layout.lineCount) {
-                assertFalse(layout.isLineEllipsized(line))
                 assertTrue(
                     "Location line $line must fit at font scale $font",
                     layout.getLineLeft(line) >= 0f && layout.getLineRight(line) <= layout.size.width &&
@@ -297,6 +429,60 @@ class ResultsScreenTest {
                 )
             }
         }
+    }
+
+    private fun captureLayoutScreenshot(
+        dark: Boolean,
+        font: Float,
+    ) {
+        val width =
+            composeRule
+                .onRoot()
+                .fetchSemanticsNode()
+                .boundsInRoot.width
+                .toInt()
+        val name =
+            when {
+                dark && font == 2f && width == 320 -> "results-dark-320-font200"
+                !dark && font == 1f && width == 411 -> "results-light-411-font100"
+                else -> return
+            }
+        if (dark) composeRule.onNodeWithTag("results-list").performScrollToIndex(3)
+        captureReviewScreenshot(name)
+    }
+
+    private fun captureReviewScreenshot(name: String) {
+        val output = File("build/outputs/results-clarity", "$name.png")
+        requireNotNull(output.parentFile).mkdirs()
+        output.outputStream().use { stream ->
+            assertTrue(
+                composeRule
+                    .onRoot()
+                    .captureToImage()
+                    .asAndroidBitmap()
+                    .compress(Bitmap.CompressFormat.PNG, 100, stream),
+            )
+        }
+    }
+
+    private fun twoCopyFixture(selectedIndex: Int? = 1): ResultsUiState {
+        val state = fixture()
+        val group = state.groups.single()
+        val members =
+            group.members.take(2).mapIndexed { index, member ->
+                member.copy(
+                    selected = index == selectedIndex,
+                    canSelect =
+                        selectedIndex == null || index == selectedIndex,
+                )
+            }
+        return state.copy(
+            groups = listOf(group.copy(copyCount = 2, reclaimableBytes = 100L, members = members)),
+            duplicateFileCount = 2,
+            selectedCount = if (selectedIndex == null) 0 else 1,
+            selectedBytes = if (selectedIndex == null) 0L else 100L,
+            availableBytes = 100L,
+        )
     }
 
     private fun fixture(): ResultsUiState {
@@ -350,5 +536,15 @@ class ResultsScreenTest {
             selectedBytes = 1100L,
             scannedFileCount = 12,
         )
+    }
+}
+
+@Composable
+private fun ResultsTestTheme(
+    dark: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    DuplicatesTheme(dark) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background, content = content)
     }
 }

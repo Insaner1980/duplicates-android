@@ -15,7 +15,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -107,21 +106,24 @@ internal fun DuplicateMemberRow(
             MemberPreview(groupId, member, enabled, videoImageLoader, onPreviewFile, Modifier.weight(1f))
             MemberSelection(member, enabled, onMemberSelectionChange)
         }
-        if (member.selected) {
-            TextButton(
-                onClick = { onMemberSelectionChange(member.memberId, false) },
-                enabled = enabled,
-                modifier = Modifier.testTag("keep-${member.memberId}"),
-            ) {
-                Text(stringResource(R.string.keep_this_copy), color = MaterialTheme.colorScheme.onSurface)
-            }
-        } else {
-            Text(
-                stringResource(R.string.keep),
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(bottom = 12.dp, start = 4.dp),
-            )
-        }
+        Text(
+            stringResource(if (member.selected) R.string.selected_for_deletion else R.string.keep),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier =
+                Modifier
+                    .padding(
+                        start =
+                            if (LocalDensity.current.fontScale >=
+                                LARGE_FONT_SCALE
+                            ) {
+                                0.dp
+                            } else {
+                                68.dp
+                            },
+                        bottom = 16.dp,
+                    ).testTag("selection-state-${member.memberId}"),
+        )
         if (!last) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
@@ -138,6 +140,9 @@ private fun MemberMetadata(member: ResultMemberUiState) {
             member.location.ifEmpty { stringResource(R.string.internal_storage) },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.MiddleEllipsis,
+            modifier = Modifier.testTag("location-${member.memberId}"),
         )
     }
 }
@@ -178,8 +183,8 @@ private fun MemberPreview(
                 Text(
                     member.filename,
                     style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 1,
+                    overflow = TextOverflow.MiddleEllipsis,
                 )
                 if (!largeFont) MemberMetadata(member)
             }

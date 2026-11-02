@@ -1,8 +1,9 @@
 package com.emma.duplicates.data
 
-import android.content.ContentResolver
+import android.content.Context
 import android.database.sqlite.SQLiteException
-import androidx.core.net.toUri
+import android.media.MediaScannerConnection
+import android.os.Environment
 import com.emma.duplicates.domain.deletion.CurrentFileSnapshot
 import com.emma.duplicates.domain.deletion.DeletionFile
 import com.emma.duplicates.domain.deletion.DeletionStorage
@@ -12,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -27,21 +29,30 @@ import java.security.MessageDigest
 
 class AndroidDeletionStorage internal constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val removeMediaStoreRow: (String) -> Unit,
+    private val isStorageAvailable: (String) -> Boolean = { true },
+    private val recovery: RecoveryRepository? = null,
+    private val refreshMediaStorePath: (String) -> Unit,
 ) : DeletionStorage {
     constructor(
-        contentResolver: ContentResolver,
+        context: Context,
+        recovery: RecoveryRepository,
         ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     ) : this(
         ioDispatcher = ioDispatcher,
-        removeMediaStoreRow = { contentUri ->
-            contentResolver.delete(contentUri.toUri(), null, null)
+        recovery = recovery,
+        isStorageAvailable = { path ->
+            val state = Environment.getExternalStorageState(File(path))
+            state == Environment.MEDIA_MOUNTED || state == Environment.MEDIA_MOUNTED_READ_ONLY
+        },
+        refreshMediaStorePath = { path ->
+            MediaScannerConnection.scanFile(context.applicationContext, arrayOf(path), null, null)
         },
     )
 
     override suspend fun snapshot(file: DeletionFile): CurrentFileSnapshot? =
         withContext(ioDispatcher) {
             try {
+                if (!isStorageAvailable(file.canonicalPath)) return@withContext file.inaccessibleSnapshot()
                 val path = Paths.get(file.canonicalPath)
                 val attributes =
                     Files.readAttributes(
@@ -57,9 +68,9 @@ class AndroidDeletionStorage internal constructor(
                     isWritable = Files.isWritable(path),
                 )
             } catch (_: FileNotFoundException) {
-                null
+                file.confirmedMissingSnapshot()
             } catch (_: NoSuchFileException) {
-                null
+                file.confirmedMissingSnapshot()
             } catch (_: AccessDeniedException) {
                 file.inaccessibleSnapshot()
             } catch (_: SecurityException) {
@@ -68,6 +79,9 @@ class AndroidDeletionStorage internal constructor(
                 file.inaccessibleSnapshot()
             }
         }
+
+    private fun DeletionFile.confirmedMissingSnapshot(): CurrentFileSnapshot? =
+        if (runCatching { isStorageAvailable(canonicalPath) }.getOrDefault(false)) null else inaccessibleSnapshot()
 
     override suspend fun fullHash(file: DeletionFile): String? =
         withContext(ioDispatcher) {
@@ -145,11 +159,14 @@ class AndroidDeletionStorage internal constructor(
             isWritable = false,
         )
 
-    override suspend fun deleteDirect(file: DeletionFile): DirectDeletionResult =
+    override suspend fun deleteDirect(
+        file: DeletionFile,
+        verifyStaged: suspend (DeletionFile) -> Boolean,
+    ): DirectDeletionResult =
         withContext(ioDispatcher) {
             try {
-                if (Files.deleteIfExists(Paths.get(file.canonicalPath))) {
-                    removeMediaStoreRowSafely(file.contentUri)
+                if (recovery?.move(file, verifyStaged) == DirectDeletionResult.DELETED) {
+                    refreshMediaStorePathSafely(file)
                     DirectDeletionResult.DELETED
                 } else {
                     DirectDeletionResult.FAILED
@@ -163,10 +180,10 @@ class AndroidDeletionStorage internal constructor(
             }
         }
 
-    private fun removeMediaStoreRowSafely(contentUri: String?) {
-        if (contentUri == null) return
+    private fun refreshMediaStorePathSafely(file: DeletionFile) {
+        if (file.contentUri == null) return
         try {
-            removeMediaStoreRow(contentUri)
+            refreshMediaStorePath(file.canonicalPath)
         } catch (_: SecurityException) {
             // The file is already deleted; a stale MediaStore row must not change that result.
         } catch (_: IllegalArgumentException) {

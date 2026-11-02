@@ -9,6 +9,23 @@ import org.junit.Test
 
 class DeletionCoordinatorTest {
     @Test
+    fun `keeper changed during media approval prevents the subsequent move`() =
+        runTest {
+            val group =
+                group(file("keep", selected = false), file("media", selected = true, contentUri = "content://media/1"))
+            val storage = FakeDeletionStorage(group.files)
+            val authorizer =
+                MediaDeletionAuthorizer {
+                    storage.unequalPairs += setOf("keep", "media")
+                    MediaAuthorization.APPROVED
+                }
+            val result = coordinator(storage, authorizer).delete(listOf(group))
+            assertEquals(DeletionStatus.BLOCKED_NO_VALID_COPY, result.outcome("media").status)
+            assertTrue(storage.directDeletionCalls.isEmpty())
+            assertTrue("media" in storage.snapshots)
+        }
+
+    @Test
     fun `operation is persisted before deletion and checkpointed after every irreversible chunk`() =
         runTest {
             val events = mutableListOf<String>()
@@ -32,8 +49,14 @@ class DeletionCoordinatorTest {
                     "delete:direct",
                     "checkpoint",
                     "authorize:media-1,media-2",
+                    "delete:media-1",
+                    "checkpoint",
+                    "delete:media-2",
+                    "checkpoint",
                     "checkpoint",
                     "authorize:media-3",
+                    "delete:media-3",
+                    "checkpoint",
                     "checkpoint",
                     "complete",
                 ),
@@ -58,7 +81,7 @@ class DeletionCoordinatorTest {
 
             assertEquals(setOf("first", "second"), storage.directDeletionCalls.toSet())
             assertEquals(2, result.deletedFileCount)
-            assertEquals(200, result.reclaimedBytes)
+            assertEquals(0, result.reclaimedBytes)
             assertEquals(setOf("first", "second"), result.databaseUpdate.removedIndexedFileIds)
             assertEquals(setOf("member-first", "second"), result.databaseUpdate.removedMemberIds)
             assertTrue(
@@ -86,7 +109,7 @@ class DeletionCoordinatorTest {
             assertEquals(DeletionStatus.DELETE_FAILED, result.outcome("failed").status)
             assertEquals(1, result.deletedFileCount)
             assertEquals(1, result.failedFileCount)
-            assertEquals(100, result.reclaimedBytes)
+            assertEquals(0, result.reclaimedBytes)
             assertEquals(
                 2,
                 result.databaseUpdate.groups
@@ -189,7 +212,43 @@ class DeletionCoordinatorTest {
             val result = coordinator(storage).delete(listOf(group))
 
             assertEquals(DeletionStatus.DELETED, result.outcome("changed").status)
-            assertEquals(listOf(setOf("changed", "keep")), storage.comparisonCalls)
+            assertEquals(List(3) { setOf("changed", "keep") }, storage.comparisonCalls)
+        }
+
+    @Test
+    fun `unchanged metadata never permits deletion when current bytes differ from the keeper`() =
+        runTest {
+            for (contentUri in listOf(null, "content://media/external/images/media/42")) {
+                val group =
+                    group(file("keep", selected = false), file("selected", selected = true, contentUri = contentUri))
+                val storage = FakeDeletionStorage(group.files).apply { unequalPairs += setOf("selected", "keep") }
+                val media = FakeMediaDeletionAuthorizer(storage, MediaAuthorization.APPROVED)
+
+                val result = coordinator(storage, media).delete(listOf(group))
+
+                assertEquals(DeletionStatus.BLOCKED_NO_VALID_COPY, result.outcome("selected").status)
+                assertTrue(storage.directDeletionCalls.isEmpty())
+                assertTrue(media.requests.isEmpty())
+                assertTrue(storage.snapshots.containsKey("selected"))
+            }
+        }
+
+    @Test
+    fun `keeper changes between deletions stop the next deletion`() =
+        runTest {
+            val group =
+                group(file("keep", selected = false), file("first", selected = true), file("second", selected = true))
+            val storage =
+                FakeDeletionStorage(group.files).apply {
+                    afterDirectDeletion = { unequalPairs += setOf("second", "keep") }
+                }
+
+            val result = coordinator(storage).delete(listOf(group))
+
+            assertEquals(listOf("first"), storage.directDeletionCalls)
+            assertEquals(DeletionStatus.DELETED, result.outcome("first").status)
+            assertEquals(DeletionStatus.BLOCKED_NO_VALID_COPY, result.outcome("second").status)
+            assertTrue(storage.snapshots.containsKey("second"))
         }
 
     @Test
@@ -289,7 +348,7 @@ class DeletionCoordinatorTest {
             assertEquals(0, store.duplicateGroupCount)
             assertEquals(0, store.duplicateFileCount)
             assertEquals(0, store.reclaimableBytes)
-            assertEquals(250, result.reclaimedBytes)
+            assertEquals(0, result.reclaimedBytes)
         }
 
     @Test
@@ -407,6 +466,7 @@ class DeletionCoordinatorTest {
         val directDeletionCalls = mutableListOf<String>()
         val fullHashCalls = mutableListOf<String>()
         val comparisonCalls = mutableListOf<Set<String>>()
+        var afterDirectDeletion: () -> Unit = {}
 
         override suspend fun snapshot(file: DeletionFile): CurrentFileSnapshot? = snapshots[file.id]
 
@@ -424,7 +484,11 @@ class DeletionCoordinatorTest {
             return pair !in unequalPairs
         }
 
-        override suspend fun deleteDirect(file: DeletionFile): DirectDeletionResult {
+        override suspend fun deleteDirect(
+            file: DeletionFile,
+            verifyStaged: suspend (DeletionFile) -> Boolean,
+        ): DirectDeletionResult {
+            if (!verifyStaged(file)) return DirectDeletionResult.FAILED
             events?.add("delete:${file.id}")
             directDeletionCalls += file.id
             return when (file.id) {
@@ -439,6 +503,7 @@ class DeletionCoordinatorTest {
 
                 else -> {
                     snapshots.remove(file.id)
+                    afterDirectDeletion()
                     DirectDeletionResult.DELETED
                 }
             }
@@ -459,7 +524,7 @@ class DeletionCoordinatorTest {
         override suspend fun requestDeletion(files: List<DeletionFile>): MediaAuthorization {
             events?.add("authorize:${files.joinToString(",") { it.id }}")
             requests += files.map { it.id }
-            if (authorization == MediaAuthorization.APPROVED) files.forEach(storage::remove)
+            // Approval grants write access without removing any file.
             return authorization
         }
     }

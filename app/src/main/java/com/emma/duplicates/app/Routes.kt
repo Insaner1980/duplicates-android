@@ -34,6 +34,9 @@ data class PreviewRoute(
 data object SettingsRoute
 
 @Serializable
+data object RecoveryRoute
+
+@Serializable
 data object ScanLocationsRoute
 
 @Serializable
