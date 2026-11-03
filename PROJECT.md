@@ -2,7 +2,7 @@
 
 This document describes the implementation in `app/src/main`, its verification code in `app/src/test` and `app/src/androidTest`, and the checked-in build and CI configuration. The code, Gradle files, workflow files, and generated Room schema are the source of truth.
 
-Last source and evidence review: **2026-11-02**. This reference describes the working tree, including the uncommitted Results selection-clarity changes present during that review. It does not certify a published release or an APK built from a particular commit. No build, app test, device test, or accessibility session was run for this documentation update; existing reports were inspected separately from test source.
+Storage cleanup source update: **2026-11-03**. Current expansion evidence is tracked in `docs/storage-cleanup-validation.md`; the historical verification sections below retain their original dates and limits. The expansion was reviewed at commit `5ec850023505de942d6b9ae0f428e4a6717d8b69`, including the earlier Results selection-clarity changes. This reference does not certify a published release or an APK built from a particular commit. The previous documentation-only review on **2026-11-02** inspected existing reports without running tests; the expansion report records the new implementation checks separately.
 
 ## Using this reference for reviews, tests, and UI work
 
@@ -36,9 +36,13 @@ A duplicate is proven by equal byte length, equal full SHA-256, and a final byte
 
 Deletion is separate from scanning. It uses the persisted selection, applies a keep-one-valid-copy guard and batch revalidation before mutation, and reports partial results. Auto-selection is enabled by default; it does not delete anything until the user invokes deletion. The exact revalidation limits are described under Deletion safety.
 
+The storage cleanup expansion adds Empty folders, Large files, Storage usage, Similar photos, Screenshots, Old downloads, and Unused apps. New results are never automatically selected. `ToolScanRunner` and `ToolScanWorker` share unique WorkManager work with exact scanning; `ToolResultStore` preserves per-tool sessions. `CleanupCoordinator` verifies ordinary files against their own frozen SHA-256 and identity and journals a same-volume recovery move. `EmptyFolderDeletionCoordinator` uses `SecureDirectoryStream.deleteDirectory` with no file-deletion fallback. Exact, ordinary, directory and recovery mutations share the operation mutex and pending-operation gates.
+
+`SimilarPhotoScanner` decodes bounded, orientation-aware samples and computes dHash64, rejecting low-detail inputs. Seven-band candidates and complete-link grouping enforce pairwise distance at most six and aspect-ratio difference at most five percent. Favorite, resolution, size and stable path ordering choose the initial keeper; preview can change it. `UnusedAppsRepository` uses Android usage history and StorageStats only on demand. App and data bytes are added without adding cache again; absent or insufficient history is unavailable, not proof of disuse.
+
 ### Explicit non-goals
 
-- Similar or near-duplicate media detection, perceptual hashing, burst grouping, and AI classification
+- AI classification and automatic burst-photo decisions
 - Filename-only, date-only, metadata-only, or folder-based duplicate grouping
 - Contact, junk, cache, RAM, battery, antivirus, or general cleaner features
 - Cloud scanning, upload, accounts, analytics, advertising, subscriptions, and payments
@@ -89,11 +93,13 @@ The CodeQL workflow proves that its analysis build completed when that hosted jo
 
 ## Screens and navigation
 
-Navigation uses serializable typed routes with `composable<T>()`. Home opens Scanning and saved Results without bottom navigation. Successful scanning opens the same completed session only after its persisted results are active. Results replaces Scanning above Home. Exclusions is reached through Settings.
+Navigation uses serializable typed routes with `composable<T>()`. Home, Tools, and Recovery form the bottom navigation. Home and Tools open the seven tool destinations; Home storage opens Storage usage. `DuplicateSetupRoute` owns the existing exact-scan settings and entry points. Successful scanning opens the same completed session only after its persisted results are active. Results replaces Scanning while preserving its setup and root origin. Exclusions is reached through Settings.
 
 | Route or state | Presentation and behavior |
 | --- | --- |
-| `HomeRoute` | Storage access explanation or real selected-volume storage, scan location, file-type checkboxes, previous scan, compact active-scan status, and Scan files. The gear opens Settings. |
+| `HomeRoute` | Real selected-volume storage, View storage usage, seven concise tool rows, and Settings. Storage access can be granted from Home or a file tool. |
+| `ToolsRoute`, `ToolRoute(tool, runId)`, `ToolPreviewRoute(sessionId, itemId)` | Tool menu, persisted tool results and controls, and ordinary-file preview by stable identity. Back returns through the originating stack. |
+| `DuplicateSetupRoute` | Existing exact scan locations, categories, previous result, scan progress and start controls. |
 | `ResultsRoute(filter)` | Scrollable potential-savings summary, duplicate group/member counts, search, category filters, sorting, and every member with its exact preview and persisted selection. A fixed footer shows global selected files/bytes and discloses hidden selections. Clear results removes scan metadata only after confirmation. |
 | `ExclusionsRoute` | Settings child destination. Shows excluded folders and files, removes entries immediately, and opens a single add sheet for folder or file selection. |
 | `ScanningRoute(baselineSessionId, awaitNewSession)` | Compact persisted progress, indexed/candidate counts, phases, path, and failure/cancellation state. Back returns Home without canceling. Stop requires confirmation. Successful completion navigates only while this entry is resumed. |
@@ -184,7 +190,7 @@ The main scan path is:
 
 ## Persistence
 
-Room database `duplicates.db` is schema version 4 with schema export enabled. `MIGRATION_1_2` adds the pending-deletion journal, `MIGRATION_2_3` adds the nullable scan failure reason, and `MIGRATION_3_4` removes hash/size uniqueness from duplicate groups and adds `recovery_files`. No destructive fallback is configured. The database contains nine tables:
+Room database `duplicates.db` is schema version 5 with schema export enabled. `MIGRATION_1_2` adds the pending-deletion journal, `MIGRATION_2_3` adds the nullable scan failure reason, and `MIGRATION_3_4` removes hash/size uniqueness from duplicate groups and adds `recovery_files`. `MIGRATION_4_5` adds isolated tool sessions/items and cleanup operation/item journals, preserving the existing tables. No destructive fallback is configured. The database contains thirteen tables:
 
 | Table | Purpose and important constraints |
 | --- | --- |
@@ -198,6 +204,10 @@ Room database `duplicates.db` is schema version 4 with schema export enabled. `M
 | `exclusions` | Unique canonical file or folder path, display name, type, and creation time. It is independent of scan sessions. |
 | `recovery_files` | Durable recovery ID, original path, app-owned payload path, creation time, and optional expiry. A null expiry retains an interrupted or unverified move indefinitely. Independent of scan sessions. |
 
+| `tool_sessions` | Tool, run identity, frozen scope, timestamps, progress, completeness, measurements and active/latest status. Failed or canceled replacements preserve the previous result. |
+| `tool_items` | Stable session/item identity, metadata, explicit selection, validity, optional similarity group/keeper/fingerprint and allocated size. |
+| `cleanup_operations` | Ordinary-file or directory cleanup header linked to its retained tool session. |
+| `cleanup_operation_items` | Frozen selected identity, own content digest, preallocated recovery ID, intended kind and per-item outcome. |
 File contents and thumbnails are not stored in Room. Clearing scan results deletes scan sessions and their cascading indexed files, groups, and members. It retains recovery copies, exclusions, fingerprint cache entries, and DataStore preferences.
 
 DataStore file `duplicates_settings` contains these preferences:
@@ -264,6 +274,7 @@ The app's source manifest directly declares:
 - `FOREGROUND_SERVICE`
 - `FOREGROUND_SERVICE_DATA_SYNC`
 - `POST_NOTIFICATIONS`
+- `PACKAGE_USAGE_STATS`, granted through Android Usage access only for Unused apps; MAIN/LAUNCHER package queries are scoped and `QUERY_ALL_PACKAGES` is absent
 
 Dependencies contribute `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, and the app-scoped `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` to the merged manifest. This does not add a Duplicates boot scan or periodic request. The source manifest explicitly removes dependency-contributed `ACCESS_NETWORK_STATE` during manifest merge. The existing debug and release merged manifests inspected on 2026-11-02 contain none of `INTERNET`, granular media, camera, microphone, contacts, location, nearby-device, or account permissions. This was inspection of generated manifests, not a fresh APK packaging check.
 
@@ -342,7 +353,7 @@ The string resource policy test rejects U+2014, U+2013, U+00B7, and U+2022. Room
 | `SettingsLayoutTest`, `ScanSelectionScreenTest` | Both portrait sizes, both themes/font scales; settings reachability, separate folder navigation/selection, disabled empty Done and enabled selected Done | Does not establish every detail screen or every screen state at these sizes |
 | `PresentationScreensTest`, `SettingsDetailScreensTest`, `PermissionScreenTest` | Scanning and stop callbacks, a scan-phase row at 200 percent, exclusions, settings, file types, browser callbacks, unavailable generic preview, storage-access explanation | Not a full 320 dp x 200 percent matrix for all these screens |
 | `ResultsDeletionTest` and domain/data deletion tests | Captured batches, hidden selection, queued uncheck, changed selection/session rejection, cancellation, partial failure, keepers, checkpoints, and recovery | Fakes, local files and local Room; not proof of provider/OEM behavior |
-| `DuplicatesDatabaseMigrationTest` in `androidTest` | Room 2 to 3 preserves an existing session and adds a nullable failure reason; 3 to 4 validates the recovery schema and a non-unique duplicate-group index | No 1 to 2 or 1 to 3 instrumentation migration test is defined here |
+| `DuplicatesDatabaseMigrationTest` in `androidTest` | Existing 2-to-3 and 3-to-4 checks plus full 1-to-5 and populated 4-to-5 upgrades preserve prior rows and validate the additive schema | API 36 evidence is in the expansion report; not OEM database or physical-storage coverage |
 
 For future UI changes, choose the affected screen/states and explicitly include **320 dp, 200 percent font scale, and their combination**, plus both supported themes. Use the existing 411 dp reference and short landscape checks where relevant. Check reachability, clipping, scrolling, selected-state semantics, and system-inset/footer overlap. Record which checks actually ran; the matrix above does not establish complete app-wide accessibility coverage.
 
@@ -402,7 +413,7 @@ Manual runtime verification on the same Pixel 9 API 37 Android 17 AVD used only 
 
 Scanner and deletion edge cases are additionally validated with isolated local tests rather than unrelated device files.
 
-The interrupted-deletion journal and reconciliation paths are covered by local tests. The production database builder registers `MIGRATION_1_2`, `MIGRATION_2_3` and `MIGRATION_3_4`; exported schemas 1 through 4 are present, and the earlier notes report a passing `MigrationTestHelper` 2 to 3 run on Android 17. The evidence recorded here contains no device run forcing an operating-system process kill during live MediaStore authorization.
+The interrupted-deletion journal and reconciliation paths are covered by local tests. The production database builder registers `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4` and `MIGRATION_4_5`; exported schemas 1 through 5 are present, and the earlier notes report a passing `MigrationTestHelper` 2 to 3 run on Android 17. The evidence recorded here contains no device run forcing an operating-system process kill during live MediaStore authorization.
 
 The 2026-11-01 scan-selection and UI refinement passed 217 local tests with no failures or skips, Android Lint, Detekt, and ktlint for the touched Kotlin files. Layout tests cover light and dark themes at 320 dp and 411 dp with 100 and 200 percent font scales. The debug and instrumentation APKs built successfully.
 

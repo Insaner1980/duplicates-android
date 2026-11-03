@@ -2,7 +2,6 @@ package com.emma.duplicates.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -80,24 +79,9 @@ fun TypesToScanScreen(
                     }
                 }
             }
-            item {
-                Text(
-                    text = stringResource(R.string.select_at_least_one_type),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
-
-private fun UiFileCategory.supportingRes(): Int =
-    when (this) {
-        UiFileCategory.PHOTOS -> R.string.photos_supporting
-        UiFileCategory.VIDEOS -> R.string.videos_supporting
-        UiFileCategory.AUDIO -> R.string.audio_supporting
-        UiFileCategory.DOCUMENTS -> R.string.documents_supporting
-    }
 
 @Composable
 private fun FileTypeCard(
@@ -107,20 +91,11 @@ private fun FileTypeCard(
 ) {
     SelectableSettingsCard(checked = checked, onSelectionChange = onEnabledChange) {
         CategoryIcon(category)
-        Column(
+        Text(
+            text = stringResource(category.labelRes()),
+            style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = stringResource(category.labelRes()),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                text = stringResource(category.supportingRes()),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        )
     }
 }
 

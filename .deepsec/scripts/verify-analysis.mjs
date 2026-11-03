@@ -38,13 +38,15 @@ export function verify(projectRoot = fileURLToPath(new URL("../../", import.meta
   const blockedPath = path.join(dataRoot, "coverage-blocked.json");
   const blocked = existsSync(blockedPath) ? readJson(blockedPath) : {};
   const saveBlocked = () => writeFileSync(blockedPath, JSON.stringify(blocked, null, 2) + "\n");
-  const candidates = allRecords;
+  const ignorePaths = readJson(path.join(dataRoot, "config.json")).ignorePaths ?? [];
+  const candidates = allRecords.filter(({ record }) =>
+    !ignorePaths.some(pattern => path.matchesGlob(record.filePath.replaceAll("\\", "/"), pattern)));
   if (prepare && candidates.some(({ record }) => record.status === "processing")) {
     throw new Error(
       "DeepSec records are still processing or belong to an interrupted run. If a run is active, wait for it to finish. " +
       "Only when no run is active, recover from the repository root with:\n" +
       "node .deepsec/scripts/verify-analysis.mjs --check-coverage && " +
-      "pnpm --dir .deepsec deepsec process --project-id duplicates-android --agent codex --model gpt-6.1-sol --thinking-level medium --concurrency 1\n" +
+      "pnpm --dir .deepsec deepsec process --project-id duplicates-android --agent codex --model gpt-6.1-sol --thinking-level medium --concurrency 1 --manifest ./data/duplicates-android/process-manifest.json\n" +
       "Do not bypass a failed coverage check. Wait for recovery to finish before rerunning deepsec:process.",
     );
   }
@@ -98,7 +100,11 @@ export function verify(projectRoot = fileURLToPath(new URL("../../", import.meta
   if (uncovered.length > 0) errors.push(`Files outside the secrets scan receipt; align scan scope before retrying (statuses unchanged, processing blocked):\n${uncovered.join("\n")}`);
   if (problems.length > 0) errors.push(`Incomplete DeepSec review; prepare covered sources before retrying:\n${problems.join("\n")}`);
   if (errors.length > 0) throw new Error(errors.join("\n"));
-  if (prepare || checkCoverage) console.log(`DeepSec processing coverage verified: ${candidates.length} files.`);
+  if (prepare || checkCoverage) {
+    // Bound DeepSec's queue too: it retains records from older, broader scans.
+    writeFileSync(path.join(dataRoot, "process-manifest.json"), JSON.stringify(candidates.map(({ record }) => record.filePath), null, 2) + "\n");
+    console.log(`DeepSec processing coverage verified: ${candidates.length} files; ${allRecords.length - candidates.length} excluded by ignorePaths.`);
+  }
   else console.log(`DeepSec review verified: ${candidates.length} candidate files; latest scan includes ${kotlinCount} Kotlin files; no skipped or failed investigations.`);
 }
 

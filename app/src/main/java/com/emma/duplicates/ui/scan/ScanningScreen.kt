@@ -256,7 +256,6 @@ private fun ColumnScope.ScanActions(
     onRequestStop: () -> Unit,
     onBack: () -> Unit,
 ) {
-    Text(stringResource(R.string.scanning_never_deletes), style = MaterialTheme.typography.bodySmall)
     if (state.runStatus == ScanRunStatus.RUNNING) {
         OutlinedButton(onClick = onRequestStop, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
             Text(stringResource(R.string.stop_scan))

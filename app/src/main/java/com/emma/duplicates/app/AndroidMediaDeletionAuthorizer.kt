@@ -5,11 +5,13 @@ import android.content.ContentUris
 import android.net.Uri
 import android.provider.MediaStore
 import androidx.activity.result.IntentSenderRequest
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import com.emma.duplicates.domain.deletion.DeletionFile
 import com.emma.duplicates.domain.deletion.MediaAuthorization
 import com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +25,7 @@ import java.io.IOException
 import kotlin.coroutines.resume
 
 class AndroidMediaDeletionAuthorizer internal constructor(
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val buildRequest: (List<DeletionFile>) -> IntentSenderRequest?,
 ) : ViewModel(),
     MediaDeletionAuthorizer {
@@ -61,7 +64,7 @@ class AndroidMediaDeletionAuthorizer internal constructor(
         requestMutex.withLock {
             if (files.isEmpty() || files.any { it.contentUri == null }) return@withLock MediaAuthorization.FAILED
             val request =
-                withContext(Dispatchers.IO) { buildRequest(files) } ?: return@withLock MediaAuthorization.FAILED
+                withContext(ioDispatcher) { buildRequest(files) } ?: return@withLock MediaAuthorization.FAILED
 
             suspendCancellableCoroutine { continuation ->
                 synchronized(stateLock) {
@@ -113,14 +116,14 @@ class AndroidMediaDeletionAuthorizer internal constructor(
 
 // Persisted scan results use Files URIs, but deletion approval requires typed media URIs.
 internal fun ContentResolver.mediaDeletionUri(file: DeletionFile): Uri? {
-    val uri = Uri.parse(requireNotNull(file.contentUri))
+    val uri = requireNotNull(file.contentUri).toUri()
     if (
         uri.scheme != ContentResolver.SCHEME_CONTENT ||
         uri.authority != MediaStore.AUTHORITY || uri.pathSegments.size < FILE_URI_SEGMENT_COUNT
     ) {
         return null
     }
-    val segments = uri.pathSegments
+    val segments: List<String> = uri.pathSegments
     val id = ContentUris.parseId(uri)
     val collection =
         when (mediaTypeAtPath(uri, file.canonicalPath)) {

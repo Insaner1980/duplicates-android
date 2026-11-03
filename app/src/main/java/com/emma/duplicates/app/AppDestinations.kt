@@ -105,7 +105,11 @@ internal fun ResultsDestination(
 
     fun leaveResults() {
         if (state.busy) return
-        if (state.searchVisible) resultsViewModel.setSearchVisible(false) else navController.returnHome()
+        if (state.searchVisible) {
+            resultsViewModel.setSearchVisible(false)
+        } else if (!navController.popBackStack()) {
+            navController.returnHome()
+        }
     }
     BackHandler(enabled = state.busy || state.searchVisible, onBack = ::leaveResults)
     ResultsScreen(
@@ -187,7 +191,7 @@ internal fun ScanningDestination(
     val state by scanViewModel.state.collectAsStateWithLifecycle()
 
     fun returnHome() {
-        navController.returnHome()
+        if (!navController.popBackStack()) navController.returnHome()
     }
     val lifecycleState by entry.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     LaunchedEffect(state.completionReady, state.sessionId, lifecycleState) {

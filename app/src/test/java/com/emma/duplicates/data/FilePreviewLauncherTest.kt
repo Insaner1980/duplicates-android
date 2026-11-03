@@ -20,6 +20,31 @@ import java.io.RandomAccessFile
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [35])
 class FilePreviewLauncherTest {
+    @Test
+    fun ordinaryItemUsesValidatedFileProviderInsteadOfStaleMediaUri() =
+        runTest {
+            val source = File(testDirectory, "ordinary.pdf").apply { writeText("document") }
+            val uri = Uri.parse("content://com.emma.duplicates.files/ordinary.pdf")
+            val item =
+                com.emma.duplicates.core.database.ToolItemEntity(
+                    "tool",
+                    "item",
+                    "primary",
+                    source.canonicalPath,
+                    source.name,
+                    source.length(),
+                    source.lastModified(),
+                    "DOCUMENTS",
+                    contentUri = "content://stale/item/1",
+                )
+            assertEquals(
+                PreviewPreparation.Ready(uri, "application/pdf"),
+                FilePreviewLauncher(context, fileUriProvider = {
+                    uri
+                }).prepare(item),
+            )
+        }
+
     private lateinit var context: Context
     private lateinit var testDirectory: File
 

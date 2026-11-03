@@ -55,6 +55,7 @@ class MediaStoreMetadataIndex(
                             val mimeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
                             val favoriteColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.IS_FAVORITE)
                             val trashedColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.IS_TRASHED)
+                            val relativePathColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
                             while (cursor.moveToNext()) {
                                 val path = cursor.getString(pathColumn) ?: continue
                                 val id = cursor.getLong(idColumn)
@@ -64,6 +65,7 @@ class MediaStoreMetadataIndex(
                                         contentUri = ContentUris.withAppendedId(collection, id).toString(),
                                         isFavorite = cursor.getInt(favoriteColumn) != 0,
                                         isTrashed = cursor.getInt(trashedColumn) != 0,
+                                        relativePath = cursor.getString(relativePathColumn),
                                     )
                             }
                         }
@@ -101,6 +103,7 @@ class MediaStoreMetadataIndex(
                 MediaStore.MediaColumns.MIME_TYPE,
                 MediaStore.MediaColumns.IS_FAVORITE,
                 MediaStore.MediaColumns.IS_TRASHED,
+                MediaStore.MediaColumns.RELATIVE_PATH,
             )
     }
 }

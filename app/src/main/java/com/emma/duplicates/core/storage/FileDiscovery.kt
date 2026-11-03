@@ -26,6 +26,7 @@ data class PlatformFileMetadata(
     val contentUri: String? = null,
     val isFavorite: Boolean? = null,
     val isTrashed: Boolean? = null,
+    val relativePath: String? = null,
 )
 
 fun interface FileMetadataReader {
@@ -39,6 +40,7 @@ data class FileDiscoveryOptions(
     val exclusions: Set<ScanExclusion> = emptySet(),
     val applicationDirectories: Set<String> = emptySet(),
     val includedPaths: Set<String> = emptySet(),
+    val includeZeroByteFiles: Boolean = false,
 )
 
 data class FileDiscoveryProgress(
@@ -74,8 +76,7 @@ class FileDiscovery(
         private val files = mutableListOf<FileMetadata>()
         private val visitedDirectories = mutableSetOf<String>()
         private val queue = ArrayDeque<PendingEntry>()
-        private val exclusions = options.exclusions.map(::normalizedExclusion)
-        private val applicationDirectories = options.applicationDirectories.map(::normalizedPath)
+        private val entryPolicy = FileEntryPolicy(options)
         private val includedPaths = options.includedPaths.map(::normalizedPath)
         private var skippedFileCount = 0
         private var errorCount = 0
@@ -129,7 +130,7 @@ class FileDiscovery(
             } else {
                 val canonicalFile = canonicalFile(pending.file, attributes) ?: return
                 when {
-                    shouldSkipEntry(canonicalFile, canonicalFile.path, options, exclusions, applicationDirectories) -> {
+                    entryPolicy.excludes(canonicalFile) -> {
                         if (attributes.isRegularFile) skippedFileCount += 1
                     }
 
@@ -197,7 +198,7 @@ class FileDiscovery(
             attributes: BasicFileAttributes,
         ) {
             when {
-                attributes.size() == 0L -> {
+                attributes.size() == 0L && !options.includeZeroByteFiles -> {
                     skippedFileCount += 1
                 }
 
@@ -257,51 +258,14 @@ class FileDiscovery(
                         contentUri = metadata.contentUri,
                         isFavorite = metadata.isFavorite,
                         isTrashed = metadata.isTrashed,
+                        relativePath = metadata.relativePath,
                     )
                 scannedByteCount += attributes.size()
             }
         }
     }
 
-    private fun shouldSkipEntry(
-        file: File,
-        canonicalPath: String,
-        options: FileDiscoveryOptions,
-        exclusions: List<NormalizedExclusion>,
-        applicationDirectories: List<Path>,
-    ): Boolean {
-        val skipByName =
-            (!options.scanHiddenFolders && file.name.startsWith('.')) ||
-                (file.isDirectory && isRecycleDirectoryName(file.name)) ||
-                (file.isDirectory && isRestrictedAndroidDirectory(file)) ||
-                (file.isDirectory && options.ignoreSystemFolders && file.name.lowercase() in SYSTEM_DIRECTORY_NAMES)
-        if (skipByName) {
-            return true
-        }
-
-        val path = normalizedPath(canonicalPath)
-        return applicationDirectories.any(path::startsWith) ||
-            exclusions.any { exclusion ->
-                when (exclusion.type) {
-                    ExclusionType.FILE -> path == exclusion.path
-                    ExclusionType.FOLDER -> path.startsWith(exclusion.path)
-                }
-            }
-    }
-
-    private fun normalizedExclusion(exclusion: ScanExclusion): NormalizedExclusion =
-        NormalizedExclusion(normalizedPath(exclusion.canonicalPath), exclusion.type)
-
     private fun normalizedPath(path: String): Path = Paths.get(path).toAbsolutePath().normalize()
-
-    private fun isRestrictedAndroidDirectory(file: File): Boolean =
-        file.parentFile?.name?.equals("Android", ignoreCase = true) == true &&
-            file.name.lowercase() in RESTRICTED_ANDROID_DIRECTORY_NAMES
-
-    private fun isRecycleDirectoryName(name: String): Boolean {
-        val normalized = name.lowercase()
-        return normalized in RECYCLE_DIRECTORY_NAMES || normalized.startsWith(".trash-")
-    }
 
     private fun stableFileId(
         volume: String,
@@ -312,22 +276,6 @@ class FileDiscovery(
         val file: File,
         val root: StorageVolumeRoot,
     )
-
-    private data class NormalizedExclusion(
-        val path: Path,
-        val type: ExclusionType,
-    )
-
-    private companion object {
-        val RESTRICTED_ANDROID_DIRECTORY_NAMES = setOf("data", "obb")
-        val RECYCLE_DIRECTORY_NAMES =
-            setOf(
-                ".trash",
-                ".trashes",
-                "\$recycle.bin",
-            )
-        val SYSTEM_DIRECTORY_NAMES = setOf("cache", ".cache", "tmp", "temp", "lost.dir")
-    }
 }
 
 private val defaultFileMetadataReader =

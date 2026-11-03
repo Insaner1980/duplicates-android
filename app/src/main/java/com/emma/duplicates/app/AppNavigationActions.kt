@@ -1,7 +1,32 @@
 package com.emma.duplicates.app
 
 import androidx.navigation.NavController
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
+import com.emma.duplicates.core.model.CleanupTool
+import com.emma.duplicates.ui.tools.RootTab
+
+internal fun NavHostController.openTool(tool: CleanupTool) {
+    if (tool == CleanupTool.DUPLICATES) {
+        navigate(DuplicateSetupRoute) { launchSingleTop = true }
+    } else {
+        navigate(ToolRoute(tool.name)) { launchSingleTop = true }
+    }
+}
+
+internal fun NavHostController.selectRootTab(tab: RootTab) {
+    val route: Any =
+        when (tab) {
+            RootTab.HOME -> HomeRoute
+            RootTab.TOOLS -> ToolsRoute
+            RootTab.RECOVERY -> RecoveryRoute
+        }
+    navigate(route) {
+        popUpTo<HomeRoute> { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
 
 internal fun NavHostController.returnHome() {
     if (!popBackStack<HomeRoute>(inclusive = false)) {
@@ -13,8 +38,9 @@ internal fun NavHostController.returnHome() {
 }
 
 internal fun NavHostController.navigateToResults(filter: String? = null) {
+    val replacesScanning = currentDestination?.hasRoute<ScanningRoute>() == true
     navigate(ResultsRoute(filter)) {
-        popUpTo<HomeRoute>()
+        if (replacesScanning) popUpTo<ScanningRoute> { inclusive = true }
         launchSingleTop = true
     }
 }

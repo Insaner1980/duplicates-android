@@ -1,4 +1,5 @@
 packages: []
+enablePrePostScripts: true
 
 overrides:
   '@hono/node-server': 2.1.5

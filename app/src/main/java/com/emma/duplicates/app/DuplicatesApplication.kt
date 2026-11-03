@@ -46,6 +46,14 @@ class AppContainer(
         PreferencesRepository(applicationContext.duplicatesPreferencesDataStore)
     val database by lazy { DuplicatesDatabase.create(applicationContext) }
     val scanStore by lazy { ScanStore(database) }
+    val toolResultStore by lazy {
+        com.emma.duplicates.data
+            .ToolResultStore(database)
+    }
+    val toolScanRunner by lazy { ToolScanRunner(applicationContext, this) }
+    val unusedAppsRepository =
+        com.emma.duplicates.data
+            .UnusedAppsRepository(applicationContext)
     val fileDiscovery by lazy { FileDiscovery(metadataReader = mediaStoreMetadataIndex) }
     val exactDuplicateScanner by lazy {
         ExactDuplicateScanner(fingerprintCache = RoomFingerprintCache(scanStore))
@@ -81,10 +89,11 @@ class AppContainer(
             fileDiscovery = fileDiscovery,
             exactDuplicateScanner = exactDuplicateScanner,
             scanResultMapper = scanResultMapper,
+            operationMutex = deletionOperationMutex,
         )
     }
     val scanScheduler = ScanScheduler(applicationContext, DuplicateScanWorker::class.java)
-    private val deletionOperationMutex = Mutex()
+    internal val deletionOperationMutex = Mutex()
     val recoveryRepository by lazy { RecoveryRepository(applicationContext, database.recoveryDao()) }
     private val deletionStorage by lazy {
         AndroidDeletionStorage(applicationContext, recoveryRepository)
@@ -93,6 +102,33 @@ class AppContainer(
     val pendingDeletionReconciler by lazy {
         PendingDeletionReconciler(deletionStorage, deletionResultStore, deletionOperationMutex)
     }
+    val pendingCleanupReconciler by lazy {
+        com.emma.duplicates.domain.deletion.PendingCleanupReconciler(
+            database,
+            recoveryRepository,
+            storageVolumeSource,
+            storageAccessManager::hasAccess,
+            deletionOperationMutex,
+        )
+    }
+    val emptyFolderDeletionCoordinator by lazy {
+        com.emma.duplicates.domain.deletion.EmptyFolderDeletionCoordinator(
+            database,
+            storageVolumeSource,
+            storageAccessManager::hasAccess,
+            deletionOperationMutex,
+        )
+    }
+
+    fun cleanupCoordinator(authorizer: MediaDeletionAuthorizer) =
+        com.emma.duplicates.domain.deletion.CleanupCoordinator(
+            database,
+            recoveryRepository,
+            storageVolumeSource,
+            storageAccessManager::hasAccess,
+            authorizer,
+            deletionOperationMutex,
+        )
 
     fun deletionCoordinator(authorizer: MediaDeletionAuthorizer): DeletionCoordinator =
         DeletionCoordinator(

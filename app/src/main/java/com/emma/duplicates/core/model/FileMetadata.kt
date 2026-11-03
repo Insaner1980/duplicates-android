@@ -16,4 +16,5 @@ data class FileMetadata(
     val contentUri: String?,
     val isFavorite: Boolean?,
     val isTrashed: Boolean?,
+    val relativePath: String? = null,
 )

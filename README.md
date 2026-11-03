@@ -6,6 +6,18 @@ Scan locations supports entire storage or a saved selection of folders and indiv
 
 All scanning and comparison happens on the device. The app has no `INTERNET` permission, backend, analytics, advertising, account, or cloud upload.
 
+## Storage cleanup tools
+
+Home and Tools offer Duplicates, Empty folders, Large files, Similar photos, Screenshots, Old downloads, and Unused apps. The storage card opens Storage usage; Recovery is a root tab. Exact scan options remain under Duplicates.
+
+New file results start unselected. Reviewed files move to same-volume recovery after their own SHA-256 and identity checks; a recovery move reports zero bytes freed immediately. Empty folders use a separate, directory-only removal operation and never enter Recovery. All cleanup operations share the existing mutation gate. Each tool retains its last completed result while a replacement runs.
+
+Large files starts above 100 MB, with 500 MB and 1 GB filters. Screenshots and downloads default to older than six calendar months, with one-year and All options. Similar photos uses an orientation-aware perceptual fingerprint, requires pairwise similarity within each group, and protects one explicit keeper. This is separate from byte-identical duplicate proof.
+
+Storage usage measures one whole mounted volume, including allocated file bytes and a conservative Other used space remainder; unknown or inconsistent measurements remain unknown. Unused apps requests Usage access only when opened, lists eligible user-installed launcher apps with sufficient recorded history, and opens Android app details. It does not uninstall apps itself, request broad package visibility, or classify absent history as unused.
+
+The implementation and current validation limitations are recorded in [the storage cleanup report](docs/storage-cleanup-validation.md).
+
 ## Exact duplicate detection
 
 A duplicate group passes every stage below:

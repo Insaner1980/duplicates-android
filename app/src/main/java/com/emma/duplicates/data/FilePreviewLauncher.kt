@@ -8,6 +8,7 @@ import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.core.net.toUri
 import com.emma.duplicates.core.database.IndexedFileEntity
+import com.emma.duplicates.core.database.ToolItemEntity
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -43,13 +44,24 @@ class FilePreviewLauncher(
     },
 ) {
     suspend fun prepare(file: IndexedFileEntity): PreviewPreparation =
+        prepareFile(file.canonicalPath, file.mimeType, file.extension, file.contentUri)
+
+    suspend fun prepare(file: ToolItemEntity): PreviewPreparation =
+        prepareFile(file.canonicalPath, file.mimeType, File(file.name).extension, null)
+
+    private suspend fun prepareFile(
+        path: String,
+        storedMime: String?,
+        extension: String,
+        contentUri: String?,
+    ): PreviewPreparation =
         withContext(ioDispatcher) {
-            val mimeType = file.previewMimeType()
-            file.contentUri?.let { uri ->
+            val mimeType = previewMimeType(storedMime, extension)
+            contentUri?.let { uri ->
                 return@withContext prepareContentUri(uri.toUri(), mimeType)
             }
 
-            val source = File(file.canonicalPath)
+            val source = File(path)
             if (!source.isFile || !source.canRead()) return@withContext PreviewPreparation.Missing
             try {
                 PreviewPreparation.Ready(
@@ -102,7 +114,10 @@ class FilePreviewLauncher(
         }
     }
 
-    private fun IndexedFileEntity.previewMimeType(): String {
+    private fun previewMimeType(
+        mimeType: String?,
+        extension: String,
+    ): String {
         val storedMimeType = mimeType?.trim()?.lowercase(Locale.ENGLISH)
         if (!storedMimeType.isNullOrBlank() && storedMimeType !in GENERIC_MIME_TYPES) {
             return storedMimeType

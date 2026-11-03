@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 private const val VERSION_SCAN_FAILURE_REASON = 3
 private const val VERSION_BYTE_PARTITIONS = 4
-private const val DATABASE_VERSION = VERSION_BYTE_PARTITIONS
+private const val DATABASE_VERSION = 5
 
 @Database(
     entities = [
@@ -22,6 +22,10 @@ private const val DATABASE_VERSION = VERSION_BYTE_PARTITIONS
         FingerprintCacheEntity::class,
         ExclusionEntity::class,
         RecoveryFile::class,
+        ToolScanSession::class,
+        ToolItemEntity::class,
+        CleanupOperation::class,
+        CleanupOperationItem::class,
     ],
     version = DATABASE_VERSION,
     exportSchema = true,
@@ -37,6 +41,8 @@ abstract class DuplicatesDatabase : RoomDatabase() {
 
     abstract fun recoveryDao(): RecoveryDao
 
+    abstract fun toolDao(): ToolDao
+
     companion object {
         private const val DATABASE_NAME = "duplicates.db"
 
@@ -46,8 +52,10 @@ abstract class DuplicatesDatabase : RoomDatabase() {
                     context.applicationContext,
                     DuplicatesDatabase::class.java,
                     DATABASE_NAME,
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
+
+        val MIGRATION_4_5 = TOOL_MIGRATION_4_5
 
         val MIGRATION_1_2 =
             object : Migration(1, 2) {

@@ -12,6 +12,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,6 +28,28 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [35])
 class AndroidMediaDeletionAuthorizerTest {
+    @Test
+    fun requestBuilderUsesInjectedDispatcher() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val launchRequest = mockk<IntentSenderRequest>()
+            val callerThread = Thread.currentThread()
+            var built = false
+            val authorizer =
+                AndroidMediaDeletionAuthorizer(ioDispatcher = dispatcher) {
+                    assertSame(callerThread, Thread.currentThread())
+                    built = true
+                    launchRequest
+                }
+            val result = async { authorizer.requestDeletion(listOf(mediaFile())) }
+            assertFalse(built)
+            authorizer.launchRequest.first { it != null }
+            assertTrue(built)
+            assertSame(launchRequest, authorizer.claimLaunchRequest())
+            assertTrue(authorizer.complete(MediaAuthorization.APPROVED))
+            assertEquals(MediaAuthorization.APPROVED, result.await())
+        }
+
     @Test
     fun storedFileUrisResolveToTypedMediaUrisOnTheSameVolume() {
         val resolver = mockk<ContentResolver>()

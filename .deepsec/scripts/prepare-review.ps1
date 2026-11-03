@@ -19,7 +19,7 @@ function Invoke-SecretsScan {
     }
 }
 
-$relativePaths = @('app/src', 'app/schemas', 'config', '.github', 'gradle', 'build.gradle.kts', 'settings.gradle.kts', 'gradle.properties', '.gitignore', 'README.md', 'PROJECT.md')
+$relativePaths = @('app/src', 'app/schemas', 'app/build.gradle.kts', 'config', '.github', 'gradle', 'build.gradle.kts', 'settings.gradle.kts', 'gradle.properties', '.gitignore', 'README.md', 'PROJECT.md')
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'AGENTS.md')) { $relativePaths += 'AGENTS.md' }
 $scanPaths = @($relativePaths | ForEach-Object { Join-Path $projectRoot $_ })
 $scanPaths += $configPath

@@ -38,7 +38,6 @@ fun RecoveryScreen(
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         item { DetailHeader(R.string.recovery_files, onBack) }
-        item { Text(stringResource(R.string.recovery_explanation)) }
         if (files.isEmpty()) item { Text(stringResource(R.string.recovery_empty)) }
         items(files, key = { it.id }) { file ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

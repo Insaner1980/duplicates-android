@@ -43,6 +43,7 @@ test("uncovered analyses require preparation and a fresh investigation after cov
     mkdirSync(path.join(dataRoot, "runs"), { recursive: true });
     mkdirSync(path.join(dataRoot, "files"));
     const writeJson = (file, value) => writeFileSync(file, JSON.stringify(value));
+    writeJson(path.join(dataRoot, "config.json"), {});
     writeJson(path.join(dataRoot, "runs/scan.json"), {
       type: "scan", phase: "done", runId: "test-scan", createdAt: "2026-11-02T00:00:00Z", stats: { filesScanned: 2 },
     });
@@ -154,6 +155,42 @@ test("uncovered analyses require preparation and a fresh investigation after cov
     assert.throws(() => verify(root, { checkCoverage: true }), /source changed since the current secrets scan/);
     assert.deepEqual(readJson(coveredPath), processing);
     assert.deepEqual(readJson(blockedPath), previousMarker);
+  } finally {
+    rmSync(root, { recursive: true });
+  }
+});
+
+test("excluded historical reports stay intact and cannot enter the processing manifest", () => {
+  const root = mkdtempSync(fileURLToPath(new URL(".verify-fixture-", import.meta.url)));
+  try {
+    const dataRoot = path.join(root, ".deepsec/data/duplicates-android");
+    mkdirSync(path.join(dataRoot, "runs"), { recursive: true });
+    mkdirSync(path.join(dataRoot, "files"));
+    const writeJson = (file, value) => writeFileSync(file, JSON.stringify(value));
+    const readJson = file => JSON.parse(readFileSync(file, "utf8"));
+    writeJson(path.join(dataRoot, "config.json"), { ignorePaths: ["reports/**"] });
+    writeJson(path.join(dataRoot, "runs/scan.json"), {
+      type: "scan", phase: "done", runId: "current", createdAt: "2026-11-03T00:00:00Z", stats: { filesScanned: 1 },
+    });
+    writeFileSync(path.join(root, "source.kt"), "source");
+    writeJson(path.join(dataRoot, "files/source.json"), { ...completed, filePath: "source.kt", lastScannedRunId: "current" });
+    writeJson(path.join(dataRoot, "source-scan.json"), {
+      files: { "source.kt": createHash("sha256").update("source").digest("hex") },
+    });
+    const reportPath = path.join(dataRoot, "files/report.json");
+    // No report source exists: excluded records must not cause a source read.
+    for (const status of ["processing", "pending", "error", "analyzed"]) {
+      const report = { ...completed, status, filePath: "reports/old/manifest.json", lastScannedRunId: "old" };
+      writeJson(reportPath, report);
+      verify(root, { prepare: true });
+      assert.deepEqual(readJson(path.join(dataRoot, "process-manifest.json")), ["source.kt"]);
+      verify(root);
+      verify(root, { checkCoverage: true });
+      assert.deepEqual(readJson(reportPath), report);
+    }
+    // Removing the exclusion must restore the coverage requirement.
+    writeJson(path.join(dataRoot, "config.json"), {});
+    assert.throws(() => verify(root, { prepare: true }), /outside the secrets scan receipt/);
   } finally {
     rmSync(root, { recursive: true });
   }

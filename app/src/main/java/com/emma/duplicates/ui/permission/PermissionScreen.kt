@@ -33,10 +33,6 @@ fun PermissionScreen(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(
-            text = stringResource(R.string.scanning_never_deletes),
-            style = MaterialTheme.typography.bodyLarge,
-        )
         Spacer(Modifier.height(4.dp))
         PrimaryActionButton(
             onClick = onGrantAccess,

@@ -1,0 +1,79 @@
+<resources>
+    <string name="refresh">Refresh</string>
+    <string name="tool_scan_busy">Another scan is running</string>
+    <string name="tool_scanning">Scanning</string>
+    <string name="tool_comparing">Comparing photos</string>
+    <string name="tool_partial">Partial scan</string>
+    <string name="tool_skipped">Skipped: %1$d</string>
+    <string name="tool_failed">Scan failed</string>
+    <string name="tool_scope_unavailable">Selected storage unavailable</string>
+    <string name="tool_access_required">Storage access required</string>
+    <string name="tool_grant_access">Grant access</string>
+    <string name="tool_run_unavailable">This scan is no longer available</string>
+    <string name="tool_no_results">No matching items</string>
+    <plurals name="tool_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+    <plurals name="tool_empty_count">
+        <item quantity="one">%1$d empty folder</item>
+        <item quantity="other">%1$d empty folders</item>
+    </plurals>
+    <plurals name="tool_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <string name="tool_selected_bytes">Selected %1$s</string>
+    <plurals name="tool_hidden_selected">
+        <item quantity="one">%1$d selected outside this view</item>
+        <item quantity="other">%1$d selected outside this view</item>
+    </plurals>
+    <string name="tool_select_item">Select %1$s</string>
+    <string name="tool_open_item">Preview %1$s</string>
+    <string name="tool_move">Move to recovery</string>
+    <string name="tool_delete_folders">Delete selected</string>
+    <string name="tool_delete_folders_title">Delete empty folders?</string>
+    <plurals name="tool_delete_folders_confirmation">
+        <item quantity="one">Delete %1$d selected folder permanently?\n%2$s</item>
+        <item quantity="other">Delete %1$d selected folders permanently?\n%2$s</item>
+    </plurals>
+    <string name="tool_folder_outcome">Deleted folders: %1$d\nNot deleted: %2$d</string>
+    <plurals name="tool_confirm_move">
+        <item quantity="one">Move %1$d selected file (%2$s) to Recovery for at least 30 days? Restore copies before removing the app or clearing its data.\n%3$s</item>
+        <item quantity="other">Move %1$d selected files (%2$s) to Recovery for at least 30 days? Restore copies before removing the app or clearing its data.\n%3$s</item>
+    </plurals>
+    <string name="tool_prepare">Checking selected files</string>
+    <string name="tool_changed">Selected items changed. Refresh and select again.</string>
+    <string name="tool_over_100mb">Over 100 MB</string>
+    <string name="tool_over_500mb">Over 500 MB</string>
+    <string name="tool_over_1gb">Over 1 GB</string>
+    <string name="tool_largest_first">Largest first</string>
+    <string name="tool_smallest_first">Smallest first</string>
+    <string name="tool_over_6months">Over 6 months</string>
+    <string name="tool_over_1year">Over 1 year</string>
+    <string name="tool_all">All</string>
+    <string name="tool_unknown">Unknown</string>
+    <string name="tool_unknown_date">Unknown date</string>
+    <string name="tool_keep">Keep</string>
+    <string name="tool_group">Group %1$d / %2$d</string>
+    <string name="tool_previous_group">Previous group</string>
+    <string name="tool_next_group">Next group</string>
+    <string name="tool_used">%1$s used</string>
+    <string name="tool_total">%1$s total</string>
+    <string name="tool_other_files">Other files</string>
+    <string name="tool_other_used">Other used space</string>
+    <string name="tool_largest_folders">Largest folders</string>
+    <string name="tool_parent_folder">Parent folder</string>
+    <string name="tool_usage_access">Usage access required</string>
+    <string name="tool_usage_revoked">Usage access revoked</string>
+    <string name="tool_usage_unavailable">Usage data unavailable</string>
+    <string name="tool_no_apps">No eligible apps</string>
+    <plurals name="tool_unused_days">
+        <item quantity="one">Not used for %1$d day</item>
+        <item quantity="other">Not used for %1$d days</item>
+    </plurals>
+    <string name="tool_last_used">Last used %1$s</string>
+    <string name="tool_app_details">Open app details</string>
+    <string name="tool_app_details_for">Open app details for %1$s</string>
+    <string name="tool_app_unavailable">App unavailable</string>
+</resources>

@@ -82,7 +82,6 @@ fun ExclusionsScreen(
                     ) { Icon(Icons.Outlined.Add, stringResource(R.string.add_exclusion)) }
                 }
             }
-            item { ExclusionsExplanation() }
             item {
                 SectionHeader(
                     title = stringResource(R.string.excluded_folders),
@@ -200,28 +199,6 @@ private fun AddChoiceRow(
             tint = MaterialTheme.colorScheme.onSurface,
         )
         Text(stringResource(textRes), style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Composable
-private fun ExclusionsExplanation() {
-    DuplicatesCard(Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.scans_skip_excluded_items),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                text = stringResource(R.string.exclusions_explanation),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 
