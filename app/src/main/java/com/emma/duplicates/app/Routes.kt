@@ -6,6 +6,24 @@ import kotlinx.serialization.Serializable
 data object HomeRoute
 
 @Serializable
+data object ToolsRoute
+
+@Serializable
+data object DuplicateSetupRoute
+
+@Serializable
+data class ToolRoute(
+    val tool: String,
+    val runId: String? = null,
+)
+
+@Serializable
+data class ToolPreviewRoute(
+    val sessionId: String,
+    val itemId: String,
+)
+
+@Serializable
 data class ResultsRoute(
     val filter: String? = null,
 )

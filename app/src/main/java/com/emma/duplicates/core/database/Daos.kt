@@ -12,6 +12,18 @@ import kotlinx.coroutines.flow.Flow
 // These queries participate in the same scan-session transactions.
 @Suppress("TooManyFunctions")
 abstract class ScanDao {
+    @Query("SELECT * FROM indexed_files WHERE volume = :volume AND canonicalPath = :path")
+    abstract suspend fun filesAtPath(
+        volume: String,
+        path: String,
+    ): List<IndexedFileEntity>
+
+    @Query("SELECT * FROM indexed_files WHERE id IN (:ids)")
+    abstract suspend fun filesByIds(ids: Set<String>): List<IndexedFileEntity>
+
+    @Query("SELECT * FROM duplicate_members WHERE indexedFileId IN (:ids)")
+    abstract suspend fun membersForFiles(ids: Set<String>): List<DuplicateMemberEntity>
+
     @Insert
     abstract suspend fun insertSession(session: ScanSessionEntity)
 

@@ -59,7 +59,7 @@ fun SettingsScreen(
         SettingsSection(R.string.review_and_deletion) {
             DetailSettingsRow(
                 title = stringResource(R.string.recovery_files),
-                summary = stringResource(R.string.recovery_settings_summary),
+                summary = "",
                 onClick = onOpenRecovery,
             )
             ToggleSettingsRow(

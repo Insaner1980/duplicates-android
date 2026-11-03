@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.emma.duplicates.R
+import com.emma.duplicates.core.model.CleanupTool
 import com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer
 import com.emma.duplicates.ui.exclusions.ExclusionBrowserScreen
 import com.emma.duplicates.ui.exclusions.ExclusionKind
@@ -41,6 +44,10 @@ import com.emma.duplicates.ui.results.ResultsScreen
 import com.emma.duplicates.ui.scan.ScanningScreen
 import com.emma.duplicates.ui.settings.SettingsScreen
 import com.emma.duplicates.ui.settings.TypesToScanScreen
+import com.emma.duplicates.ui.tools.DashboardScreen
+import com.emma.duplicates.ui.tools.RootNavigationBar
+import com.emma.duplicates.ui.tools.RootTab
+import com.emma.duplicates.ui.tools.ToolsScreen
 import kotlinx.coroutines.flow.Flow
 
 @Composable
@@ -52,6 +59,8 @@ fun AppNavigation(
     openScanningInitially: Boolean,
     openScanningRequests: Flow<ScanNavigationRequest>,
     scanStartPending: Boolean = false,
+    openToolInitially: ToolRoute? = null,
+    openToolRequests: Flow<ToolRoute> = kotlinx.coroutines.flow.emptyFlow(),
 ) {
     val navController = rememberNavController()
 
@@ -60,6 +69,12 @@ fun AppNavigation(
     }
     LaunchedEffect(navController, openScanningRequests) {
         openScanningRequests.collect { navController.openScanning(it) }
+    }
+    LaunchedEffect(navController, openToolInitially) {
+        openToolInitially?.let { navController.navigate(it) { launchSingleTop = true } }
+    }
+    LaunchedEffect(navController, openToolRequests) {
+        openToolRequests.collect { navController.navigate(it) { launchSingleTop = true } }
     }
 
     AppNavHost(
@@ -81,8 +96,24 @@ private fun AppNavHost(
     onOpenStorageSettings: () -> Unit,
     scanStartPending: Boolean,
 ) {
+    val entry by navController.currentBackStackEntryAsState()
+    val destination = entry?.destination
+    val tab =
+        when {
+            destination?.hasRoute<HomeRoute>() == true -> RootTab.HOME
+            destination?.hasRoute<RecoveryRoute>() == true -> RootTab.RECOVERY
+            else -> RootTab.TOOLS
+        }
+    val showTabs =
+        destination == null || destination.hasRoute<HomeRoute>() || destination.hasRoute<ToolsRoute>() ||
+            destination.hasRoute<RecoveryRoute>() || destination.hasRoute<DuplicateSetupRoute>() ||
+            destination.hasRoute<ResultsRoute>() || destination.hasRoute<ScanningRoute>() ||
+            destination.hasRoute<ToolRoute>()
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            if (showTabs) RootNavigationBar(tab, navController::selectRootTab)
+        },
     ) { contentPadding ->
         AppNavigationGraph(
             container,
@@ -91,7 +122,7 @@ private fun AppNavHost(
             onStartScan,
             onOpenStorageSettings,
             scanStartPending,
-            Modifier.padding(contentPadding),
+            Modifier.padding(contentPadding).consumeWindowInsets(contentPadding),
         )
     }
 }
@@ -116,6 +147,20 @@ private fun AppNavigationGraph(
         modifier = modifier,
     ) {
         composable<HomeRoute> {
+            val state by homeViewModel.state.collectAsStateWithLifecycle()
+            val configuration by homeViewModel.configuration.collectAsStateWithLifecycle()
+            DashboardScreen(
+                state,
+                configuration,
+                onOpenSettings = { navController.navigate(SettingsRoute) },
+                onGrantAccess = onOpenStorageSettings,
+                onOpenTool = navController::openTool,
+            )
+        }
+
+        toolDestinations(container, navController, deletionAuthorizer, onOpenStorageSettings)
+
+        composable<DuplicateSetupRoute> {
             HomeDestination(
                 homeViewModel,
                 settingsViewModel,
@@ -144,10 +189,6 @@ private fun AppNavigationGraph(
 
         composable<SettingsRoute> {
             SettingsDestination(settingsViewModel, navController, onOpenStorageSettings)
-        }
-
-        composable<RecoveryRoute> {
-            RecoveryDestination(container, onBack = { navController.popBackStack() })
         }
 
         composable<ScanLocationsRoute> { entry ->
@@ -215,5 +256,27 @@ private fun ObservePlatformState(
             }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+}
+
+private fun androidx.navigation.NavGraphBuilder.toolDestinations(
+    container: AppContainer,
+    navController: NavHostController,
+    deletionAuthorizer: MediaDeletionAuthorizer,
+    onOpenStorageSettings: () -> Unit,
+) {
+    composable<RecoveryRoute> {
+        RecoveryDestination(container, onBack = { navController.popBackStack() })
+    }
+    composable<ToolsRoute> {
+        ToolsScreen(navController::openTool)
+    }
+
+    composable<ToolRoute> { entry ->
+        ToolDestination(container, navController, entry, deletionAuthorizer, onOpenStorageSettings)
+    }
+
+    composable<ToolPreviewRoute> { entry ->
+        ToolPreviewDestination(container, navController, entry)
     }
 }

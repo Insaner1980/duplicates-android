@@ -43,6 +43,9 @@ class ScanStore(
     ) {
         database.withTransaction {
             check(deletionOperationDao.getPending().isEmpty()) { "Deletion recovery is pending" }
+            check(
+                database.toolDao().pending().isEmpty() && database.toolDao().running().isEmpty(),
+            ) { "A tool operation is active" }
             scanDao.failRunningSessions(startedAt, ScanFailureReasons.GENERIC)
             scanDao.insertSession(
                 ScanSessionEntity(
@@ -150,6 +153,9 @@ class ScanStore(
         items: List<PendingDeletionItemEntity>,
     ) {
         database.withTransaction {
+            check(
+                database.toolDao().pending().isEmpty() && database.toolDao().running().isEmpty(),
+            ) { "A tool operation is active" }
             check(deletionOperationDao.getPending().isEmpty() && runningSession.first() == null) {
                 "A scan or deletion recovery is active"
             }
@@ -189,6 +195,9 @@ class ScanStore(
             val sessionIds =
                 if (affectedGroupIds.isEmpty()) emptyList() else scanDao.getSessionIdsForGroups(affectedGroupIds)
             if (missingItems.isNotEmpty()) {
+                scanDao.filesByIds(missingItems.mapTo(mutableSetOf()) { it.indexedFileId }).forEach {
+                    database.toolDao().invalidate(it.volume, it.canonicalPath)
+                }
                 scanDao.deleteMembers(missingItems.mapTo(linkedSetOf()) { it.memberId })
                 scanDao.deleteIndexedFiles(missingItems.mapTo(linkedSetOf()) { it.indexedFileId })
                 affectedGroupIds.forEach { groupId ->
@@ -226,6 +235,9 @@ class ScanStore(
     }
 
     private suspend fun applyDeletionInTransaction(update: DeletionDatabaseUpdate) {
+        scanDao.filesByIds(update.removedIndexedFileIds + update.changedIndexedFileIds).forEach {
+            database.toolDao().invalidate(it.volume, it.canonicalPath)
+        }
         val groupIds = update.groups.mapTo(linkedSetOf()) { it.groupId }
         val sessionIds =
             if (groupIds.isEmpty()) emptyList() else scanDao.getSessionIdsForGroups(groupIds)
@@ -250,5 +262,26 @@ class ScanStore(
             }
         }
         sessionIds.forEach { scanDao.recalculateSessionResults(it) }
+    }
+
+    suspend fun removePath(
+        volume: String,
+        path: String,
+    ) = database.withTransaction {
+        val ids = scanDao.filesAtPath(volume, path).map { it.id }.toSet()
+        if (ids.isEmpty()) return@withTransaction
+        val groupIds = scanDao.membersForFiles(ids).map { it.groupId }.toSet()
+        val sessions = scanDao.getSessionIdsForGroups(groupIds)
+        scanDao.deleteIndexedFiles(ids)
+        groupIds.forEach { groupId ->
+            val count = scanDao.countMembers(groupId)
+            if (count < 2) {
+                scanDao.deleteGroup(groupId)
+            } else {
+                scanDao.updateGroupAfterDeletion(groupId, count, scanDao.getSelectedReclaimableBytes(groupId))
+            }
+        }
+        sessions.forEach { scanDao.recalculateSessionResults(it) }
+        fingerprintDao.invalidate(path, volume)
     }
 }

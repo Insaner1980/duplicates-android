@@ -8,6 +8,7 @@ import com.emma.duplicates.core.database.RecoveryDao
 import com.emma.duplicates.core.database.RecoveryFile
 import com.emma.duplicates.domain.deletion.DeletionFile
 import com.emma.duplicates.domain.deletion.DirectDeletionResult
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -52,11 +53,20 @@ class RecoveryRepository internal constructor(
     suspend fun move(
         file: DeletionFile,
         verify: suspend (DeletionFile) -> Boolean,
+    ): DirectDeletionResult = moveTracked(file, UUID.randomUUID().toString(), verify = verify)
+
+    suspend fun moveTracked(
+        file: DeletionFile,
+        recoveryId: String,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        verify: suspend (DeletionFile) -> Boolean,
     ): DirectDeletionResult =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             mutex.withLock {
                 try {
-                    stage(file, verify)
+                    require(UUID.fromString(recoveryId).toString() == recoveryId)
+                    if (dao.get(recoveryId) != null) return@withLock DirectDeletionResult.FAILED
+                    stage(file, recoveryId, verify)
                 } catch (_: IOException) {
                     DirectDeletionResult.FAILED
                 } catch (_: SecurityException) {
@@ -67,11 +77,11 @@ class RecoveryRepository internal constructor(
 
     private suspend fun stage(
         file: DeletionFile,
+        id: String,
         verify: suspend (DeletionFile) -> Boolean,
     ): DirectDeletionResult {
         val source = File(file.canonicalPath)
         val root = rootFor(source)?.takeIf(available) ?: return DirectDeletionResult.FAILED
-        val id = UUID.randomUUID().toString()
         val directory = File(root, id).toPath()
         Files.createDirectories(root.toPath())
         Files.createDirectory(directory)
@@ -102,14 +112,63 @@ class RecoveryRepository internal constructor(
             DirectDeletionResult.FAILED
         } else {
             dao.setExpiry(id, now() + RETENTION_MILLIS)
+            refresh(file.canonicalPath)
             DirectDeletionResult.DELETED
         }
     }
 
     /** Creates a new copy and retains the recovery payload, including after partial/canceled restores. */
-    suspend fun restore(id: String): String? =
-        withContext(Dispatchers.IO) {
+    suspend fun restore(
+        id: String,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    ): String? =
+        withContext(ioDispatcher) {
             mutex.withLock { dao.get(id)?.let { restore(it) } }
+        }
+
+    /** Reconciliation verifies only the recorded payload; it never repeats a source move. */
+    suspend fun reconcileMove(
+        id: String,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        verify: suspend (String) -> Boolean,
+    ): RecoveryMoveState =
+        withContext(ioDispatcher) {
+            mutex.withLock {
+                val record = dao.get(id) ?: return@withLock RecoveryMoveState.NOT_MOVED
+                val payload = ownedPayload(record) ?: return@withLock RecoveryMoveState.UNAVAILABLE
+                if (Files.notExists(payload, LinkOption.NOFOLLOW_LINKS)) {
+                    return@withLock removeMissingRecord(id, payload)
+                }
+                if (!Files.isRegularFile(
+                        payload,
+                        LinkOption.NOFOLLOW_LINKS,
+                    )
+                ) {
+                    return@withLock RecoveryMoveState.UNAVAILABLE
+                }
+                if (verify(payload.toString())) {
+                    if (record.expiresAt == null) dao.setExpiry(id, now() + RETENTION_MILLIS)
+                    refresh(record.originalPath)
+                    RecoveryMoveState.VERIFIED
+                } else {
+                    restore(record)
+                    RecoveryMoveState.UNVERIFIED
+                }
+            }
+        }
+
+    private suspend fun removeMissingRecord(
+        id: String,
+        payload: Path,
+    ): RecoveryMoveState =
+        try {
+            Files.deleteIfExists(payload.parent)
+            dao.delete(id)
+            RecoveryMoveState.NOT_MOVED
+        } catch (_: IOException) {
+            RecoveryMoveState.UNAVAILABLE
+        } catch (_: SecurityException) {
+            RecoveryMoveState.UNAVAILABLE
         }
 
     private fun restore(record: RecoveryFile): String? {
@@ -133,8 +192,8 @@ class RecoveryRepository internal constructor(
         }
     }
 
-    suspend fun removeExpired() =
-        withContext(Dispatchers.IO) {
+    suspend fun removeExpired(ioDispatcher: CoroutineDispatcher = Dispatchers.IO) =
+        withContext(ioDispatcher) {
             mutex.withLock {
                 dao.expired(now()).forEach { record ->
                     try {
@@ -168,6 +227,8 @@ class RecoveryRepository internal constructor(
         val RETENTION_MILLIS: Long = TimeUnit.DAYS.toMillis(30)
     }
 }
+
+enum class RecoveryMoveState { VERIFIED, UNVERIFIED, NOT_MOVED, UNAVAILABLE }
 
 // Android/data is a separate bind mount: atomic moves from shared storage fail with EXDEV.
 // This hidden app-specific directory stays on the shared volume and is excluded from scans.

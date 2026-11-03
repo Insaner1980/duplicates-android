@@ -20,6 +20,41 @@
       ]
     },
     {
+      "id": "mobsf-tool-scan-input-keys",
+      "tool": "mobsfscan",
+      "rule": "android_kotlin_hardcoded",
+      "scope": "app/src/main/java/com/emma/duplicates/app/ToolScanWorker.kt android_kotlin_hardcoded tool/volume input keys",
+      "reason": "False positive in mobsfscan 0.4.5: TOOL_KEY and VOLUME_KEY name WorkManager input Data fields populated by ScanScheduler.startTool and read by ToolScanWorker.doWork. The literal field names tool and volume are not credentials or cryptographic keys. Match only these reviewed literals in this worker; other hardcoded-value findings remain blocking.",
+      "owner": "project-maintainers",
+      "added": "2026-11-03",
+      "expires": "2026-12-03",
+      "tracking": "local-review:mobsf-tool-scan-input-keys",
+      "sourcePath": "app/src/main/java/com/emma/duplicates/app/ToolScanWorker.kt",
+      "selector": "const val TOOL_KEY = \"tool\"",
+      "findingPath": "app/src/main/java/com/emma/duplicates/app/ToolScanWorker.kt",
+      "findingSelectors": [
+        "key = \"tool\"",
+        "key = \"volume\""
+      ]
+    },
+    {
+      "id": "mobsf-tool-results-month-item-key",
+      "tool": "mobsfscan",
+      "rule": "android_kotlin_hardcoded",
+      "scope": "app/src/main/java/com/emma/duplicates/ui/tools/ToolResultsScreen.kt android_kotlin_hardcoded month item key",
+      "reason": "False positive in mobsfscan 0.4.5: the month key identifies a LazyColumn screenshot month heading using a UI prefix and its month label. It is a Compose item identity, not a credential or cryptographic key. Match only this reviewed month expression; other hardcoded-value findings remain blocking.",
+      "owner": "project-maintainers",
+      "added": "2026-11-03",
+      "expires": "2026-12-03",
+      "tracking": "local-review:mobsf-tool-results-month-item-key",
+      "sourcePath": "app/src/main/java/com/emma/duplicates/ui/tools/ToolResultsScreen.kt",
+      "selector": "private fun androidx.compose.foundation.lazy.LazyListScope.toolItems(",
+      "findingPath": "app/src/main/java/com/emma/duplicates/ui/tools/ToolResultsScreen.kt",
+      "findingSelectors": [
+        "key = \"month:$month\""
+      ]
+    },
+    {
       "id": "mobsf-task-hijacking2-gradle-sdk",
       "tool": "mobsfscan",
       "rule": "android_task_hijacking2",

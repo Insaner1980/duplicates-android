@@ -65,6 +65,7 @@ fun PhotoPreviewScreen(
     state: PhotoPreviewUiState,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onKeep: (() -> Unit)? = null,
 ) {
     var imageLoadFailed by remember(state.imageModel) { mutableStateOf(false) }
     ScreenColumn(
@@ -95,6 +96,11 @@ fun PhotoPreviewScreen(
             sizeBytes = state.sizeBytes,
             dateEpochMillis = state.dateEpochMillis,
         )
+        if (onKeep !=
+            null
+        ) {
+            PrimaryActionButton(onKeep, Modifier.fillMaxWidth()) { Text(stringResource(R.string.tool_keep)) }
+        }
     }
 }
 

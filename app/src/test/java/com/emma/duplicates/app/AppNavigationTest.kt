@@ -43,6 +43,7 @@ import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.withLock
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -89,13 +90,34 @@ class AppNavigationTest {
 
     @After
     fun tearDown() {
-        if (::container.isInitialized) container.database.close()
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.DESTROYED)
+        if (::container.isInitialized) {
+            runBlocking {
+                container.deletionOperationMutex.withLock { container.database.close() }
+            }
+        }
         unmockkObject(WorkManager.Companion)
         unmockkStatic(Environment::class)
     }
 
     @Test
     fun settingsAndExclusionsReturnThroughTheirParents() = checkSettingsNavigation()
+
+    @Test
+    fun toolMenuAndRootTabsRemainReachableWithoutFileAccess() {
+        composeRule.onNodeWithText("Empty folders").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Unused apps").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Tools tab").performClick()
+        composeRule.onNodeWithText("Screenshots").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Home tab").performClick()
+        composeRule.onNodeWithTag("tool-DUPLICATES").performScrollTo().performClick()
+        awaitText(R.string.grant_storage_access)
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithText("Empty folders").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Recovery tab").performClick()
+        composeRule.onNodeWithContentDescription("Home tab").performClick()
+        composeRule.onNodeWithText("Large files").performScrollTo().assertIsDisplayed()
+    }
 
     @Test
     @Config(qualifiers = "w320dp-h900dp-mdpi")
@@ -116,7 +138,7 @@ class AppNavigationTest {
             }
             hiddenFolders.performClick()
             composeRule.onNodeWithText(text(R.string.types_to_scan)).performScrollTo().performClick()
-            awaitText(R.string.photos_supporting)
+            awaitText(R.string.photos)
             back()
             composeRule.onNodeWithText(text(R.string.exclusions)).performScrollTo().performClick()
             awaitText(R.string.no_excluded_folders)
@@ -128,6 +150,20 @@ class AppNavigationTest {
             composeRule.onNodeWithContentDescription(text(R.string.back)).performScrollTo().performClick()
             awaitText(R.string.grant_storage_access)
         }
+    }
+
+    @Test
+    fun exactResultsReturnToSetupAndItsToolsOrigin() {
+        seedSavedResults(container, application)
+        composeRule.onNodeWithContentDescription("Tools tab").performClick()
+        composeRule.onNodeWithTag("tool-DUPLICATES").performScrollTo().performClick()
+        composeRule.runOnIdle { openScanningRequests.tryEmit(ScanNavigationRequest()) }
+        awaitText(R.string.available_to_free)
+        back()
+        awaitText(R.string.grant_storage_access)
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithTag("tool-DUPLICATES").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.view_storage_usage)).assertDoesNotExist()
     }
 
     @Test

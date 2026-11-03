@@ -28,6 +28,27 @@ try {
     $runtimeTools = Join-Path $env:ANDROID_CHECK_HOME 'tools'
     New-Item -ItemType Directory -Path $runtimeTools -Force | Out-Null
     Copy-Item -LiteralPath $runtime -Destination (Join-Path $runtimeTools 'CheckRuntime.psm1')
+    Add-Content -LiteralPath (Join-Path $runtimeTools 'CheckRuntime.psm1') -Value @'
+function Invoke-RestMethod {
+    param($Uri, $Headers, $TimeoutSec, $MaximumRedirection, $ErrorAction)
+    if ($Headers.Authorization -ne "Bearer $env:SONAR_TOKEN" -or $TimeoutSec -ne 15 -or $MaximumRedirection -ne 0) {
+        throw 'Unexpected request options.'
+    }
+    Add-Content -LiteralPath (Join-Path $PSScriptRoot '../../requests.txt') -Value $Uri
+    if ($Uri -eq 'https://sonarcloud.io/api/ce/task?id=fixture-task') {
+        return @{ task = @{ status = 'SUCCESS'; analysisId = 'fixture-analysis' } }
+    }
+    if ($Uri -eq 'https://sonarcloud.io/api/qualitygates/project_status?analysisId=fixture-analysis') {
+        return @{ projectStatus = @{ status = 'ERROR'; conditions = @(
+            @{ status = 'ERROR'; metricKey = 'new_coverage'; actualValue = '70.2'; comparator = 'LT'; errorThreshold = '80' },
+            @{ status = 'ERROR'; metricKey = 'new_duplicated_lines_density'; actualValue = '4'; comparator = 'GT'; errorThreshold = '3' },
+            @{ status = 'OK'; metricKey = 'new_security_rating'; actualValue = '1'; comparator = 'GT'; errorThreshold = '1' }
+        ) } }
+    }
+    throw "Fixture API unavailable: $env:SONAR_TOKEN"
+}
+Export-ModuleMember -Function Invoke-RestMethod
+'@
     $gradle = Join-Path $tempRoot 'gradlew.bat'
     Set-Content -LiteralPath $gradle -Value @('@echo off', 'echo invoked>invoked.txt', 'echo %*>arguments.txt', 'echo %SONAR_TOKEN%', 'exit /b 0')
     $env:SONAR_TOKEN = 'sonar-fixture-redaction-value'
@@ -51,11 +72,30 @@ try {
     $report = Get-Content -Raw -LiteralPath (Join-Path $tempRoot 'reports/sonar.txt')
     Assert-True ($output -notmatch $env:SONAR_TOKEN -and $report -notmatch $env:SONAR_TOKEN) 'Token must be redacted from console and report.'
     Assert-True ($report -match '\[REDACTED_SECRET\]') 'Fixture token was not captured for redaction testing.'
+    Assert-True (-not (Test-Path (Join-Path $tempRoot 'requests.txt'))) 'Successful analysis must not request failure details.'
 
+    New-Item -ItemType Directory -Path (Join-Path $tempRoot 'build/sonar') -Force | Out-Null
+    $metadata = Join-Path $tempRoot 'build/sonar/report-task.txt'
+    Set-Content -LiteralPath $metadata -Value 'ceTaskId=fixture-task'
     Set-Content -LiteralPath $gradle -Value @('@echo off', 'echo QUALITY GATE STATUS: FAILED', 'exit /b 1')
-    Invoke-Fixture 1 @('-AllowExternalUpload') | Out-Null
+    $output = Invoke-Fixture 1 @('-AllowExternalUpload')
+    $report = Get-Content -Raw -LiteralPath (Join-Path $tempRoot 'reports/sonar.txt')
+    foreach ($text in @($output, $report)) {
+        Assert-True ($text.Contains('new_coverage: actual 70.2, required >= 80')) 'Failed coverage must explain the value and minimum.'
+        Assert-True ($text.Contains('new_duplicated_lines_density: actual 4, required <= 3')) 'Failed duplication must explain the maximum.'
+        Assert-True (-not $text.Contains('new_security_rating')) 'Passing conditions must not be reported as failures.'
+    }
     Set-Content -LiteralPath $gradle -Value @('@echo off', 'echo 21:07:12.345 ERROR QUALITY GATE STATUS: FAILED - View details 1>&2', 'exit /b 1')
-    Invoke-Fixture 1 @('-AllowExternalUpload') | Out-Null
+    $output = Invoke-Fixture 1 @('-AllowExternalUpload')
+    Assert-True ($output.Contains('new_coverage: actual 70.2, required >= 80')) 'Stderr failures must include gate details.'
+    Set-Content -LiteralPath $metadata -Value 'ceTaskId=unavailable-task'
+    $output = Invoke-Fixture 1 @('-AllowExternalUpload')
+    $report = Get-Content -Raw -LiteralPath (Join-Path $tempRoot 'reports/sonar.txt')
+    Assert-True ($output.Contains('Quality gate details unavailable')) 'API failure must preserve the findings result with a dashboard fallback.'
+    Assert-True ($output -notmatch $env:SONAR_TOKEN -and $report -notmatch $env:SONAR_TOKEN) 'API errors must not expose the token.'
+    Remove-Item -LiteralPath $metadata
+    $output = Invoke-Fixture 1 @('-AllowExternalUpload')
+    Assert-True ($output.Contains('Quality gate details unavailable')) 'Missing metadata must preserve the findings result.'
     Set-Content -LiteralPath $gradle -Value @('@echo off', 'echo Analysis failed', 'exit /b 1')
     Invoke-Fixture 2 @('-AllowExternalUpload') | Out-Null
     Set-Content -LiteralPath $gradle -Value @('@echo off', 'powershell.exe -NoProfile -Command "Start-Sleep -Seconds 30"')

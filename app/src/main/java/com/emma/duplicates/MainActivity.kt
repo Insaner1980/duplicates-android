@@ -33,8 +33,10 @@ import com.emma.duplicates.app.AppNavigation
 import com.emma.duplicates.app.DuplicatesApplication
 import com.emma.duplicates.app.ScanNavigationRequest
 import com.emma.duplicates.app.ScanNotificationFactory
+import com.emma.duplicates.app.ToolRoute
 import com.emma.duplicates.app.ViewModelFactory
 import com.emma.duplicates.core.designsystem.DuplicatesTheme
+import com.emma.duplicates.core.model.CleanupTool
 import com.emma.duplicates.data.preferences.AppThemeMode
 import com.emma.duplicates.domain.deletion.MediaAuthorization
 import kotlinx.coroutines.CancellationException
@@ -43,6 +45,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val openScanningRequests = MutableSharedFlow<ScanNavigationRequest>(extraBufferCapacity = 1)
+    private val openToolRequests = MutableSharedFlow<ToolRoute>(extraBufferCapacity = 1)
     private val deletionRecoveryGate = DeletionRecoveryGate()
     private lateinit var container: AppContainer
     private var scanStartPending by mutableStateOf(false)
@@ -94,7 +97,8 @@ class MainActivity : ComponentActivity() {
         )
 
         container = (application as DuplicatesApplication).container
-        val openScanningInitially = intent.consumeScanningDestination()
+        val openToolInitially = intent.consumeToolDestination()
+        val openScanningInitially = openToolInitially == null && intent.consumeScanningDestination()
         observeLifecycleRequests()
 
         setContent {
@@ -129,6 +133,8 @@ class MainActivity : ComponentActivity() {
                     openScanningInitially = openScanningInitially,
                     openScanningRequests = openScanningRequests,
                     scanStartPending = scanStartPending,
+                    openToolInitially = openToolInitially,
+                    openToolRequests = openToolRequests,
                 )
             }
         }
@@ -144,7 +150,10 @@ class MainActivity : ComponentActivity() {
                 }
                 launch {
                     container.scanScheduler.workActive.collect { active ->
-                        if (!active) container.scanScheduler.reconcileSession(container.scanStore)
+                        if (!active) {
+                            container.scanScheduler.reconcileSession(container.scanStore)
+                            container.scanScheduler.reconcileTools(container.toolResultStore)
+                        }
                     }
                 }
             }
@@ -154,7 +163,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (intent.consumeScanningDestination()) {
+        val tool = intent.consumeToolDestination()
+        if (tool != null) {
+            openToolRequests.tryEmit(tool)
+        } else if (intent.consumeScanningDestination()) {
             openScanningRequests.tryEmit(ScanNavigationRequest())
         }
     }
@@ -202,7 +214,15 @@ class MainActivity : ComponentActivity() {
         scanStartPending = true
         lifecycleScope.launch {
             try {
-                if (container.scanStore.pendingDeletions().isNotEmpty()) {
+                container.scanScheduler.activeToolRequest()?.let {
+                    openToolRequests.emit(it)
+                    return@launch
+                }
+                if (container.scanStore.pendingDeletions().isNotEmpty() ||
+                    container.toolResultStore.dao
+                        .pending()
+                        .isNotEmpty()
+                ) {
                     Toast.makeText(this@MainActivity, R.string.deletion_recovery_pending, Toast.LENGTH_LONG).show()
                     return@launch
                 }
@@ -219,7 +239,26 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun reconcilePendingDeletions() {
-        lifecycleScope.launch { container.pendingDeletionReconciler.reconcile() }
+        lifecycleScope.launch {
+            container.scanScheduler.reconcileSession(container.scanStore)
+            container.scanScheduler.reconcileTools(container.toolResultStore)
+            container.pendingDeletionReconciler.reconcile()
+            container.pendingCleanupReconciler.reconcile()
+        }
+    }
+
+    private fun Intent?.consumeToolDestination(): ToolRoute? {
+        val tool =
+            CleanupTool.entries.firstOrNull { it.name == this?.getStringExtra(ScanNotificationFactory.EXTRA_TOOL) }
+        val run = this?.getStringExtra(ScanNotificationFactory.EXTRA_RUN)
+        return if (tool != null && run != null) {
+            removeExtra(ScanNotificationFactory.EXTRA_TOOL)
+            removeExtra(ScanNotificationFactory.EXTRA_RUN)
+            removeExtra(ScanNotificationFactory.EXTRA_DESTINATION)
+            ToolRoute(tool.name, run)
+        } else {
+            null
+        }
     }
 
     private fun Intent?.consumeScanningDestination(): Boolean {

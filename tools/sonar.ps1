@@ -70,6 +70,40 @@ try {
             $summary = 'sonar: FINDINGS - analysis completed, but the SonarCloud quality gate failed.'
             Add-Content -LiteralPath $reportPath -Encoding utf8 -Value $summary
             Write-Output $summary
+            try {
+                $metadata = Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'build/sonar/report-task.txt')
+                if ($metadata -notmatch '(?m)^ceTaskId=([\w-]+)\r?$') {
+                    throw 'Analysis task ID is missing.'
+                }
+                $taskId = $Matches[1]
+                $headers = @{ Authorization = "Bearer $env:SONAR_TOKEN" }
+                $requestOptions = @{ Headers = $headers; TimeoutSec = 15; MaximumRedirection = 0; ErrorAction = 'Stop' }
+                $task = Invoke-RestMethod @requestOptions -Uri "https://sonarcloud.io/api/ce/task?id=$taskId"
+                if ($task.task.status -ne 'SUCCESS' -or [string]::IsNullOrWhiteSpace($task.task.analysisId)) {
+                    throw 'Completed analysis ID is unavailable.'
+                }
+                $analysisId = [Uri]::EscapeDataString($task.task.analysisId)
+                $gate = Invoke-RestMethod @requestOptions -Uri "https://sonarcloud.io/api/qualitygates/project_status?analysisId=$analysisId"
+                $failedConditions = @($gate.projectStatus.conditions | Where-Object status -eq 'ERROR')
+                if ($gate.projectStatus.status -ne 'ERROR' -or $failedConditions.Count -eq 0) {
+                    throw 'Failed quality gate conditions are unavailable.'
+                }
+                foreach ($condition in $failedConditions) {
+                    $required = switch ($condition.comparator) {
+                        'LT' { '>=' }
+                        'GT' { '<=' }
+                        default { "(failure comparator: $($condition.comparator))" }
+                    }
+                    $detail = "  $($condition.metricKey): actual $($condition.actualValue), required $required $($condition.errorThreshold)"
+                    $detail = $detail.Replace($env:SONAR_TOKEN, '[REDACTED_SECRET]')
+                    Add-Content -LiteralPath $reportPath -Encoding utf8 -Value $detail
+                    Write-Output $detail
+                }
+            } catch {
+                $detail = '  Quality gate details unavailable; see https://sonarcloud.io/dashboard?id=Insaner1980_duplicates-android'
+                Add-Content -LiteralPath $reportPath -Encoding utf8 -Value $detail
+                Write-Output $detail
+            }
             exit 1
         }
         throw "Sonar analysis failed (exit $($result.ExitCode))."

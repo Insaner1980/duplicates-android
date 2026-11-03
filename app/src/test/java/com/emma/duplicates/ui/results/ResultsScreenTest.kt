@@ -124,7 +124,6 @@ class ResultsScreenTest {
         composeRule
             .onNodeWithText(
                 "Move 11 selected files (1.1 KB) to recovery for at least 30 days? " +
-                    "Files marked \"Will be kept\" stay in place. Storage is not freed yet. " +
                     "Restore copies in Settings before removing the app or clearing its data.\n\n" +
                     "Includes 2 selected files not shown.",
             ).assertIsDisplayed()
@@ -257,8 +256,7 @@ class ResultsScreenTest {
         }
         composeRule
             .onNodeWithText(
-                "Moved to recovery: 1\nFreed now: 50 MB\nNot moved: 1\n" +
-                    "Restore copies in Settings. Storage is freed after the recovery period.",
+                "Moved to recovery: 1\nFreed now: 50 MB\nNot moved: 1",
             ).assertIsDisplayed()
         composeRule
             .onNodeWithText("Android deletion approval was canceled. The affected files were kept.")

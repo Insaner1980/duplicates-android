@@ -1,8 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home">Home</string>
+    <string name="tools">Tools</string>
+    <string name="recovery">Recovery</string>
+    <string name="root_tab_description">%1$s tab</string>
+    <string name="view_storage_usage">View storage usage</string>
+    <string name="storage_usage">Storage usage</string>
+    <string name="storage_ratio">%1$s / %2$s</string>
+    <string name="storage_free">%1$s free</string>
+    <string name="empty_folders">Empty folders</string>
+    <string name="large_files">Large files</string>
+    <string name="similar_photos">Similar photos</string>
+    <string name="screenshots">Screenshots</string>
+    <string name="old_downloads">Old downloads</string>
+    <string name="unused_apps">Unused apps</string>
     <string name="recovery_files">Recovery copies</string>
-    <string name="recovery_settings_summary">Restore files moved out of their original folders</string>
-    <string name="recovery_explanation">Copies stay here for at least 30 days and still use storage. Expired copies are permanently removed when you open this screen. Restore copies before uninstalling the app or clearing its data. Keep the original storage device connected. Restoration never replaces an existing file.</string>
     <string name="recovery_empty">No recovery copies.</string>
     <string name="recovery_expiry">Recover before %1$s</string>
     <string name="recovery_pending">Verification was interrupted or the file changed. This copy will not expire automatically.</string>
@@ -36,7 +48,7 @@
     <string name="deletion_recovery_pending">A scan or deletion recovery is in progress. Try again when it finishes.</string>
     <string name="deletion_incomplete">The operation was interrupted. Some files may have been deleted. Saved progress will be reconciled before another deletion.</string>
     <string name="deletion_selection_changed">The results or selected files changed. Review them and request deletion again.</string>
-    <string name="deletion_outcome">Moved to recovery: %1$d\nFreed now: %2$s\nNot moved: %3$d\nRestore copies in Settings. Storage is freed after the recovery period.</string>
+    <string name="deletion_outcome">Moved to recovery: %1$d\nFreed now: %2$s\nNot moved: %3$d</string>
     <string name="deletion_reason_vanished">Some files were already missing. They were not counted as deleted or freed space.</string>
     <string name="deletion_reason_changed">Some files changed since the scan and were kept. Scan again before reviewing them.</string>
     <string name="deletion_reason_revalidation_failed">Some files could not be verified as duplicates and were kept for safety.</string>
@@ -88,7 +100,6 @@
 
     <string name="storage_access_required">Storage access required</string>
     <string name="storage_access_explanation">Duplicates needs access to shared storage to compare files across your phone.</string>
-    <string name="scanning_never_deletes">Scanning never deletes anything.</string>
     <string name="grant_storage_access">Grant storage access</string>
     <string name="settings">Settings</string>
     <string name="scan_locations">Scan locations</string>
@@ -154,16 +165,14 @@
     <string name="selected_for_deletion">Selected for deletion</string>
     <string name="delete_confirmation_title">Move files to recovery?</string>
     <plurals name="delete_confirmation_message">
-        <item quantity="one">Move %1$d selected file (%2$s) to recovery for at least 30 days? Files marked \"Will be kept\" stay in place. Storage is not freed yet. Restore copies in Settings before removing the app or clearing its data.</item>
-        <item quantity="other">Move %1$d selected files (%2$s) to recovery for at least 30 days? Files marked \"Will be kept\" stay in place. Storage is not freed yet. Restore copies in Settings before removing the app or clearing its data.</item>
+        <item quantity="one">Move %1$d selected file (%2$s) to recovery for at least 30 days? Restore copies in Settings before removing the app or clearing its data.</item>
+        <item quantity="other">Move %1$d selected files (%2$s) to recovery for at least 30 days? Restore copies in Settings before removing the app or clearing its data.</item>
     </plurals>
     <plurals name="delete_selected">
         <item quantity="one">Delete %1$d file</item>
         <item quantity="other">Delete %1$d files</item>
     </plurals>
 
-    <string name="scans_skip_excluded_items">Scans will skip excluded items</string>
-    <string name="exclusions_explanation">Files and folders you exclude will not be included in duplicate scans.</string>
     <string name="excluded_folders">Excluded folders</string>
     <string name="excluded_files">Excluded files</string>
     <string name="section_count">%1$s (%2$d)</string>
@@ -192,10 +201,6 @@
     <string name="required">Required</string>
     <string name="app_version">App version</string>
 
-    <string name="photos_supporting">Images and screenshots</string>
-    <string name="videos_supporting">Videos and screen recordings</string>
-    <string name="audio_supporting">Music, recordings, and other audio</string>
-    <string name="documents_supporting">Documents, archives, installers, and other user files</string>
     <string name="select_at_least_one_type">Select at least one file type.</string>
 
     <string name="photo_preview">Photo preview</string>

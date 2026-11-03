@@ -190,7 +190,7 @@ class DuplicatesDatabaseTest {
         }
 
     @Test
-    fun migrationFrom3To4PreservesGroupsAndRemovesOnlyHashUniqueness() =
+    fun migrationFrom3PreservesGroupsAndRemovesOnlyHashUniqueness() =
         runTest {
             val context = ApplicationProvider.getApplicationContext<Context>()
             val name = "partition-migration-test"
@@ -207,6 +207,10 @@ class DuplicatesDatabaseTest {
                             "ON `duplicate_groups` (`sessionId`, `contentHash`, `fileSize`)",
                     )
                     sql.execSQL("DROP TABLE recovery_files")
+                    sql.execSQL("DROP TABLE cleanup_operation_items")
+                    sql.execSQL("DROP TABLE cleanup_operations")
+                    sql.execSQL("DROP TABLE tool_items")
+                    sql.execSQL("DROP TABLE tool_sessions")
                     sql.execSQL("PRAGMA user_version = 3")
                     sql.execSQL("UPDATE room_master_table SET identity_hash = 'version-3-fixture' WHERE id = 42")
                 } finally {
@@ -215,7 +219,7 @@ class DuplicatesDatabaseTest {
                 val migrated =
                     Room
                         .databaseBuilder(context, DuplicatesDatabase::class.java, name)
-                        .addMigrations(DuplicatesDatabase.MIGRATION_3_4)
+                        .addMigrations(DuplicatesDatabase.MIGRATION_3_4, DuplicatesDatabase.MIGRATION_4_5)
                         .build()
                 try {
                     val migratedDao = migrated.scanDao()

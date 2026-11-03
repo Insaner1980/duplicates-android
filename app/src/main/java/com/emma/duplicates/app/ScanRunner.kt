@@ -29,6 +29,8 @@ import com.emma.duplicates.data.preferences.PreferencesRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
@@ -52,6 +54,7 @@ class ScanRunner(
     private val exactDuplicateScanner: ExactDuplicateScanner,
     private val scanResultMapper: ScanResultMapper,
     private val currentTimeMillis: () -> Long = System::currentTimeMillis,
+    private val operationMutex: Mutex = Mutex(),
 ) {
     suspend fun run(
         sessionId: String,
@@ -60,7 +63,7 @@ class ScanRunner(
     ): ScanRunOutcome {
         val attempt = ScanAttempt()
         return try {
-            scanStore.startSession(sessionId, currentTimeMillis())
+            operationMutex.withLock { scanStore.startSession(sessionId, currentTimeMillis()) }
             attempt.sessionStarted = true
             onSessionStarted()
             scanSession(sessionId, onProgress, attempt)
@@ -457,7 +460,7 @@ private fun ExactDuplicateScanProgress.toOverallProgress(): Long {
 
 // These paths are excluded from scanning; no data is stored in external directories here.
 @Suppress("DEPRECATION", "kotlin:S5324")
-private fun Context.applicationDirectories(): Set<String> =
+internal fun Context.applicationDirectories(): Set<String> =
     buildSet {
         add(filesDir.path)
         add(cacheDir.path)
