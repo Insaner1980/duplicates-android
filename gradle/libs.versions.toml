@@ -2,7 +2,7 @@
 agp = "9.5.0"
 kotlin = "2.4.21"
 composeStabilityAnalyzer = "0.15.0"
-ksp = "2.3.12"
+ksp = "2.3.13"
 ktlintGradle = "14.2.0"
 ktlint = "1.8.0"
 detekt = "1.23.8"
