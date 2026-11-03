@@ -29,6 +29,7 @@ import com.emma.duplicates.ui.tools.titleResource
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -74,6 +75,26 @@ class ToolNavigationTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun singleTopToolRequestsUseTheNewToolAndRun() {
+        every { container.toolResultStore.latest(CleanupTool.OLD_DOWNLOADS) } returns
+            flowOf(ToolScanSession("downloads-run", CleanupTool.OLD_DOWNLOADS.name, 1L, ""))
+        compose.runOnIdle { nav.navigate(ToolRoute(CleanupTool.LARGE_FILES.name, "large-run")) }
+        compose.waitForIdle()
+        verify { container.toolResultStore.active(CleanupTool.LARGE_FILES) }
+        compose.runOnIdle {
+            nav.navigate(ToolRoute(CleanupTool.OLD_DOWNLOADS.name, "downloads-run")) { launchSingleTop = true }
+        }
+        compose.waitForIdle()
+        verify { container.toolResultStore.active(CleanupTool.OLD_DOWNLOADS) }
+        compose.onNodeWithText(compose.activity.getString(R.string.tool_run_unavailable)).assertDoesNotExist()
+        compose.runOnIdle {
+            nav.navigate(ToolRoute(CleanupTool.OLD_DOWNLOADS.name, "new-downloads-run")) { launchSingleTop = true }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText(compose.activity.getString(R.string.tool_run_unavailable)).assertIsDisplayed()
     }
 
     @Test

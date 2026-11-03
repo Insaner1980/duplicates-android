@@ -95,6 +95,20 @@ class UnusedAppsRepositoryTest {
         }
 
     @Test
+    fun inactivePackageUsesDeviceHistoryFreshnessInsteadOfItsLastEvent() =
+        runTest {
+            val inactive = evidence()
+            every { inactive.lastTimeStamp } returns now - TimeUnit.DAYS.toMillis(180)
+            every { usage.queryAndAggregateUsageStats(any(), any()) } returns
+                mapOf("old" to inactive, "active" to evidence(now))
+            val result = repository.load(90, false)
+            assertEquals("old", result.apps.single().packageName)
+
+            every { usage.queryAndAggregateUsageStats(any(), any()) } returns mapOf("old" to inactive)
+            assertEquals(UsageAccessState.UNAVAILABLE, repository.load(90, false).state)
+        }
+
+    @Test
     fun recentSystemSelfMissingAndUnknownApplicationsAreNotOffered() =
         runTest {
             every { packages.queryIntentActivities(any(), any<Int>()) } returns

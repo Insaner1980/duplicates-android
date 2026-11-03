@@ -97,7 +97,11 @@ class UnusedAppsRepository(
             context
                 .getSystemService(UsageStatsManager::class.java)
                 .queryAndAggregateUsageStats(now - TimeUnit.DAYS.toMillis(HISTORY_DAYS), now)
-        if (history.isNullOrEmpty()) return UnusedAppsResult(UsageAccessState.UNAVAILABLE)
+        // A package's endpoint advances with its events, even when device history is current.
+        val historyUntil = history?.values?.maxOfOrNull { it.lastTimeStamp } ?: 0L
+        if (history.isNullOrEmpty() || historyUntil < now - TimeUnit.DAYS.toMillis(1)) {
+            return UnusedAppsResult(UsageAccessState.UNAVAILABLE)
+        }
         val packages = context.packageManager
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val apps =
@@ -107,7 +111,7 @@ class UnusedAppsRepository(
                 .distinct()
                 .mapNotNull { name ->
                     currentCoroutineContext().ensureActive()
-                    unusedApp(name, history[name], days, now)
+                    unusedApp(name, history[name], days, now, historyUntil)
                 }.sortedWith(compareBy<UnusedApp> { it.lastUsed }.thenBy { it.packageName })
         return if (!hasAccess()) {
             UnusedAppsResult(UsageAccessState.REVOKED)
@@ -122,6 +126,7 @@ class UnusedAppsRepository(
         usage: android.app.usage.UsageStats?,
         days: Int,
         now: Long,
+        historyUntil: Long,
     ): UnusedApp? =
         try {
             val packages = context.packageManager
@@ -136,7 +141,7 @@ class UnusedAppsRepository(
                 val lastUse =
                     AppUsageEvidence(
                         usage.firstTimeStamp,
-                        usage.lastTimeStamp,
+                        historyUntil,
                         usage.lastTimeUsed,
                         usage.lastTimeForegroundServiceUsed,
                         info.firstInstallTime,

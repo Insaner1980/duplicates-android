@@ -25,6 +25,19 @@ class StorageUsageTest {
     }
 
     @Test
+    fun incompleteScansDoNotPresentPartialFolderTotalsAsComplete() {
+        val items =
+            listOf(
+                file("a", "/volume/DCIM/a.jpg", "PHOTOS", 10L),
+                file("b", "/volume/Movies/nested/b.mp4", "VIDEOS", 40L),
+            )
+        val usage = storageUsage(items, "/volume", 200L, 100L, complete = false)
+        assertEquals(listOf("DCIM", "Movies"), usage.folders.map { it.name })
+        assertEquals(listOf(null, null), usage.folders.map { it.bytes })
+        assertNull(storageUsage(items, "/volume/Movies", 200L, 100L, complete = false).folders.single().bytes)
+    }
+
+    @Test
     fun unknownAllocationAndInconsistentTotalsDoNotBecomeZeroResidual() {
         assertNull(storageUsage(listOf(file("a", "/volume/a", "DOCUMENTS", 150L)), "/volume", 100L, 0L).otherUsedBytes)
         assertNull(storageUsage(listOf(file("a", "/volume/a", "DOCUMENTS", null)), "/volume", 100L, 0L).otherUsedBytes)

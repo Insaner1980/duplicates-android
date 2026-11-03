@@ -20,6 +20,7 @@ fun storageUsage(
     folder: String,
     totalBytes: Long?,
     freeBytes: Long?,
+    complete: Boolean = true,
 ): StorageUsage {
     val files = items.filter { it.valid && !it.directory }.distinctBy { it.volume to it.canonicalPath }
     val categories =
@@ -48,7 +49,7 @@ fun storageUsage(
                     .firstOrNull()
                     ?.toString()
             }.mapNotNull { (name, children) ->
-                name?.let { FolderUsage(root.resolve(it).toString(), it, allocatedTotal(children)) }
+                name?.let { FolderUsage(root.resolve(it).toString(), it, allocatedTotal(children).takeIf { complete }) }
             }.sortedWith(compareByDescending<FolderUsage> { it.bytes ?: -1L }.thenBy { it.path })
     return StorageUsage(categories, residual, folders)
 }

@@ -80,7 +80,14 @@ fun StorageUsageScreen(
                 }
             Text(stringResource(R.string.tool_used, size(used)), style = MaterialTheme.typography.headlineMedium)
             Text(stringResource(R.string.tool_total, size(session.totalBytes)))
-            val usage = storageUsage(state.results.items, folder, session.totalBytes, session.freeBytes)
+            val usage =
+                storageUsage(
+                    state.results.items,
+                    folder,
+                    session.totalBytes,
+                    session.freeBytes,
+                    session.complete,
+                )
             StorageCategories(usage, session)
             StorageFolders(usage.folders, folder, root, onFolder)
         }

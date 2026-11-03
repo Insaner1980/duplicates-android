@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteFullException
 import com.emma.duplicates.core.database.ScanFailureReasons
 import com.emma.duplicates.core.database.ScanStatuses
 import com.emma.duplicates.core.database.ScanStoreDatabaseTest
+import com.emma.duplicates.core.database.ToolScanSession
 import com.emma.duplicates.core.model.CleanupTool
 import com.emma.duplicates.core.model.ToolScope
 import com.emma.duplicates.core.storage.AvailableStorageVolume
@@ -80,6 +81,30 @@ class ToolScanRunnerTest : ScanStoreDatabaseTest() {
                     .path,
             )
             assertEquals(0, progress.first())
+        }
+
+    @Test
+    fun interruptedAndCanceledWorkCanRestartWithTheSameRunId() =
+        runTest {
+            val downloads = volume.directory.resolve("Download").apply { mkdir() }
+            val file = downloads.resolve("old.txt").apply { writeText("download") }
+            assertTrue(runner.run("previous", CleanupTool.OLD_DOWNLOADS))
+            val previous = store.active(CleanupTool.OLD_DOWNLOADS).first()!!
+            store.setSelected("previous", previous.items.single().id, true)
+            store.start(ToolScanSession("restart", CleanupTool.OLD_DOWNLOADS.name, 1L, ToolScope(emptyList()).encode()))
+            try {
+                runner.run("restart", CleanupTool.OLD_DOWNLOADS) { _, _ -> throw CancellationException("stopped") }
+                org.junit.Assert.fail("Restart must reach scanning")
+            } catch (_: CancellationException) {
+                assertEquals(ScanStatuses.CANCELED, store.dao.session("restart")!!.status)
+            }
+            val preserved = store.active(CleanupTool.OLD_DOWNLOADS).first()!!
+            assertTrue(preserved.items.single().selected)
+            assertTrue(runner.run("restart", CleanupTool.OLD_DOWNLOADS))
+            val restarted = store.active(CleanupTool.OLD_DOWNLOADS).first()!!
+            assertEquals("restart", restarted.session.id)
+            assertEquals(listOf(file.canonicalPath), restarted.items.map { it.canonicalPath })
+            assertTrue(restarted.items.none { it.selected })
         }
 
     @Test

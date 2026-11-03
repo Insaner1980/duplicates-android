@@ -59,6 +59,7 @@ private fun FileToolDestination(
     model: ToolViewModel =
         viewModel(
             viewModelStoreOwner = entry,
+            key = entry.toRoute<ToolRoute>().let { "tool:${it.tool}:${it.runId}" },
             factory =
                 ViewModelFactory {
                     ToolViewModel(tool, entry.toRoute<ToolRoute>().runId, container, authorizer, entry.savedStateHandle)

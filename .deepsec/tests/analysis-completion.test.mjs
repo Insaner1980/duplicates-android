@@ -179,7 +179,7 @@ test("excluded historical reports stay intact and cannot enter the processing ma
     });
     const reportPath = path.join(dataRoot, "files/report.json");
     // No report source exists: excluded records must not cause a source read.
-    for (const status of ["pending", "error", "analyzed"]) {
+    for (const status of ["processing", "pending", "error", "analyzed"]) {
       const report = { ...completed, status, filePath: "reports/old/manifest.json", lastScannedRunId: "old" };
       writeJson(reportPath, report);
       verify(root, { prepare: true });

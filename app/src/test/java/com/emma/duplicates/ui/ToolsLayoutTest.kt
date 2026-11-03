@@ -78,6 +78,33 @@ class ToolsLayoutTest {
     @Config(qualifiers = "w640dp-h320dp-mdpi")
     fun shortLandscapeMatrix() = matrix("landscape")
 
+    @Test
+    @Config(qualifiers = "w320dp-h800dp-mdpi")
+    fun partialFolderSizesRemainUnknownInBothThemesAndFontSizes() {
+        val scale = mutableFloatStateOf(1f)
+        val dark = mutableStateOf(true)
+        val original = fixture(CleanupTool.STORAGE_USAGE)
+        val results = requireNotNull(original.results)
+        val state = original.copy(results = results.copy(session = results.session.copy(complete = false)))
+        composeRule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f, scale.floatValue)) {
+                DuplicatesTheme(dark.value) {
+                    StorageUsageScreen(state, {}, {}, {}, {}, {})
+                }
+            }
+        }
+        for (theme in listOf(true, false)) {
+            for (font in listOf(1f, 2f)) {
+                composeRule.runOnIdle {
+                    dark.value = theme
+                    scale.floatValue = font
+                }
+                composeRule.onNode(hasText("DCIM") and hasText("Unknown")).performScrollTo().assertIsDisplayed()
+                assertReadableText()
+            }
+        }
+    }
+
     private val usageState = mutableStateOf(UsageAccessState.RESULTS)
     private var previews = 0
     private var selections = 0

@@ -29,10 +29,20 @@ class ToolResultStore(
 
     suspend fun start(session: ToolScanSession) =
         database.withTransaction {
-            check(dao.running().isEmpty() && dao.pending().isEmpty()) { "A tool operation is active" }
+            check(dao.running().none { it.id != session.id } && dao.pending().isEmpty()) {
+                "A tool operation is active"
+            }
             check(database.deletionOperationDao().getPending().isEmpty()) { "Deletion recovery is pending" }
             check(database.scanDao().observeRunningSession().first() == null) { "A duplicate scan is active" }
-            dao.insertSession(session)
+            val previous = dao.session(session.id)
+            if (previous == null) {
+                dao.insertSession(session)
+            } else {
+                check(previous.tool == session.tool && !previous.active && previous.status != ScanStatuses.COMPLETED) {
+                    "Only an unfinished attempt of the same tool can restart"
+                }
+                dao.updateSession(session)
+            }
         }
 
     suspend fun complete(

@@ -64,6 +64,30 @@ class ToolResultStoreTest {
         }
 
     @Test
+    fun restartCannotReplaceCompletedResultsOrBypassOperationGuards() =
+        runTest {
+            complete("saved", CleanupTool.LARGE_FILES, listOf(item("saved", "first")))
+            store.setSelected("saved", "first", true)
+            assertTrue(runCatching { store.start(session("saved", CleanupTool.LARGE_FILES)) }.isFailure)
+            val attempt = session("restart", CleanupTool.OLD_DOWNLOADS)
+            store.start(attempt)
+            assertTrue(runCatching { store.start(session("restart", CleanupTool.LARGE_FILES)) }.isFailure)
+            assertTrue(runCatching { store.start(session("other", CleanupTool.LARGE_FILES)) }.isFailure)
+            database.toolDao().insertOperation(
+                com.emma.duplicates.core.database.CleanupOperation(
+                    "pending",
+                    "saved",
+                    CleanupTool.LARGE_FILES.name,
+                    1L,
+                ),
+            )
+            assertTrue(runCatching { store.start(attempt) }.isFailure)
+            assertEquals(attempt, store.dao.session("restart"))
+            val preserved = store.active(CleanupTool.LARGE_FILES).first()!!
+            assertTrue(preserved.items.single().selected)
+        }
+
+    @Test
     fun replacingResultsPrunesOnlyTheSameToolAndStartsUnselected() =
         runTest {
             complete("old", CleanupTool.LARGE_FILES, listOf(item("old", "first")))

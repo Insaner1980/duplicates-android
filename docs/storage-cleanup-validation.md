@@ -1,6 +1,6 @@
 # Storage cleanup expansion validation
 
-Implementation date: 2026-11-03. This describes the uncommitted working tree on `codex/results-selection-clarity`, based on `8300bb6f383ce5f83b39eb2df8bb6b30e7a47ee1` with the user's existing UI text changes preserved. No commit, push, pull request, signing change, SDK update, or dependency update is part of this work.
+Implementation date: 2026-11-03. This records the storage cleanup expansion reviewed at commit `5ec850023505de942d6b9ae0f428e4a6717d8b69`, including the existing UI text changes. Device evidence is limited to API 36; physical storage, OEM usage history, human accessibility and signed-release runtime acceptance remain unverified as detailed below.
 
 ## Implemented behavior
 
@@ -57,8 +57,7 @@ There are no deferred code-review findings. Apparent missing bottom-tab content 
 - Android's public `Os` API has no `rmdir`. Empty-folder removal uses a `SecureDirectoryStream` opened from the captured volume root and relative `NOFOLLOW_LINKS` traversal, followed by `deleteDirectory` (`unlinkat` with `AT_REMOVEDIR` on Android). Unsupported providers skip safely; there is no generic file-delete fallback.
 - Real Android testing showed direct 9-by-8 decoding was unstable across JPEG resize sampling. A bounded 72-by-64 decoded image is area-averaged into the same 9-by-8 dHash input. The algorithm/version and matching limits remain explicit in stored results/scope.
 - The light-theme selected tab uses a darker orange for readable small text. Compact widths, large text and short landscape reflow cards and footers instead of preserving a fixed phone silhouette. English labels and real system insets differ from the Finnish presentation boards. Synthetic image/app contents are not production constants.
-- Work remained in the existing feature checkout to preserve the original uncommitted text changes. No duplicate checkout or unrelated refactor was created.
-- The ten plan phases were the execution units. The final review used the working-tree diff and new files rather than an empty commit range, because committing was not authorized. The existing user's text-only changes were identified separately for the reviewer.
+- The existing UI text changes were preserved and identified separately during implementation review.
 
 ## Remaining platform evidence
 
@@ -79,4 +78,4 @@ The release APK is unsigned; successful shrinking/building does not establish si
 
 The task-owned API 36 emulator was stopped through its explicit `emulator-5592` serial. Its launcher, headless QEMU, console and crash handler processes were verified absent. All task Gradle commands finished; no temporary server or watcher remains.
 
-**Cleanup blocker:** automatic approval review rejected deletion of `.superpowers/sdd/2026-11-03-storage-cleanup-expansion/`, including a retry using its exact absolute literal path. The only stated reason was `blocked by policy`. The resolved path and all ancestors had already been checked, and its subtree contained no junctions or symlinks. The scratch tree therefore remains, including the disposable AVD, synthetic device fixture, diagnostic logs, preview image, extracted inspection JAR, formatter script and execution/review notes. It is untracked and is not a deliverable. The restriction was not bypassed. Unrelated devices, emulators, processes and original user files were preserved.
+The retained local outputs above document implementation-time checks. They do not establish runtime verification of later commits; the remaining platform evidence limits still apply.

@@ -2,7 +2,7 @@
 
 This document describes the implementation in `app/src/main`, its verification code in `app/src/test` and `app/src/androidTest`, and the checked-in build and CI configuration. The code, Gradle files, workflow files, and generated Room schema are the source of truth.
 
-Storage cleanup source update: **2026-11-03**. Current expansion evidence is tracked in `docs/storage-cleanup-validation.md`; the historical verification sections below retain their original dates and limits. This reference describes the uncommitted working tree, including the earlier Results selection-clarity changes. It does not certify a published release or an APK built from a particular commit. The previous documentation-only review on **2026-11-02** inspected existing reports without running tests; the expansion report records the new implementation checks separately.
+Storage cleanup source update: **2026-11-03**. Current expansion evidence is tracked in `docs/storage-cleanup-validation.md`; the historical verification sections below retain their original dates and limits. The expansion was reviewed at commit `5ec850023505de942d6b9ae0f428e4a6717d8b69`, including the earlier Results selection-clarity changes. This reference does not certify a published release or an APK built from a particular commit. The previous documentation-only review on **2026-11-02** inspected existing reports without running tests; the expansion report records the new implementation checks separately.
 
 ## Using this reference for reviews, tests, and UI work
 

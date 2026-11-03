@@ -41,7 +41,7 @@ export function verify(projectRoot = fileURLToPath(new URL("../../", import.meta
   const ignorePaths = readJson(path.join(dataRoot, "config.json")).ignorePaths ?? [];
   const candidates = allRecords.filter(({ record }) =>
     !ignorePaths.some(pattern => path.matchesGlob(record.filePath.replaceAll("\\", "/"), pattern)));
-  if (prepare && allRecords.some(({ record }) => record.status === "processing")) {
+  if (prepare && candidates.some(({ record }) => record.status === "processing")) {
     throw new Error(
       "DeepSec records are still processing or belong to an interrupted run. If a run is active, wait for it to finish. " +
       "Only when no run is active, recover from the repository root with:\n" +
