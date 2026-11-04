@@ -71,7 +71,10 @@ class RecoveryViewModelTest {
             coVerify(exactly = 1) { repository.restore("one", any()) }
             coVerify(exactly = 0) { repository.restore("two", any()) }
             assertEquals(emptySet<String>(), model.state.value.selectedIds)
-            assertEquals(RecoveryOutcome(RecoveryAction.RESTORE, 1, 0), model.state.value.outcome)
+            assertEquals(
+                RecoveryOutcome(RecoveryAction.RESTORE, 1, 0, listOf("/restored/one")),
+                model.state.value.outcome,
+            )
             assertFalse(model.state.value.busy)
         }
 
@@ -107,13 +110,34 @@ class RecoveryViewModelTest {
             model.restoreSelected()
             runCurrent()
             assertEquals(setOf("two"), model.state.value.selectedIds)
-            assertEquals(RecoveryOutcome(RecoveryAction.RESTORE, 1, 1), model.state.value.outcome)
+            assertEquals(
+                RecoveryOutcome(RecoveryAction.RESTORE, 1, 1, listOf("/restored/one")),
+                model.state.value.outcome,
+            )
             coEvery { repository.deletePermanently("two", any()) } returns false
             model.requestDelete()
             model.confirmDelete()
             runCurrent()
             assertEquals(setOf("two"), model.state.value.selectedIds)
             assertEquals(RecoveryOutcome(RecoveryAction.DELETE, 0, 1), model.state.value.outcome)
+        }
+
+    @Test fun restoreOutcomeKeepsActualDestinationsIncludingRenamedFiles() =
+        runTest(main.dispatcher) {
+            runCurrent()
+            val renamed = "/original/one.restored-93e6b89a-6ab6-4fb2-928c-25218c616840"
+            coEvery { repository.restore("one", any()) } returns renamed
+            coEvery { repository.restore("two", any()) } returns "/original/two"
+            model.select("one", true)
+            model.select("two", true)
+            model.restoreSelected()
+            runCurrent()
+            assertEquals(
+                RecoveryOutcome(RecoveryAction.RESTORE, 2, 0, listOf(renamed, "/original/two")),
+                model.state.value.outcome,
+            )
+            model.dismissResult()
+            assertNull(model.state.value.outcome)
         }
 
     @Test fun pendingCleanupBlocksRecoveryMutation() =

@@ -8,6 +8,7 @@ data class RecoveryOutcome(
     val action: RecoveryAction,
     val succeeded: Int,
     val failed: Int,
+    val restoredPaths: List<String> = emptyList(),
 )
 
 data class RecoveryUiState(

@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
@@ -42,6 +44,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.ImageLoader
 import com.emma.duplicates.R
 import com.emma.duplicates.core.designsystem.CleanupMetadata
 import com.emma.duplicates.core.designsystem.CleanupRowTitle
@@ -68,6 +71,7 @@ fun RecoveryScreen(
     onDismissResult: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val imageLoader = rememberVideoThumbnailImageLoader()
     BoxWithConstraints(modifier.fillMaxSize()) {
         val footerInList = maxHeight < 360.dp
         val stackedMetadata = maxWidth < 360.dp || LocalDensity.current.fontScale >= LARGE_FONT_SCALE
@@ -103,6 +107,7 @@ fun RecoveryScreen(
                         stackedMetadata,
                         index == 0,
                         index == state.entries.lastIndex,
+                        imageLoader,
                         { onSelect(entry.file.id, it) },
                     )
                 }
@@ -122,6 +127,7 @@ private fun RecoveryRow(
     stackedMetadata: Boolean,
     first: Boolean,
     last: Boolean,
+    imageLoader: ImageLoader,
     onSelect: (Boolean) -> Unit,
 ) {
     val original = File(entry.file.originalPath)
@@ -148,7 +154,7 @@ private fun RecoveryRow(
                     entry.previewPath?.let(::File),
                     null,
                     null,
-                    rememberVideoThumbnailImageLoader(),
+                    imageLoader,
                     false,
                     Modifier.clip(RoundedCornerShape(8.dp)),
                     size = 48.dp,
@@ -260,38 +266,55 @@ private fun RecoveryDialogs(
             dismissButton = { TextButton(onDismissDelete) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
-    state.outcome?.let { outcome ->
-        val result =
-            when {
-                outcome.action == RecoveryAction.RESTORE && outcome.failed == 0 -> {
-                    stringResource(
-                        R.string.recovery_restored_count,
-                        outcome.succeeded,
-                    )
-                }
+    state.outcome?.let { RecoveryResultDialog(it, onDismissResult) }
+}
 
-                outcome.action == RecoveryAction.RESTORE -> {
-                    stringResource(
-                        R.string.recovery_restore_outcome,
-                        outcome.succeeded,
-                        outcome.failed,
-                    )
-                }
-
-                outcome.failed == 0 -> {
-                    stringResource(R.string.recovery_deleted_count, outcome.succeeded)
-                }
-
-                else -> {
-                    stringResource(R.string.recovery_delete_outcome, outcome.succeeded, outcome.failed)
-                }
+@Composable
+private fun RecoveryResultDialog(
+    outcome: RecoveryOutcome,
+    onDismissResult: () -> Unit,
+) {
+    val result =
+        when {
+            outcome.action == RecoveryAction.RESTORE && outcome.failed == 0 -> {
+                stringResource(
+                    R.string.recovery_restored_count,
+                    outcome.succeeded,
+                )
             }
-        AlertDialog(
-            onDismissRequest = onDismissResult,
-            title = { Text(result) },
-            confirmButton = { TextButton(onDismissResult) { Text(stringResource(android.R.string.ok)) } },
-        )
-    }
+
+            outcome.action == RecoveryAction.RESTORE -> {
+                stringResource(
+                    R.string.recovery_restore_outcome,
+                    outcome.succeeded,
+                    outcome.failed,
+                )
+            }
+
+            outcome.failed == 0 -> {
+                stringResource(R.string.recovery_deleted_count, outcome.succeeded)
+            }
+
+            else -> {
+                stringResource(R.string.recovery_delete_outcome, outcome.succeeded, outcome.failed)
+            }
+        }
+    AlertDialog(
+        onDismissRequest = onDismissResult,
+        title = { Text(result) },
+        text =
+            if (outcome.restoredPaths.isEmpty()) {
+                null
+            } else {
+                {
+                    Text(
+                        outcome.restoredPaths.joinToString("\n\n"),
+                        Modifier.verticalScroll(rememberScrollState()).testTag("recovery-restored-paths"),
+                    )
+                }
+            },
+        confirmButton = { TextButton(onDismissResult) { Text(stringResource(android.R.string.ok)) } },
+    )
 }
 
 @Composable

@@ -93,19 +93,22 @@ class RecoveryViewModel(
         mutableState.update { it.copy(busy = true, outcome = null) }
         viewModelScope.launch {
             var succeeded = 0
+            val restoredPaths = mutableListOf<String>()
             try {
                 operationMutex.withLock {
                     if (canMutate()) {
                         for (id in ids) {
                             currentCoroutineContext().ensureActive()
-                            if (performAction(id, action)) {
+                            if (performAction(id, action, restoredPaths)) {
                                 succeeded++
                                 mutableState.update { it.copy(selectedIds = it.selectedIds - id) }
                             }
                         }
                     }
                 }
-                mutableState.update { it.copy(outcome = RecoveryOutcome(action, succeeded, ids.size - succeeded)) }
+                mutableState.update {
+                    it.copy(outcome = RecoveryOutcome(action, succeeded, ids.size - succeeded, restoredPaths.toList()))
+                }
             } finally {
                 mutableState.update { it.copy(busy = false) }
                 onResume()
@@ -116,11 +119,20 @@ class RecoveryViewModel(
     private suspend fun performAction(
         id: String,
         action: RecoveryAction,
+        restoredPaths: MutableList<String>,
     ): Boolean =
         try {
             when (action) {
-                RecoveryAction.RESTORE -> repository.restore(id) != null
-                RecoveryAction.DELETE -> repository.deletePermanently(id)
+                RecoveryAction.RESTORE -> {
+                    repository.restore(id)?.let { path ->
+                        restoredPaths += path
+                        true
+                    } ?: false
+                }
+
+                RecoveryAction.DELETE -> {
+                    repository.deletePermanently(id)
+                }
             }
         } catch (cancelled: CancellationException) {
             throw cancelled

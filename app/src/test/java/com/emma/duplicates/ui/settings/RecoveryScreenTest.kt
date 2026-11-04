@@ -27,6 +27,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import coil3.compose.AsyncImagePreviewHandler
@@ -38,6 +39,7 @@ import com.emma.duplicates.ui.tools.RootNavigationBar
 import com.emma.duplicates.ui.tools.RootTab
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -190,6 +192,33 @@ class RecoveryScreenTest {
         composeRule.onNodeWithTag("recovery-selected-size").assertTextEquals("—")
         composeRule.onNodeWithContentDescription("No expiry date").assertIsDisplayed()
         assertReadableText()
+    }
+
+    @Test fun restoredPathsRemainReadableAndScrollableAt320dpInBothThemesAndFontScales() {
+        val paths =
+            (1..12).map {
+                "/storage/emulated/0/Pictures/Camera/Photo-$it.jpg.restored-93e6b89a-6ab6-4fb2-928c-25218c616840"
+            }
+        val font = mutableFloatStateOf(1f)
+        val dark = mutableStateOf(false)
+        show(font, dark)
+        for (theme in listOf(false, true)) {
+            for (scale in listOf(1f, 2f)) {
+                composeRule.runOnIdle {
+                    dark.value = theme
+                    font.floatValue = scale
+                    state.value = fixture().copy(outcome = RecoveryOutcome(RecoveryAction.RESTORE, 12, 1, paths))
+                }
+                composeRule.onNodeWithText("Restored 12, failed 1").assertIsDisplayed()
+                composeRule
+                    .onNodeWithTag("recovery-restored-paths")
+                    .assertTextEquals(paths.joinToString("\n\n"))
+                    .performSemanticsAction(SemanticsActions.ScrollBy) { scroll -> assertTrue(scroll(0f, 10_000f)) }
+                assertReadableText()
+                composeRule.onNodeWithText("OK").assertIsDisplayed().performClick()
+                composeRule.onNodeWithTag("recovery-restored-paths").assertDoesNotExist()
+            }
+        }
     }
 
     @Test fun emptyRecoveryKeepsBothActionsDisabled() {

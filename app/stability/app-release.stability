@@ -844,7 +844,15 @@ private fun com.emma.duplicates.ui.settings.RecoveryMetadata(entry: com.emma.dup
     - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
-private fun com.emma.duplicates.ui.settings.RecoveryRow(entry: com.emma.duplicates.data.RecoveryEntry, selected: kotlin.Boolean, busy: kotlin.Boolean, stackedMetadata: kotlin.Boolean, first: kotlin.Boolean, last: kotlin.Boolean, onSelect: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.settings.RecoveryResultDialog(outcome: com.emma.duplicates.ui.settings.RecoveryOutcome, onDismissResult: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - outcome: RUNTIME (requires runtime check)
+    - onDismissResult: STABLE (function type)
+
+@Composable
+private fun com.emma.duplicates.ui.settings.RecoveryRow(entry: com.emma.duplicates.data.RecoveryEntry, selected: kotlin.Boolean, busy: kotlin.Boolean, stackedMetadata: kotlin.Boolean, first: kotlin.Boolean, last: kotlin.Boolean, imageLoader: coil3.ImageLoader, onSelect: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -854,6 +862,7 @@ private fun com.emma.duplicates.ui.settings.RecoveryRow(entry: com.emma.duplicat
     - stackedMetadata: STABLE (primitive type)
     - first: STABLE (primitive type)
     - last: STABLE (primitive type)
+    - imageLoader: UNKNOWN (interface or non-final class; concrete implementation unknown)
     - onSelect: STABLE (function type)
 
 @Composable
