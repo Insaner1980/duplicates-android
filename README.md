@@ -8,11 +8,11 @@ All scanning and comparison happens on the device. The app has no `INTERNET` per
 
 ## Storage cleanup tools
 
-Home and Tools offer Duplicates, Empty folders, Large files, Similar photos, Screenshots, Old downloads, and Unused apps. The storage card opens Storage usage; Recovery is a root tab. Exact scan options remain under Duplicates.
+Home and Recovery are the two root tabs. Home offers Duplicates, Empty folders, Large files, Similar photos, Screenshots, Downloads, and Unused apps. The storage card opens Storage usage. Exact scan options remain under Duplicates.
 
 New file results start unselected. Reviewed files move to same-volume recovery after their own SHA-256 and identity checks; a recovery move reports zero bytes freed immediately. Empty folders use a separate, directory-only removal operation and never enter Recovery. All cleanup operations share the existing mutation gate. Each tool retains its last completed result while a replacement runs.
 
-Large files starts above 100 MB, with 500 MB and 1 GB filters. Screenshots and downloads default to older than six calendar months, with one-year and All options. Similar photos uses an orientation-aware perceptual fingerprint, requires pairwise similarity within each group, and protects one explicit keeper. This is separate from byte-identical duplicate proof.
+Large files starts above 100 MB, with 500 MB and 1 GB filters. New Screenshots and Downloads views start with All dates; saved filters remain unchanged, and six-month and one-year filters are available. Screenshot month checkboxes select or clear only that visible month's eligible files. Similar photos uses an orientation-aware perceptual fingerprint, requires pairwise similarity within each group, and protects one explicit keeper. This is separate from byte-identical duplicate proof.
 
 Storage usage measures one whole mounted volume, including allocated file bytes and a conservative Other used space remainder; unknown or inconsistent measurements remain unknown. Unused apps requests Usage access only when opened, lists eligible user-installed launcher apps with sufficient recorded history, and opens Android app details. It does not uninstall apps itself, request broad package visibility, or classify absent history as unused.
 
@@ -477,7 +477,7 @@ The in-app confirmation is enabled by default. Before deletion, every selected f
 
 Before any file mutation, Room records the selected file identities in a pending-deletion journal. Results are checkpointed after each direct deletion and each approved MediaStore batch. Normal completion applies the final database state and removes the journal in one transaction. If the process ends during authorization or deletion, the next Activity result or safe resume reconciles the journal. Only a file confirmed absent is removed from saved results, and the live authorization callback is gated against duplicate resume handling.
 
-Settings > Recovery copies restores files without overwriting an existing destination. Verified copies remain recoverable for at least 30 days and are removed after expiry when that screen is opened. Interrupted or failed verification leaves a copy without automatic expiry. Recovery copies still occupy storage, so the deletion result reports zero bytes freed immediately. Uninstalling the app or clearing its data removes recovery access; restore needed files first. Offline or inaccessible storage defers journal reconciliation rather than treating every missing path as deleted.
+The Recovery tab supports selecting multiple copies, restoring them without overwriting existing destinations, and permanently deleting selected recovery payloads after explicit confirmation. Restore retains each recovery copy. Successful selections clear; failed selections remain available for retry. Permanent deletion uses a secure directory handle and never deletes the original or a previously restored file; unsupported storage providers fail safely. Verified copies remain recoverable for at least 30 days unless explicitly deleted, and expire when Recovery is opened. Interrupted or failed verification leaves a copy without automatic expiry. Recovery copies still occupy storage, so moving files there reports zero bytes freed immediately. Uninstalling the app or clearing its data removes recovery access; restore needed files first. Offline or inaccessible storage defers journal reconciliation rather than treating every missing path as deleted.
 
 ## Privacy
 

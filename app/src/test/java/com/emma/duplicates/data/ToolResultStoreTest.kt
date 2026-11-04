@@ -44,6 +44,67 @@ class ToolResultStoreTest {
     fun tearDown() = database.close()
 
     @Test
+    fun screenshotMonthSelectionChangesOnlyRequestedValidItems() =
+        runTest {
+            complete(
+                "screens",
+                CleanupTool.SCREENSHOTS,
+                listOf(
+                    item("screens", "one"),
+                    item("screens", "two"),
+                    item("screens", "hidden"),
+                    item("screens", "invalid").copy(valid = false),
+                    item("screens", "keeper").copy(keeper = true),
+                ),
+            )
+            store.setSelected("screens", "hidden", true)
+            store.setScreenshotSelection("screens", setOf("one", "two", "invalid", "keeper", "foreign"), true)
+            assertEquals(
+                setOf("one", "two", "hidden"),
+                store.dao
+                    .items("screens")
+                    .filter { it.selected }
+                    .map { it.id }
+                    .toSet(),
+            )
+            store.setScreenshotSelection("screens", setOf("one", "two"), false)
+            assertEquals(
+                listOf("hidden"),
+                store.dao
+                    .items("screens")
+                    .filter { it.selected }
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun screenshotBatchSelectionRejectsInactiveSessionAndPendingOperation() =
+        runTest {
+            complete("screens", CleanupTool.SCREENSHOTS, listOf(item("screens", "one")))
+            val session = store.dao.session("screens")!!
+            store.dao.updateSession(session.copy(active = false))
+            store.setScreenshotSelection("screens", setOf("one"), true)
+            assertFalse(
+                store.dao
+                    .items("screens")
+                    .single()
+                    .selected,
+            )
+            store.dao.updateSession(session)
+            store.dao.insertOperation(
+                com.emma.duplicates.core.database
+                    .CleanupOperation("pending", "screens", CleanupTool.SCREENSHOTS.name, 1),
+            )
+            store.setScreenshotSelection("screens", setOf("one"), true)
+            assertFalse(
+                store.dao
+                    .items("screens")
+                    .single()
+                    .selected,
+            )
+        }
+
+    @Test
     fun canceledReplacementKeepsSelectionAndOtherToolsAreIsolated() =
         runTest {
             complete("old", CleanupTool.LARGE_FILES, listOf(item("old", "first")))

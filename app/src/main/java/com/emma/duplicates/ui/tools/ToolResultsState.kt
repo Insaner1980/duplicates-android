@@ -13,7 +13,7 @@ import java.time.ZoneId
 
 data class ToolControls(
     val minimumBytes: Long = 100_000_000L,
-    val months: Int = 6,
+    val months: Int = 0,
     val sort: String = "largest",
     val group: Int = 0,
     val folder: String? = null,

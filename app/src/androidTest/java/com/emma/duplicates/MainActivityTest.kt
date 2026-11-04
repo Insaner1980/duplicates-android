@@ -1,6 +1,8 @@
 package com.emma.duplicates
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -77,6 +79,7 @@ class MainActivityTest {
             // Refresh permission state through the real activity lifecycle.
             composeRule.activityRule.scenario.recreate()
             selectScanFolder(root, container)
+            composeRule.onNodeWithTag("tool-DUPLICATES").performScrollTo().performClick()
             scanStarted = true
             composeRule.onNodeWithText("Scan files").performScrollTo().performClick()
             composeRule.waitUntil(
@@ -96,6 +99,67 @@ class MainActivityTest {
         } finally {
             restoreDisplay(display)
             cleanupFixture(root, container, previousPreferences, scanStarted)
+        }
+    }
+
+    @Test
+    fun twoTabsKeepToolsReachableAcrossRotationAndLargeText() {
+        val container = (composeRule.activity.application as DuplicatesApplication).container
+        val display = captureDisplaySettings()
+        val previousTheme =
+            runBlocking {
+                container.preferencesRepository.preferences
+                    .first()
+                    .themeMode
+            }
+        val tools =
+            listOf(
+                "DUPLICATES",
+                "EMPTY_FOLDERS",
+                "LARGE_FILES",
+                "SIMILAR_PHOTOS",
+                "SCREENSHOTS",
+                "OLD_DOWNLOADS",
+                "UNUSED_APPS",
+            )
+        try {
+            for (tool in tools) {
+                composeRule.onNodeWithTag("tool-$tool").performScrollTo().performClick()
+                if (tool == "DUPLICATES") {
+                    composeRule.onNodeWithText("Scan files").performScrollTo().assertIsDisplayed()
+                    shell("input keyevent KEYCODE_BACK")
+                } else {
+                    composeRule.onNodeWithContentDescription("Back").performClick()
+                }
+                composeRule.onNodeWithTag("tool-DUPLICATES").assertExists()
+            }
+            composeRule.onNodeWithContentDescription("Recovery tab").performClick()
+            composeRule.onNodeWithTag("recovery-restore").assertIsDisplayed()
+            composeRule.activityRule.scenario.recreate()
+            composeRule.onNodeWithTag("recovery-restore").assertIsDisplayed()
+            verifyRecoveryRotation()
+            verifyLargeTextTabs(container)
+            restoreDisplay(display)
+            composeRule.onNodeWithContentDescription("Home tab").performClick()
+            val intent =
+                android.content
+                    .Intent(composeRule.activity.intent)
+                    .setFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    .putExtra(com.emma.duplicates.app.ScanNotificationFactory.EXTRA_TOOL, "SCREENSHOTS")
+                    .putExtra(com.emma.duplicates.app.ScanNotificationFactory.EXTRA_RUN, "two-tab-missing-run")
+            composeRule.activityRule.scenario.onActivity { it.startActivity(intent) }
+            composeRule.waitUntil(10_000) {
+                composeRule.onAllNodesWithText("This scan is no longer available").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeRule.onNodeWithContentDescription("Home tab").performClick()
+            composeRule.onNodeWithContentDescription("Settings").performScrollTo().assertIsDisplayed()
+        } finally {
+            restoreDisplay(display)
+            runBlocking {
+                container.scanScheduler.stopScan()
+                kotlinx.coroutines.withTimeout(30_000) { container.scanScheduler.workActive.first { !it } }
+                container.preferencesRepository.setThemeMode(previousTheme)
+            }
         }
     }
 
@@ -311,5 +375,38 @@ class MainActivityTest {
         val screenshot = instrumentation.uiAutomation.takeScreenshot()
         File(directory, name).outputStream().use { screenshot.compress(Bitmap.CompressFormat.PNG, 100, it) }
         screenshot.recycle()
+    }
+
+    private fun verifyRecoveryRotation() {
+        composeRule.activityRule.scenario.onActivity {
+            it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+        composeRule.waitUntil(10_000) {
+            composeRule.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        }
+        composeRule.onNodeWithTag("recovery-list").performScrollToNode(hasTestTag("recovery-restore"))
+        composeRule.onNodeWithTag("recovery-restore").assertIsDisplayed()
+        composeRule.activityRule.scenario.onActivity {
+            it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        composeRule.waitUntil(10_000) {
+            composeRule.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        }
+    }
+
+    private fun verifyLargeTextTabs(container: AppContainer) {
+        shell("wm size 840x2100")
+        shell("wm density 420")
+        shell("settings put system font_scale 2.0")
+        for (theme in listOf(AppThemeMode.LIGHT, AppThemeMode.DARK)) {
+            runBlocking { container.preferencesRepository.setThemeMode(theme) }
+            composeRule.onNodeWithTag("recovery-delete").assertIsDisplayed()
+            screenshot("two-tab-recovery-320dp-200percent-$theme.png")
+            composeRule.onNodeWithContentDescription("Home tab").performClick()
+            composeRule.onNodeWithTag("tool-UNUSED_APPS").performScrollTo().assertIsDisplayed()
+            composeRule.onNodeWithContentDescription("Settings").performScrollTo()
+            screenshot("two-tab-home-320dp-200percent-$theme.png")
+            composeRule.onNodeWithContentDescription("Recovery tab").performClick()
+        }
     }
 }

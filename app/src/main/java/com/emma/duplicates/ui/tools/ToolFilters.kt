@@ -1,10 +1,14 @@
 package com.emma.duplicates.ui.tools
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -37,45 +41,26 @@ private val SORT_CHOICES = listOf("largest", "smallest", "newest", "oldest")
 internal fun ToolFilters(
     state: ToolScreenState,
     onControls: (ToolControls) -> Unit,
-    onScope: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        when (state.tool) {
-            CleanupTool.LARGE_FILES -> {
-                LargeFileFilters(state.controls, onControls)
-            }
-
-            CleanupTool.OLD_DOWNLOADS, CleanupTool.SCREENSHOTS -> {
-                AgeFilter(state.controls, onControls)
-            }
-
-            CleanupTool.SIMILAR_PHOTOS -> {
-                SimilarGroupFilter(state, onControls)
-            }
-
-            else -> {
-                Text(
-                    androidx.compose.ui.res.pluralStringResource(
-                        R.plurals.tool_empty_count,
-                        state.visibleItems.size,
-                        state.visibleItems.size,
-                    ),
-                    style = MaterialTheme.typography.headlineSmall,
-                )
-            }
-        }
-        if (state.tool != CleanupTool.SIMILAR_PHOTOS && state.tool != CleanupTool.EMPTY_FOLDERS) {
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 androidx.compose.ui.res.pluralStringResource(
-                    R.plurals.tool_count,
+                    when (state.tool) {
+                        CleanupTool.EMPTY_FOLDERS -> R.plurals.tool_empty_count
+                        CleanupTool.SIMILAR_PHOTOS -> R.plurals.tool_photo_count
+                        else -> R.plurals.tool_count
+                    },
                     state.visibleItems.size,
                     state.visibleItems.size,
                 ),
+                Modifier.align(Alignment.CenterVertically),
             )
+            if (state.tool == CleanupTool.OLD_DOWNLOADS || state.tool == CleanupTool.SCREENSHOTS) {
+                AgeFilter(state.controls, onControls)
+            }
         }
-        Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainer) {
-            TextButton(onScope) { Text(scopeLabel(state), color = MaterialTheme.colorScheme.onSurface) }
-        }
+        if (state.tool == CleanupTool.LARGE_FILES) LargeFileFilters(state.controls, onControls)
     }
 }
 
@@ -114,7 +99,7 @@ private fun AgeFilter(
 }
 
 @Composable
-private fun SimilarGroupFilter(
+internal fun SimilarGroupFilter(
     state: ToolScreenState,
     onControls: (ToolControls) -> Unit,
 ) {
@@ -128,11 +113,15 @@ private fun SimilarGroupFilter(
             .size
     if (count > 0) {
         val index = state.controls.group.coerceIn(0, count - 1)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.tool_group, index + 1, count), Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton({ onControls(state.controls.copy(group = index - 1)) }, enabled = index > 0) {
                 Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, stringResource(R.string.tool_previous_group))
             }
+            Text(
+                stringResource(R.string.tool_group, index + 1, count),
+                Modifier.weight(1f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
             IconButton({ onControls(state.controls.copy(group = index + 1)) }, enabled = index < count - 1) {
                 Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, stringResource(R.string.tool_next_group))
             }
@@ -148,7 +137,11 @@ internal fun ToolDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceContainer) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
             TextButton({ expanded = true }) {
                 Text(label, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f, fill = false))
                 Icon(Icons.Outlined.KeyboardArrowDown, null, tint = MaterialTheme.colorScheme.onSurface)

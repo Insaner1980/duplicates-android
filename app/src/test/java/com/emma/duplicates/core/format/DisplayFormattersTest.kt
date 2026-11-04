@@ -44,6 +44,18 @@ class DisplayFormattersTest {
     }
 
     @Test
+    fun compactDatesRespectEnglishLocaleAndTheRequestedTimeZone() {
+        val instant = Instant.parse("2026-12-31T23:30:00Z").toEpochMilli()
+        assertEquals("31 Dec 2026", DisplayFormatters.date(instant, ZoneId.of("UTC")))
+        assertEquals("1 Jan 2027", DisplayFormatters.date(instant, ZoneId.of("Europe/Helsinki")))
+        assertEquals("1 Jan", DisplayFormatters.shortDate(instant, ZoneId.of("Europe/Helsinki")))
+        assertEquals(
+            "4 Nov",
+            DisplayFormatters.shortDate(Instant.parse("2026-11-04T12:00:00Z").toEpochMilli(), ZoneId.of("UTC")),
+        )
+    }
+
+    @Test
     fun fileDateUsesReadableEnglishFormat() {
         val instant = Instant.parse("2024-05-18T09:30:00Z")
 

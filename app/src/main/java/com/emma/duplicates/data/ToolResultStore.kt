@@ -23,6 +23,20 @@ class ToolResultStore(
 ) {
     val dao = database.toolDao()
 
+    suspend fun setScreenshotSelection(
+        sessionId: String,
+        ids: Set<String>,
+        selected: Boolean,
+    ) = database.withTransaction {
+        val session = dao.session(sessionId) ?: return@withTransaction
+        if (!session.active || session.tool != CleanupTool.SCREENSHOTS.name) return@withTransaction
+        if (dao.pending().isNotEmpty() || database.deletionOperationDao().getPending().isNotEmpty()) {
+            return@withTransaction
+        }
+        val changes = dao.items(sessionId).filter { it.id in ids && it.valid && !it.keeper && it.selected != selected }
+        if (changes.isNotEmpty()) dao.updateItems(changes.map { it.copy(selected = selected) })
+    }
+
     fun active(tool: CleanupTool) = dao.observeActive(tool.name)
 
     fun latest(tool: CleanupTool) = dao.observeLatest(tool.name)

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.emma.duplicates.domain.deletion.cleanupIdle
@@ -12,7 +13,6 @@ import com.emma.duplicates.ui.settings.RecoveryScreen
 @Composable
 internal fun RecoveryDestination(
     container: AppContainer,
-    onBack: () -> Unit,
     model: RecoveryViewModel =
         viewModel(
             factory =
@@ -23,8 +23,19 @@ internal fun RecoveryDestination(
                 },
         ),
 ) {
-    val files by model.files.collectAsStateWithLifecycle()
-    val busy by model.busy.collectAsStateWithLifecycle()
-    val result by model.result.collectAsStateWithLifecycle()
-    RecoveryScreen(files, busy, result, onBack, model::restore, model::dismissResult, Modifier.safeDrawingPadding())
+    val state by model.state.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(model) {
+        model.onResume()
+        onPauseOrDispose { }
+    }
+    RecoveryScreen(
+        state,
+        model::select,
+        model::restoreSelected,
+        model::requestDelete,
+        model::confirmDelete,
+        model::dismissDelete,
+        model::dismissResult,
+        Modifier.safeDrawingPadding(),
+    )
 }

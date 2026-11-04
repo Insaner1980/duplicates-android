@@ -18,13 +18,12 @@ internal fun NavHostController.selectRootTab(tab: RootTab) {
     val route: Any =
         when (tab) {
             RootTab.HOME -> HomeRoute
-            RootTab.TOOLS -> ToolsRoute
             RootTab.RECOVERY -> RecoveryRoute
         }
     navigate(route) {
         popUpTo<HomeRoute> { saveState = true }
         launchSingleTop = true
-        restoreState = true
+        restoreState = tab == RootTab.RECOVERY
     }
 }
 

@@ -1,26 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="home">Home</string>
-    <string name="tools">Tools</string>
     <string name="recovery">Recovery</string>
     <string name="root_tab_description">%1$s tab</string>
-    <string name="view_storage_usage">View storage usage</string>
     <string name="storage_usage">Storage usage</string>
-    <string name="storage_ratio">%1$s / %2$s</string>
     <string name="storage_free">%1$s free</string>
     <string name="empty_folders">Empty folders</string>
     <string name="large_files">Large files</string>
     <string name="similar_photos">Similar photos</string>
     <string name="screenshots">Screenshots</string>
-    <string name="old_downloads">Old downloads</string>
+    <string name="old_downloads">Downloads</string>
     <string name="unused_apps">Unused apps</string>
     <string name="recovery_files">Recovery copies</string>
-    <string name="recovery_empty">No recovery copies.</string>
-    <string name="recovery_expiry">Recover before %1$s</string>
-    <string name="recovery_pending">Verification was interrupted or the file changed. This copy will not expire automatically.</string>
-    <string name="restore_copy">Restore copy</string>
-    <string name="recovery_failed">Could not restore this copy. Check storage access and available space, and reconnect its storage device.</string>
-    <string name="recovery_restored">Restored to %1$s. The recovery copy is retained.</string>
     <string name="appearance">Appearance</string>
     <string name="keep">Will be kept</string>
     <string name="sort_by">Sort: %1$s</string>

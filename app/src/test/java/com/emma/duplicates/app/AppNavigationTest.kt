@@ -107,7 +107,7 @@ class AppNavigationTest {
     fun toolMenuAndRootTabsRemainReachableWithoutFileAccess() {
         composeRule.onNodeWithText("Empty folders").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Unused apps").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Tools tab").performClick()
+        composeRule.onNodeWithContentDescription("Tools tab").assertDoesNotExist()
         composeRule.onNodeWithText("Screenshots").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Home tab").performClick()
         composeRule.onNodeWithTag("tool-DUPLICATES").performScrollTo().performClick()
@@ -117,6 +117,30 @@ class AppNavigationTest {
         composeRule.onNodeWithContentDescription("Recovery tab").performClick()
         composeRule.onNodeWithContentDescription("Home tab").performClick()
         composeRule.onNodeWithText("Large files").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun toolDestinationsBelongToHomeTab() {
+        for (tool in com.emma.duplicates.core.model.CleanupTool.entries.filter {
+            it != com.emma.duplicates.core.model.CleanupTool.STORAGE_USAGE
+        }) {
+            composeRule.onNodeWithTag("tool-${tool.name}").performScrollTo().performClick()
+            composeRule.onNodeWithContentDescription("Home tab").assertIsSelected()
+            composeRule.onNodeWithContentDescription("Tools tab").assertDoesNotExist()
+            composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+            composeRule.onNodeWithTag("tool-${tool.name}").performScrollTo().assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun recoveryAndHomeSwitchWithoutDuplicateDestinations() {
+        repeat(3) {
+            composeRule.onNodeWithContentDescription("Recovery tab").performClick().assertIsSelected()
+            composeRule.onNodeWithContentDescription("Home tab").performClick().assertIsSelected()
+        }
+        composeRule.onNodeWithTag("tool-LARGE_FILES").performScrollTo().performClick()
+        composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.onNodeWithTag("tool-LARGE_FILES").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -153,9 +177,9 @@ class AppNavigationTest {
     }
 
     @Test
-    fun exactResultsReturnToSetupAndItsToolsOrigin() {
+    fun exactResultsReturnToSetupAndItsHomeOrigin() {
         seedSavedResults(container, application)
-        composeRule.onNodeWithContentDescription("Tools tab").performClick()
+        composeRule.onNodeWithContentDescription("Home tab").assertIsSelected()
         composeRule.onNodeWithTag("tool-DUPLICATES").performScrollTo().performClick()
         composeRule.runOnIdle { openScanningRequests.tryEmit(ScanNavigationRequest()) }
         awaitText(R.string.available_to_free)
@@ -163,7 +187,7 @@ class AppNavigationTest {
         awaitText(R.string.grant_storage_access)
         composeRule.runOnIdle { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
         composeRule.onNodeWithTag("tool-DUPLICATES").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText(text(R.string.view_storage_usage)).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Home tab").assertIsSelected()
     }
 
     @Test

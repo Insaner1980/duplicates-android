@@ -83,7 +83,6 @@ private fun FileToolDestination(
             { model.refresh() },
             model::stop,
             onGrantAccess,
-            { nav.navigate(ScanLocationsRoute) },
             model::controls,
             model::select,
             { id ->
@@ -98,6 +97,7 @@ private fun FileToolDestination(
             model::confirmCleanup,
             model::dismissConfirmation,
             model::dismissOutcome,
+            model::selectScreenshots,
         )
         state.results?.items?.firstOrNull { it.id == folderDetail }?.let { item ->
             AlertDialog(onDismissRequest = {

@@ -171,14 +171,16 @@ class UnusedAppsRepositoryTest {
             assertEquals(UsageAccessState.UNAVAILABLE, repository.load(90, false).state)
             every { usage.queryAndAggregateUsageStats(any(), any()) } throws SecurityException()
             assertEquals(UsageAccessState.UNAVAILABLE, repository.load(90, false).state)
-            every { ops.checkOpNoThrow(any<String>(), any(), any()) } returnsMany
-                listOf(AppOpsManager.MODE_ALLOWED, AppOpsManager.MODE_IGNORED)
-            assertEquals(UsageAccessState.REVOKED, repository.load(90, false).state)
+            assertAccessRevokedDuringLoad()
             every { usage.queryAndAggregateUsageStats(any(), any()) } returns mapOf("old" to evidence())
-            every { ops.checkOpNoThrow(any<String>(), any(), any()) } returnsMany
-                listOf(AppOpsManager.MODE_ALLOWED, AppOpsManager.MODE_IGNORED)
-            assertEquals(UsageAccessState.REVOKED, repository.load(90, false).state)
+            assertAccessRevokedDuringLoad()
         }
+
+    private suspend fun assertAccessRevokedDuringLoad() {
+        every { ops.checkOpNoThrow(any<String>(), any(), any()) } returnsMany
+            listOf(AppOpsManager.MODE_ALLOWED, AppOpsManager.MODE_IGNORED)
+        assertEquals(UsageAccessState.REVOKED, repository.load(90, false).state)
+    }
 
     private fun launcher(name: String) =
         ResolveInfo().apply {

@@ -56,26 +56,27 @@ class SettingsLayoutTest {
                 }
             }
         }
-        for (theme in listOf(true, false)) {
-            for (font in listOf(1f, 2f)) {
-                composeRule.runOnIdle {
-                    dark.value = theme
-                    scale.floatValue = font
-                }
-                composeRule
-                    .onNodeWithText("Scan locations")
-                    .performScrollTo()
-                    .assertIsDisplayed()
-                    .performClick()
-                composeRule
-                    .onNodeWithText("Scan hidden folders")
-                    .performScrollTo()
-                    .assertIsDisplayed()
-                    .performClick()
-                composeRule.onNodeWithText("App version").performScrollTo().assertIsDisplayed()
+        for ((theme, font) in layoutAppearances()) {
+            composeRule.runOnIdle {
+                dark.value = theme
+                scale.floatValue = font
             }
+            composeRule
+                .onNodeWithText("Scan locations")
+                .performScrollTo()
+                .assertIsDisplayed()
+                .performClick()
+            composeRule
+                .onNodeWithText("Scan hidden folders")
+                .performScrollTo()
+                .assertIsDisplayed()
+                .performClick()
+            composeRule.onNodeWithText("App version").performScrollTo().assertIsDisplayed()
         }
         assertEquals(4, locations)
         assertEquals(4, switches)
     }
 }
+
+internal fun layoutAppearances(): List<Pair<Boolean, Float>> =
+    listOf(true, false).flatMap { theme -> listOf(1f, 2f).map { font -> theme to font } }

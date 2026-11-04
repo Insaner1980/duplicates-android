@@ -106,6 +106,49 @@ class ToolViewModelTest {
     }
 
     @Test
+    fun screenshotMonthSelectionIntersectsVisibleIdsAndRespectsRunningState() =
+        runTest(main.dispatcher) {
+            val started = 1_800_000_000_000L
+            active.value =
+                ToolResults(
+                    session.copy(tool = CleanupTool.SCREENSHOTS.name, startedAt = started),
+                    listOf(
+                        item.copy(id = "old", modifiedAt = 1_600_000_000_000L),
+                        item.copy(id = "recent", modifiedAt = started - 1000),
+                    ),
+                )
+            saved["months"] = 6
+            val model = model(CleanupTool.SCREENSHOTS)
+            model.selectScreenshots(setOf("old", "recent", "foreign"), true)
+            runCurrent()
+            coVerify(exactly = 1) { store.setScreenshotSelection("run", setOf("old"), true) }
+            activeTool.value = ToolRoute(CleanupTool.SCREENSHOTS.name)
+            runCurrent()
+            model.selectScreenshots(setOf("old"), false)
+            runCurrent()
+            coVerify(exactly = 0) { store.setScreenshotSelection(any(), any(), false) }
+        }
+
+    @Test
+    fun newDateFiltersIncludeAllDatesAndSavedSixMonthFilterSurvives() =
+        runTest(main.dispatcher) {
+            for (tool in listOf(CleanupTool.SCREENSHOTS, CleanupTool.OLD_DOWNLOADS)) {
+                saved.remove<Int>("months")
+                assertEquals(
+                    0,
+                    model(tool)
+                        .state.value.controls.months,
+                )
+                saved["months"] = 6
+                assertEquals(
+                    6,
+                    model(tool)
+                        .state.value.controls.months,
+                )
+            }
+        }
+
+    @Test
     fun controlsPersistAndCleanupRequiresConfirmation() =
         runTest(main.dispatcher) {
             val model = model()

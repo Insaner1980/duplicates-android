@@ -21,6 +21,86 @@ class RecoveryRepositoryTest {
     @get:Rule val temporaryFolder = TemporaryFolder()
 
     @Test
+    fun describeUsesOnlyAvailableOwnedReadablePayloads() =
+        runTest {
+            val source = temporaryFolder.newFile("photo.jpg").apply { writeText("payload") }
+            val dao = FakeRecoveryDao()
+            var mounted = true
+            val repository = mountedRepository(dao) { mounted }
+            repository.move(source.deletionFile()) { true }
+            val record = dao.entries.value.single()
+            assertEquals(
+                RecoveryEntry(record, 7L, record.storedPath, true),
+                repository.describe(listOf(record)).single(),
+            )
+            mounted = false
+            assertEquals(RecoveryEntry(record, null, null, false), repository.describe(listOf(record)).single())
+            mounted = true
+            val foreign = record.copy(storedPath = source.path)
+            assertEquals(RecoveryEntry(foreign, null, null, false), repository.describe(listOf(foreign)).single())
+            File(record.storedPath).delete()
+            assertEquals(RecoveryEntry(record, null, null, false), repository.describe(listOf(record)).single())
+        }
+
+    @Test
+    fun unavailableVolumeKeepsRecoveryRecord() =
+        runTest {
+            val source = temporaryFolder.newFile("selected").apply { writeText("preserve") }
+            val dao = FakeRecoveryDao()
+            var mounted = true
+            val repository = mountedRepository(dao) { mounted }
+            repository.move(source.deletionFile()) { true }
+            val record = dao.entries.value.single()
+            mounted = false
+            assertFalse(repository.deletePermanently(record.id))
+            assertEquals(listOf(record), dao.entries.value)
+            assertEquals("preserve", File(record.storedPath).readText())
+        }
+
+    @Test
+    fun permanentDeleteRejectsForeignPath() =
+        runTest {
+            val original = temporaryFolder.newFile("original").apply { writeText("original") }
+            val root = temporaryFolder.newFolder("recovery")
+            val dao = FakeRecoveryDao()
+            val repository = recoveryRepository(root, dao)
+            val foreign =
+                RecoveryFile(
+                    java.util.UUID
+                        .randomUUID()
+                        .toString(),
+                    original.path,
+                    original.path,
+                    1,
+                )
+            dao.insert(foreign)
+            assertFalse(repository.deletePermanently(foreign.id))
+            assertEquals("original", original.readText())
+            assertEquals(listOf(foreign), dao.entries.value)
+        }
+
+    @Test
+    fun permanentDeleteRequiresSecureDirectorySupport() =
+        runTest {
+            val original = temporaryFolder.newFile("original").apply { writeText("preserve") }
+            val root = temporaryFolder.newFolder("recovery")
+            val dao = FakeRecoveryDao()
+            val repository = recoveryRepository(root, dao)
+            repository.move(original.deletionFile()) { true }
+            val record = dao.entries.value.single()
+            assertTrue(repository.describe(listOf(record)).single().available)
+            assertEquals(original.path, repository.restore(record.id))
+            val supported =
+                java.nio.file.Files.newDirectoryStream(root.toPath()).use {
+                    it is java.nio.file.SecureDirectoryStream<*>
+                }
+            assertEquals(supported, repository.deletePermanently(record.id))
+            assertEquals(!supported, File(record.storedPath).exists())
+            assertEquals(if (supported) emptyList() else listOf(record), dao.entries.value)
+            assertEquals("preserve", original.readText())
+        }
+
+    @Test
     fun `replacement after the last comparison is retained and restored without expiry`() =
         runTest {
             val source = temporaryFolder.newFile("selected").apply { writeText("duplicate") }
@@ -138,6 +218,14 @@ class RecoveryRepositoryTest {
             assertEquals("content", source.readText())
             assertTrue(dao.entries.value.isEmpty())
         }
+
+    private fun mountedRepository(
+        dao: RecoveryDao,
+        mounted: () -> Boolean,
+    ): RecoveryRepository {
+        val root = temporaryFolder.newFolder("recovery")
+        return RecoveryRepository(dao, { listOf(root) }, { root }, { mounted() })
+    }
 
     private fun File.deletionFile() =
         DeletionFile(

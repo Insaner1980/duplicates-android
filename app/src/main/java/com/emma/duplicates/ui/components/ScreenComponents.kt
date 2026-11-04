@@ -35,6 +35,7 @@ fun DetailHeader(
     @StringRes titleRes: Int,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    titleStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleLarge,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
@@ -53,7 +54,7 @@ fun DetailHeader(
         }
         Text(
             text = stringResource(titleRes),
-            style = MaterialTheme.typography.titleLarge,
+            style = titleStyle,
             modifier =
                 Modifier
                     .weight(1f)
@@ -153,16 +154,33 @@ fun ConfirmationDialog(
 fun HomeHeader(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    prominent: Boolean = false,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(R.drawable.ic_app_stack), null, Modifier.size(32.dp))
+        Icon(
+            painterResource(R.drawable.ic_app_stack),
+            null,
+            Modifier.size(32.dp),
+            tint =
+                if (prominent) {
+                    com.emma.duplicates.core.designsystem
+                        .actionTextColor()
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+        )
         Text(
             text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.titleLarge,
+            style =
+                if (prominent) {
+                    com.emma.duplicates.core.designsystem.DashboardTitle
+                } else {
+                    MaterialTheme.typography.titleLarge
+                },
             modifier =
                 Modifier
                     .weight(1f)

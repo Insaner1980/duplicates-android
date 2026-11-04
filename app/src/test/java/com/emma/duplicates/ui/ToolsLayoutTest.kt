@@ -14,6 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasAnyAncestor
@@ -68,7 +73,169 @@ import java.io.File
 class ToolsLayoutTest {
     @get:Rule val composeRule = createComposeRule()
 
+    @Test
+    fun homeGroupsSevenToolsAndOpensStorageFromTheCard() {
+        var opened: CleanupTool? = null
+        composeRule.setContent {
+            DuplicatesTheme(false) {
+                com.emma.duplicates.ui.tools.DashboardScreen(
+                    com.emma.duplicates.ui.home.HomeUiState
+                        .Ready("Internal storage", "", true),
+                    com.emma.duplicates.ui.home.HomeConfiguration(
+                        totalBytes = 100_000_000_000,
+                        freeBytes = 40_000_000_000,
+                    ),
+                    {},
+                    {},
+                    { opened = it },
+                )
+            }
+        }
+        composeRule.onNodeWithText("Tools").assertDoesNotExist()
+        composeRule.onNodeWithText("View storage usage").assertDoesNotExist()
+        val tools =
+            listOf(
+                "DUPLICATES",
+                "EMPTY_FOLDERS",
+                "LARGE_FILES",
+                "SIMILAR_PHOTOS",
+                "SCREENSHOTS",
+                "OLD_DOWNLOADS",
+                "UNUSED_APPS",
+            )
+        val tops =
+            tools.map {
+                composeRule
+                    .onNodeWithTag(
+                        "tool-$it",
+                    ).assertIsDisplayed()
+                    .fetchSemanticsNode()
+                    .boundsInRoot.top
+            }
+        org.junit.Assert.assertTrue(tops.zipWithNext().all { (first, next) -> first < next })
+        composeRule.onNodeWithText("Storage").performClick()
+        assertEquals(CleanupTool.STORAGE_USAGE, opened)
+    }
+
     @Test fun ordinaryWidthMatrix() = matrix("411")
+
+    @Test
+    fun allFileToolsShowSelectionCountAndBytesWithoutScopeOrSkippedRows() {
+        val state = mutableStateOf(fixture(CleanupTool.LARGE_FILES))
+        composeRule.setContent { DuplicatesTheme { FixtureScreen(state.value) } }
+        for (tool in listOf(
+            CleanupTool.LARGE_FILES,
+            CleanupTool.SIMILAR_PHOTOS,
+            CleanupTool.SCREENSHOTS,
+            CleanupTool.OLD_DOWNLOADS,
+        )) {
+            composeRule.runOnIdle { state.value = fixture(tool) }
+            composeRule.onNodeWithText("1 selected").assertIsDisplayed()
+            val expected = if (tool in listOf(CleanupTool.SIMILAR_PHOTOS, CleanupTool.SCREENSHOTS)) "4 MB" else "2 GB"
+            val footer = hasAnyAncestor(hasTestTag("tool-footer"))
+            composeRule.onNode(hasText(expected) and footer).assertIsDisplayed()
+            composeRule.onNodeWithText("Internal storage").assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun filePreviewDoesNotSelectItem() {
+        val state = fixture(CleanupTool.LARGE_FILES)
+        composeRule.setContent { DuplicatesTheme { FixtureScreen(state) } }
+        composeRule.onNodeWithContentDescription("Preview ${state.visibleItems.first().name}").performClick()
+        assertEquals(1, previews)
+        assertEquals(0, selections)
+    }
+
+    @Test
+    fun onlyProtectedPhotoShowsKeepLabelBelowTheImageWithoutDeleteCheckbox() {
+        val state = fixture(CleanupTool.SIMILAR_PHOTOS)
+        val keeper = state.visibleItems.first { it.keeper }
+        composeRule.setContent { DuplicatesTheme { FixtureScreen(state) } }
+        val label =
+            composeRule
+                .onNodeWithText("Keep")
+                .assertIsDisplayed()
+                .fetchSemanticsNode()
+                .boundsInRoot
+        val preview =
+            composeRule
+                .onNodeWithContentDescription(
+                    "Preview ${keeper.name}",
+                ).fetchSemanticsNode()
+                .boundsInRoot
+        org.junit.Assert.assertTrue(label.top >= preview.bottom)
+        composeRule.onNodeWithContentDescription("Preview ${keeper.name}").assert(
+            androidx.compose.ui.test.SemanticsMatcher.expectValue(
+                androidx.compose.ui.semantics.SemanticsProperties.StateDescription,
+                "Keep",
+            ),
+        )
+        composeRule.onNodeWithContentDescription("Select ${keeper.name}").assertDoesNotExist()
+    }
+
+    @Test
+    fun monthCheckboxReflectsPartialSelectionAndDoesNotSelectAnotherMonth() {
+        val base = fixture(CleanupTool.SCREENSHOTS)
+        val results = requireNotNull(base.results)
+        val state =
+            base.copy(
+                results =
+                    results.copy(
+                        items =
+                            results.items.map {
+                                if (it.id == "5") it.copy(modifiedAt = 1_696_118_400_000L) else it
+                            },
+                    ),
+            )
+        composeRule.setContent { DuplicatesTheme { FixtureScreen(state) } }
+        monthCheckbox(ToggleableState.Indeterminate).performClick()
+        assertEquals(listOf(setOf("0", "1", "2", "3", "4") to true), monthSelections)
+        assertEquals(0, previews)
+    }
+
+    @Test
+    fun screenshotPreviewAndCheckboxRemainIndependent() {
+        val state = fixture(CleanupTool.SCREENSHOTS)
+        val item = state.visibleItems.first()
+        composeRule.setContent { DuplicatesTheme { FixtureScreen(state) } }
+        val preview = composeRule.onNodeWithContentDescription("Preview ${item.name}")
+        val checkbox = composeRule.onNodeWithContentDescription("Select ${item.name}")
+        org.junit.Assert.assertTrue(
+            checkbox.fetchSemanticsNode().boundsInRoot.top >= preview.fetchSemanticsNode().boundsInRoot.bottom,
+        )
+        preview.performClick()
+        assertEquals(1, previews)
+        assertEquals(0, selections)
+        checkbox.performClick()
+        assertEquals(1, previews)
+        assertEquals(1, selections)
+    }
+
+    @Test
+    fun unusedAppRowOpensCorrectPackageOnce() {
+        val opened = mutableListOf<String>()
+        composeRule.setContent {
+            DuplicatesTheme {
+                UnusedAppsScreen(
+                    UnusedAppsResult(
+                        UsageAccessState.RESULTS,
+                        listOf(UnusedApp("example.app", "Example", 1_700_000_000_000, null)),
+                    ),
+                    90,
+                    {},
+                    {},
+                    {},
+                    {},
+                    { opened += it },
+                )
+            }
+        }
+        composeRule.onNodeWithText("Example").performClick()
+        assertEquals(listOf("example.app"), opened)
+        composeRule.onNodeWithText("Open app details").assertDoesNotExist()
+        composeRule.onNodeWithText("—").assertIsDisplayed()
+    }
 
     @Test
     @Config(qualifiers = "w320dp-h800dp-mdpi")
@@ -93,21 +260,65 @@ class ToolsLayoutTest {
                 }
             }
         }
-        for (theme in listOf(true, false)) {
-            for (font in listOf(1f, 2f)) {
-                composeRule.runOnIdle {
-                    dark.value = theme
-                    scale.floatValue = font
-                }
-                composeRule.onNode(hasText("DCIM") and hasText("Unknown")).performScrollTo().assertIsDisplayed()
-                assertReadableText()
+        for ((theme, font) in layoutAppearances()) {
+            composeRule.runOnIdle {
+                dark.value = theme
+                scale.floatValue = font
             }
+            composeRule.onNode(hasText("DCIM") and hasText("Unknown")).performScrollTo().assertIsDisplayed()
+            assertReadableText()
         }
     }
+
+    @Test
+    fun longFilenameRemainsAccessibleAndPreviewAndCheckboxHaveSeparateTouchTargets() {
+        val base = fixture(CleanupTool.LARGE_FILES)
+        val original = requireNotNull(base.results)
+        val item = original.items.first().copy(name = "A very long holiday recording with an identifiable ending.mp4")
+        val state = base.copy(results = original.copy(items = listOf(item)))
+        composeRule.setContent { DuplicatesTheme { FixtureScreen(state) } }
+        composeRule
+            .onNodeWithContentDescription(
+                "${item.name} ${item.canonicalPath}",
+                useUnmergedTree = true,
+            ).assertExists()
+        val preview = composeRule.onNodeWithContentDescription("Preview ${item.name}")
+        val checkbox = composeRule.onNodeWithContentDescription("Select ${item.name}")
+        for (node in listOf(preview, checkbox)) {
+            val bounds = node.fetchSemanticsNode().boundsInRoot
+            org.junit.Assert.assertTrue(bounds.width >= 48f && bounds.height >= 48f)
+        }
+        preview.performClick()
+        assertEquals(1, previews)
+        assertEquals(0, selections)
+    }
+
+    @Test
+    fun monthCheckboxSelectsAllAndClearsOnlyItsMonth() {
+        val base = fixture(CleanupTool.SCREENSHOTS)
+        val original = requireNotNull(base.results)
+        val state =
+            mutableStateOf(base.copy(results = original.copy(items = original.items.map { it.copy(selected = false) })))
+        composeRule.setContent { DuplicatesTheme { FixtureScreen(state.value) } }
+        monthCheckbox(ToggleableState.Off).performClick()
+        composeRule.runOnIdle {
+            state.value =
+                base.copy(results = original.copy(items = original.items.map { it.copy(selected = true) }))
+        }
+        monthCheckbox(ToggleableState.On).performClick()
+        val ids = original.items.mapTo(mutableSetOf()) { it.id }
+        assertEquals(listOf(ids to true, ids to false), monthSelections)
+    }
+
+    private fun monthCheckbox(expected: ToggleableState) =
+        composeRule
+            .onNodeWithContentDescription("Select November 2023")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ToggleableState, expected))
 
     private val usageState = mutableStateOf(UsageAccessState.RESULTS)
     private var previews = 0
     private var selections = 0
+    private val monthSelections = mutableListOf<Pair<Set<String>, Boolean>>()
 
     @get:Rule val temporary = org.junit.rules.TemporaryFolder()
     private val fixtureRoot by lazy { temporary.newFolder("volume") }
@@ -156,7 +367,7 @@ class ToolsLayoutTest {
                 if (tool == CleanupTool.SCREENSHOTS && width == "411" && font == 1f) {
                     composeRule
                         .onNodeWithContentDescription(
-                            "Preview ${current.value.visibleItems.last().name}",
+                            "Preview ${current.value.visibleItems.first().name}",
                         ).assertIsDisplayed()
                 }
                 val name = if (tool == CleanupTool.DUPLICATES) "home" else tool.name.lowercase()
@@ -206,18 +417,18 @@ class ToolsLayoutTest {
                             {},
                             {},
                             {},
-                            {},
                             { _, _ -> selections++ },
                             { previews++ },
                             {},
                             {},
                             {},
                             {},
+                            onSelectScreenshots = { ids, selected -> monthSelections += ids to selected },
                         )
                     }
                 }
             }
-            RootNavigationBar(if (state.tool == CleanupTool.DUPLICATES) RootTab.HOME else RootTab.TOOLS, {})
+            RootNavigationBar(RootTab.HOME, {}, emphasizeSelection = state.tool == CleanupTool.DUPLICATES)
         }
     }
 
@@ -254,7 +465,10 @@ class ToolsLayoutTest {
                     if (base.tool !=
                         CleanupTool.STORAGE_USAGE
                     ) {
-                        listOf("No matching items" to base.copy(results = null))
+                        listOf(
+                            (if (base.tool == CleanupTool.EMPTY_FOLDERS) "No folders" else "No files") to
+                                base.copy(results = null),
+                        )
                     } else {
                         emptyList()
                     }
@@ -307,7 +521,7 @@ class ToolsLayoutTest {
         composeRule.onNode(hasText("Cancel") and dialog).assertIsDisplayed()
         composeRule
             .onNode(
-                hasText(if (directories) "Delete selected" else "Move to recovery") and dialog,
+                hasText(if (directories) "Delete selected" else "Move to Recovery") and dialog,
             ).assertIsDisplayed()
         assertReadableText()
         composeRule.runOnIdle { current.value = base }
@@ -319,7 +533,7 @@ class ToolsLayoutTest {
                 UsageAccessState.NOT_GRANTED to "Usage access required",
                 UsageAccessState.REVOKED to "Usage access revoked",
                 UsageAccessState.UNAVAILABLE to "Usage data unavailable",
-                UsageAccessState.EMPTY to "No eligible apps",
+                UsageAccessState.EMPTY to "No apps",
             )
         for ((state, label) in variants) {
             composeRule.runOnIdle { usageState.value = state }
@@ -342,15 +556,29 @@ class ToolsLayoutTest {
             nodes.forEach { node ->
                 val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
                 node.config[androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+                val tag = node.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag).orEmpty()
+                val metadata = tag.startsWith("file-name-") || tag.startsWith("file-path-")
                 layouts.forEach {
                     // Paragraph width may retain the available width after Text shrinks to its glyphs.
                     // Check the rendered lines, allowing only integer pixel rounding.
                     val clippedLine =
                         (0 until it.lineCount).any { line ->
                             it.getLineLeft(line) < -1f || it.getLineRight(line) > it.size.width + 1f ||
-                                it.isLineEllipsized(line)
+                                (!metadata && it.isLineEllipsized(line))
                         }
-                    assertFalse("Clipped text: ${it.layoutInput.text}", it.didOverflowHeight || clippedLine)
+                    assertFalse(
+                        "Clipped text: ${it.layoutInput.text}",
+                        (
+                            if (metadata) {
+                                it.getLineBottom(
+                                    it.lineCount - 1,
+                                ) > it.size.height + 1f
+                            } else {
+                                it.didOverflowHeight
+                            }
+                        ) ||
+                            clippedLine,
+                    )
                 }
             }
         }
@@ -363,8 +591,12 @@ class ToolsLayoutTest {
         composeRule.onNodeWithContentDescription("Home tab").assertIsDisplayed()
         when (state.tool) {
             CleanupTool.UNUSED_APPS -> {
-                composeRule.onAllNodesWithText("Open app details")[0].performScrollTo().assertIsDisplayed()
-                composeRule.onNodeWithContentDescription("Back").performScrollTo()
+                composeRule
+                    .onNodeWithContentDescription(
+                        "Open app details for Word game and puzzles",
+                    ).performScrollTo()
+                    .assertIsDisplayed()
+                composeRule.onNodeWithContentDescription("Back").assertIsDisplayed()
             }
 
             CleanupTool.STORAGE_USAGE -> {
@@ -394,11 +626,15 @@ class ToolsLayoutTest {
         assertEquals(previousSelections + 1, selections)
         assertEquals(previousPreviews, previews)
         if (state.tool == CleanupTool.SIMILAR_PHOTOS) assertFalse(state.visibleItems.first { it.keeper }.selected)
-        composeRule.onNodeWithTag("tool-results").performScrollToNode(hasContentDescription("Back"))
+        composeRule.onNodeWithContentDescription("Back").assertIsDisplayed()
+        composeRule
+            .onNodeWithTag(
+                "tool-results",
+            ).performScrollToNode(hasContentDescription("Preview ${state.visibleItems.first().name}"))
     }
 
     private fun capture(name: String) {
-        val file = File("build/outputs/storage-cleanup/visual/$name.png")
+        val file = File("build/outputs/two-tab-ui/visual/$name.png")
         requireNotNull(file.parentFile).mkdirs()
         file.outputStream().use {
             composeRule
@@ -410,139 +646,5 @@ class ToolsLayoutTest {
         assertReadableText()
     }
 
-    private fun photo(
-        file: File,
-        index: Int,
-    ) {
-        requireNotNull(file.parentFile).mkdirs()
-        val bitmap = Bitmap.createBitmap(480, 320, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint()
-        paint.color = android.graphics.Color.rgb(185, 210, 223)
-        canvas.drawPaint(paint)
-        paint.color = android.graphics.Color.rgb(248, 184, 98)
-        canvas.drawCircle(320f + index * 4, 104f, 48f, paint)
-        paint.color = android.graphics.Color.rgb(71, 117, 127)
-        canvas.drawRect(0f, 170f, 480f, 320f, paint)
-        paint.color = android.graphics.Color.rgb(49, 77, 63)
-        canvas.drawOval(-80f, 170f, 300f, 420f, paint)
-        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
-    }
-
-    private fun fixture(tool: CleanupTool): ToolScreenState {
-        val root = fixtureRoot.path.replace('\\', '/')
-        val scope = ToolScope(listOf(ToolVolume("primary", root)))
-        val items = fixtureItems(tool, root)
-        return ToolScreenState(
-            tool,
-            ToolResults(
-                ToolScanSession(
-                    "fixture",
-                    tool.name,
-                    1_800_000_000_000L,
-                    scope.encode(),
-                    ScanStatuses.COMPLETED,
-                    active = true,
-                    totalBytes = 128_000_000_000L,
-                    freeBytes = 41_600_000_000L,
-                ),
-                items,
-            ),
-            hasAccess = true,
-            volumes =
-                listOf(
-                    AvailableStorageVolume(
-                        "primary",
-                        "Internal storage",
-                        File(root),
-                        "external_primary",
-                        true,
-                        false,
-                        128_000_000_000L,
-                        41_600_000_000L,
-                    ),
-                ),
-        )
-    }
-
-    private fun fixtureItems(
-        tool: CleanupTool,
-        root: String,
-    ): List<ToolItemEntity> {
-        val names = fixtureNames(tool)
-        val photos = tool == CleanupTool.SIMILAR_PHOTOS || tool == CleanupTool.SCREENSHOTS
-        val items =
-            names.mapIndexed { index, name ->
-                val folder = fixtureFolder(tool, index, photos)
-                if (photos) photo(File(root, "$folder/$name"), index)
-                ToolItemEntity(
-                    "fixture",
-                    "$index",
-                    "primary",
-                    "$root/$folder/$name",
-                    name,
-                    if (photos) 4_200_000L - index * 200_000L else 2_400_000_000L - index * 400_000_000L,
-                    1_700_000_000_000L,
-                    when (name.substringAfterLast('.')) {
-                        "jpg", "png" -> "PHOTOS"
-                        "mp4" -> "VIDEOS"
-                        "mp3" -> "AUDIO"
-                        else -> "DOCUMENTS"
-                    },
-                    directory = tool == CleanupTool.EMPTY_FOLDERS,
-                    selected = index == 1,
-                    groupId = if (tool == CleanupTool.SIMILAR_PHOTOS) "group" else null,
-                    keeper = tool == CleanupTool.SIMILAR_PHOTOS && index == 0,
-                    allocatedBytes = 1_000_000_000L,
-                )
-            }
-        return items
-    }
-
-    private fun fixtureNames(tool: CleanupTool): List<String> {
-        val names =
-            when (tool) {
-                CleanupTool.SCREENSHOTS -> {
-                    listOf("Recipe.png", "Timetable.png", "Receipt.png", "Map.png", "Shop.png", "Notes.png")
-                }
-
-                CleanupTool.STORAGE_USAGE -> {
-                    listOf("movie.mp4", "photo.jpg", "music.mp3", "archive.zip")
-                }
-
-                CleanupTool.EMPTY_FOLDERS -> {
-                    listOf("Old photos", "Export", "Temp", "Drafts", "2024")
-                }
-
-                CleanupTool.LARGE_FILES -> {
-                    listOf("Holiday video.mp4", "Backup.zip", "Concert.mp4", "Maps.zip")
-                }
-
-                CleanupTool.OLD_DOWNLOADS -> {
-                    listOf(
-                        "Installer.apk",
-                        "Archive.zip",
-                        "Travel tickets.pdf",
-                        "Instructions.pdf",
-                    )
-                }
-
-                else -> {
-                    listOf("Sunset.jpg", "Sunset copy.jpg", "Shore.jpg", "Lake.jpg")
-                }
-            }
-        return names
-    }
-
-    private fun fixtureFolder(
-        tool: CleanupTool,
-        index: Int,
-        photos: Boolean,
-    ): String =
-        when {
-            tool == CleanupTool.STORAGE_USAGE -> listOf("DCIM", "Pictures", "Music", "Download")[index]
-            photos -> "Pictures/Screenshots"
-            else -> "Download"
-        }
+    private fun fixture(tool: CleanupTool) = toolLayoutFixture(tool, fixtureRoot)
 }

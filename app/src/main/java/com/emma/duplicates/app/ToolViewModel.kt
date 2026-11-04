@@ -37,7 +37,7 @@ class ToolViewModel(
                 controls =
                     ToolControls(
                         minimumBytes = saved["minimum"] ?: 100_000_000L,
-                        months = saved["months"] ?: 6,
+                        months = saved["months"] ?: 0,
                         sort = saved["sort"] ?: "largest",
                         group = saved["group"] ?: 0,
                         folder = saved["folder"],
@@ -118,6 +118,27 @@ class ToolViewModel(
 
     fun stop() = container.scanScheduler.stopScan()
 
+    fun selectScreenshots(
+        ids: Set<String>,
+        selected: Boolean,
+    ) {
+        val current = state.value
+        val editing = local.value.busy || current.busy || current.running
+        if (tool != CleanupTool.SCREENSHOTS || editing) return
+        val session = current.results?.session ?: return
+        val visibleIds = current.visibleItems.filter { !it.keeper }.mapTo(HashSet()) { it.id }
+        val requested = ids.intersect(visibleIds)
+        if (requested.isNotEmpty()) {
+            viewModelScope.launch {
+                store.setScreenshotSelection(
+                    session.id,
+                    requested,
+                    selected,
+                )
+            }
+        }
+    }
+
     fun select(
         id: String,
         selected: Boolean,
@@ -138,7 +159,12 @@ class ToolViewModel(
                     val batch = folders.prepare(session.id)
                     local.update { it.copy(folderConfirmation = batch) }
                 } else {
-                    prepareFileCleanup(session.id, current)
+                    val batch = cleanup.prepare(session.id, current.visibleItems.map { it.id }.toSet())
+                    if (batch.files.isEmpty()) {
+                        local.update { it.copy(notice = R.string.tool_changed) }
+                    } else {
+                        local.update { it.copy(fileConfirmation = batch) }
+                    }
                 }
             } catch (cancel: CancellationException) {
                 throw cancel
@@ -150,18 +176,6 @@ class ToolViewModel(
                 local.update { it.copy(busy = false) }
             }
             if (!container.preferencesRepository.confirmBeforeDelete.first()) confirmCleanup()
-        }
-    }
-
-    private suspend fun prepareFileCleanup(
-        sessionId: String,
-        current: ToolScreenState,
-    ) {
-        val batch = cleanup.prepare(sessionId, current.visibleItems.map { it.id }.toSet())
-        if (batch.files.isEmpty()) {
-            local.update { it.copy(notice = R.string.tool_changed) }
-        } else {
-            local.update { it.copy(fileConfirmation = batch) }
         }
     }
 

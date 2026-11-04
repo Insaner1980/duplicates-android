@@ -21,6 +21,21 @@ class DuplicatesThemeTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun lightActionsAndSelectionMarksMeetContrastTargets() {
+        fun contrast(
+            first: Color,
+            second: Color,
+        ): Double =
+            androidx.core.graphics.ColorUtils
+                .calculateContrast(first.toArgb(), second.toArgb())
+        assertTrue(contrast(LightActionText, PrimaryText) >= 4.5)
+        assertTrue(contrast(LightActionText, LightSurfaceVariant) >= 4.5)
+        assertTrue(contrast(Color.White, LightActionText) >= 4.5)
+        assertTrue(contrast(OnPrimary, Primary) >= 4.5)
+        assertTrue(contrast(Primary, Background) >= 3.0)
+    }
+
+    @Test
     fun darkThemeUsesApprovedWarmNeutralAndOrangeRoles() {
         lateinit var scheme: ColorScheme
         composeRule.setContent { DuplicatesTheme { scheme = MaterialTheme.colorScheme } }
