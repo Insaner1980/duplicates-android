@@ -26,8 +26,8 @@ class PendingCleanupReconciler(
     private val operationMutex: Mutex,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    private val dao = database.toolDao()
     private val access = CleanupAccess(database, volumes, hasAccess)
+    private val dao = database.toolDao()
 
     suspend fun reconcile() =
         withContext(ioDispatcher) {

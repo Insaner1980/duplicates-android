@@ -1,6 +1,9 @@
 package com.emma.duplicates.core.designsystem
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 val Background = Color(color = 0xFF252422)
 val Surface = Background
@@ -37,3 +40,11 @@ val LightOutline = Color(color = 0xFF817B71)
 val LightOutlineVariant = Color(color = 0xFFD8D2C7)
 
 val LightError = Color(color = 0xFF9C2019)
+
+val LightActionText = Color(color = 0xFFAD3C12)
+
+private const val LIGHT_BACKGROUND_LUMINANCE = 0.5f
+
+@Composable
+fun actionTextColor(): Color =
+    if (MaterialTheme.colorScheme.background.luminance() > LIGHT_BACKGROUND_LUMINANCE) LightActionText else Primary

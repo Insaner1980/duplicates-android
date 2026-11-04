@@ -14,17 +14,21 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -32,7 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.emma.duplicates.R
@@ -56,8 +63,11 @@ import com.emma.duplicates.core.database.ScanFailureReasons
 import com.emma.duplicates.core.database.ScanPhases
 import com.emma.duplicates.core.database.ScanStatuses
 import com.emma.duplicates.core.database.ToolItemEntity
+import com.emma.duplicates.core.designsystem.CleanupRowTitle
+import com.emma.duplicates.core.designsystem.CleanupTitle
 import com.emma.duplicates.core.designsystem.DuplicatesCard
 import com.emma.duplicates.core.designsystem.PrimaryActionButton
+import com.emma.duplicates.core.designsystem.cleanupCheckboxColors
 import com.emma.duplicates.core.format.DisplayFormatters
 import com.emma.duplicates.core.model.CleanupTool
 import com.emma.duplicates.core.model.ToolScope
@@ -78,7 +88,6 @@ fun ToolResultsScreen(
     onRefresh: () -> Unit,
     onStop: () -> Unit,
     onGrantAccess: () -> Unit,
-    onScope: () -> Unit,
     onControls: (ToolControls) -> Unit,
     onSelect: (String, Boolean) -> Unit,
     onPreview: (String) -> Unit,
@@ -86,34 +95,55 @@ fun ToolResultsScreen(
     onConfirm: () -> Unit,
     onDismissConfirmation: () -> Unit,
     onDismissOutcome: () -> Unit,
+    onSelectScreenshots: (Set<String>, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxSize().safeDrawingPadding()) {
         val footerInList = maxHeight < 360.dp
         val columns = if (maxWidth < 360.dp || LocalDensity.current.fontScale >= LARGE_FONT_SCALE) 1 else 2
         val visible = state.visibleItems
+        val listState = rememberLazyListState()
+        LaunchedEffect(state.controls.group) { listState.scrollToItem(0) }
         Column(Modifier.fillMaxSize()) {
+            ToolHeader(state, onBack, onRefresh)
             LazyColumn(
                 Modifier.weight(1f).testTag("tool-results"),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                item {
-                    DetailHeader(state.tool.titleResource(), onBack) {
-                        IconButton(onClick = onRefresh, enabled = !state.busy && !state.running && state.hasAccess) {
-                            Icon(Icons.Outlined.Refresh, stringResource(R.string.refresh))
+                if (state.showRunStatus) {
+                    item { Column(Modifier.padding(bottom = 12.dp)) { ToolRunStatus(state, onStop, onGrantAccess) } }
+                }
+                if (state.hasAccess) {
+                    item { Column(Modifier.padding(bottom = 12.dp)) { ToolFilters(state, onControls) } }
+                    if (visible.isEmpty() && !state.running) {
+                        item {
+                            Text(
+                                stringResource(
+                                    if (state.tool ==
+                                        CleanupTool.EMPTY_FOLDERS
+                                    ) {
+                                        R.string.tool_no_folders
+                                    } else {
+                                        R.string.tool_no_results
+                                    },
+                                ),
+                            )
                         }
                     }
+                    toolItems(state, columns, onSelect, onPreview, onSelectScreenshots)
                 }
-                item { ToolRunStatus(state, onStop, onGrantAccess) }
-                if (state.hasAccess) {
-                    item { ToolFilters(state, onControls, onScope) }
-                    if (visible.isEmpty() && !state.running) item { Text(stringResource(R.string.tool_no_results)) }
-                    toolItems(state, columns, onSelect, onPreview)
+                if (footerInList) {
+                    item {
+                        if (state.tool == CleanupTool.SIMILAR_PHOTOS) SimilarGroupFilter(state, onControls)
+                        ToolFooter(state, onRequestCleanup)
+                    }
                 }
-                if (footerInList) item { ToolFooter(state, onRequestCleanup) }
             }
-            if (!footerInList) ToolFooter(state, onRequestCleanup)
+            if (!footerInList) {
+                if (state.tool == CleanupTool.SIMILAR_PHOTOS) SimilarGroupFilter(state, onControls)
+                ToolFooter(state, onRequestCleanup)
+            }
         }
     }
     ToolDialogs(state, onConfirm, onDismissConfirmation, onDismissOutcome)
@@ -124,12 +154,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.toolItems(
     columns: Int,
     onSelect: (String, Boolean) -> Unit,
     onPreview: (String) -> Unit,
+    onSelectScreenshots: (Set<String>, Boolean) -> Unit,
 ) {
     val visible = state.visibleItems
     if (state.tool == CleanupTool.SIMILAR_PHOTOS || state.tool == CleanupTool.SCREENSHOTS) {
-        toolImageItems(state, columns, onSelect, onPreview)
+        toolImageItems(state, columns, onSelect, onPreview, onSelectScreenshots)
     } else {
-        items(visible, key = { it.id }) { item ->
+        itemsIndexed(visible, key = { _, item -> item.id }) { index, item ->
             ToolFileRow(
                 item,
                 state.tool,
@@ -137,6 +168,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.toolItems(
                 state.busy || state.running,
                 { onSelect(item.id, it) },
                 { onPreview(item.id) },
+                first = index == 0,
+                last = index == visible.lastIndex,
             )
         }
     }
@@ -147,6 +180,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.toolImageItems(
     columns: Int,
     onSelect: (String, Boolean) -> Unit,
     onPreview: (String) -> Unit,
+    onSelectScreenshots: (Set<String>, Boolean) -> Unit,
 ) {
     val visible = state.visibleItems
     val groups =
@@ -160,15 +194,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.toolImageItems(
     groups.forEach { (month, images) ->
         if (state.tool == CleanupTool.SCREENSHOTS) {
             item(key = "month:$month") {
-                Text(
-                    month.ifEmpty { stringResource(R.string.tool_unknown_date) },
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.semantics { heading() },
-                )
+                ScreenshotMonthHeader(month, images, state.busy || state.running, onSelectScreenshots)
             }
         }
         items(images.chunked(columns), key = { row -> row.first().id }) { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { item ->
                     ToolImageCard(
                         item,
@@ -177,6 +207,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.toolImageItems(
                         { onSelect(item.id, it) },
                         { onPreview(item.id) },
                         Modifier.weight(1f),
+                        dateLabel =
+                            if (month.isEmpty()) {
+                                null
+                            } else {
+                                DisplayFormatters.shortDate(
+                                    item.modifiedAt,
+                                    scanZone(state),
+                                )
+                            },
                     )
                 }
                 if (row.size < columns) Spacer(Modifier.weight(1f))
@@ -231,15 +270,9 @@ internal fun ToolRunStatus(
                 }
             }
             if (state.results?.session?.complete == false) Text(stringResource(R.string.tool_partial))
-            state.results?.session?.skippedCount?.takeIf { it > 0 }?.let {
-                Text(
-                    stringResource(R.string.tool_skipped, it),
-                )
-            }
         }
         if (state.busy) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(stringResource(R.string.tool_prepare))
         }
         state.notice?.let { Text(stringResource(it)) }
     }
@@ -252,24 +285,13 @@ private fun ToolFooter(
 ) {
     if (!state.hasAccess) return
     Surface(color = MaterialTheme.colorScheme.surface) {
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(16.dp)) {
-            val inline =
-                maxWidth >= 328.dp && LocalDensity.current.fontScale < LARGE_FONT_SCALE &&
-                    state.tool !in setOf(CleanupTool.LARGE_FILES, CleanupTool.SIMILAR_PHOTOS)
-            if (inline) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    SelectionSummary(state, Modifier.weight(1f))
-                    CleanupButton(state, onCleanup)
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SelectionSummary(state)
-                    CleanupButton(state, onCleanup, Modifier.fillMaxWidth())
-                }
-            }
+        Column(
+            Modifier.fillMaxWidth().testTag("tool-footer").padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            HorizontalDivider()
+            SelectionSummary(state)
+            CleanupButton(state, onCleanup, Modifier.fillMaxWidth())
         }
     }
 }
@@ -279,20 +301,19 @@ private fun SelectionSummary(
     state: ToolScreenState,
     modifier: Modifier = Modifier,
 ) {
-    val summary =
-        if (state.tool == CleanupTool.LARGE_FILES) {
-            stringResource(
-                R.string.tool_selected_bytes,
-                DisplayFormatters.size(
-                    LocalResources.current,
-                    state.selected.sumOf { it.sizeBytes },
-                ),
-            )
-        } else {
-            pluralStringResource(R.plurals.tool_selected_count, state.selected.size, state.selected.size)
-        }
     Column(modifier) {
-        Text(summary, style = MaterialTheme.typography.titleMedium)
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                pluralStringResource(R.plurals.tool_selected_count, state.selected.size, state.selected.size),
+                style = CleanupRowTitle,
+            )
+            if (state.tool != CleanupTool.EMPTY_FOLDERS) {
+                Text(
+                    DisplayFormatters.size(LocalResources.current, state.selected.sumOf { it.sizeBytes }),
+                    style = CleanupRowTitle,
+                )
+            }
+        }
         if (state.hiddenCount > 0) {
             Text(
                 pluralStringResource(R.plurals.tool_hidden_selected, state.hiddenCount, state.hiddenCount),
@@ -312,6 +333,7 @@ private fun CleanupButton(
         onCleanup,
         modifier.testTag("tool-cleanup"),
         state.selected.isNotEmpty() && !state.busy && !state.running,
+        compact = true,
     ) {
         Text(
             stringResource(
@@ -337,13 +359,12 @@ private fun ToolDialogs(
     val resources = LocalResources.current
     state.fileConfirmation?.let { batch ->
         ConfirmationDialog(
-            stringResource(R.string.delete_confirmation_title),
+            stringResource(R.string.tool_move_title),
             androidx.compose.ui.res.pluralStringResource(
                 R.plurals.tool_confirm_move,
                 batch.files.size,
                 batch.files.size,
                 DisplayFormatters.size(resources, batch.selectedBytes),
-                scopeLabel(state),
             ) +
                 if (batch.hiddenCount >
                     0
@@ -365,7 +386,6 @@ private fun ToolDialogs(
                 R.plurals.tool_delete_folders_confirmation,
                 batch.selected.size,
                 batch.selected.size,
-                scopeLabel(state),
             ),
             stringResource(R.string.tool_delete_folders),
             onDismiss,
@@ -379,9 +399,8 @@ private fun ToolDialogs(
                 stringResource(R.string.tool_folder_outcome, result.completed, result.failed)
             } else {
                 stringResource(
-                    R.string.deletion_outcome,
+                    R.string.tool_move_outcome,
                     result.completed,
-                    DisplayFormatters.size(resources, 0),
                     result.failed,
                 )
             }
@@ -391,21 +410,69 @@ private fun ToolDialogs(
     }
 }
 
+internal const val LARGE_FONT_SCALE = 1.5f
+
 @Composable
-internal fun scopeLabel(state: ToolScreenState): String {
-    val scope =
-        state.results
-            ?.session
-            ?.scope
-            ?.let(ToolScope::decode) ?: return stringResource(R.string.selected_storage)
-    return if (scope.includedPaths.isNotEmpty()) {
-        scope.includedPaths.joinToString("\n")
-    } else {
-        scope.volumes.joinToString("\n") { volume ->
-            state.volumes.firstOrNull { it.id == volume.id }?.label
-                ?: volume.path
+private fun ToolHeader(
+    state: ToolScreenState,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    DetailHeader(
+        state.tool.titleResource(),
+        onBack,
+        Modifier.padding(horizontal = 16.dp).heightIn(min = 56.dp),
+        titleStyle = CleanupTitle,
+    ) {
+        IconButton(onClick = onRefresh, enabled = !state.busy && !state.running && state.hasAccess) {
+            Icon(Icons.Outlined.Refresh, stringResource(R.string.refresh))
         }
     }
 }
 
-internal const val LARGE_FONT_SCALE = 1.5f
+private val ToolScreenState.showRunStatus: Boolean
+    get() {
+        val activeOrUnavailable = !hasAccess || running || busy
+        val interrupted = latest?.status in listOf(ScanStatuses.FAILED, ScanStatuses.CANCELED)
+        val incomplete = notice != null || results?.session?.complete == false
+        return activeOrUnavailable || interrupted || incomplete
+    }
+
+@Composable
+private fun ScreenshotMonthHeader(
+    month: String,
+    images: List<ToolItemEntity>,
+    busy: Boolean,
+    onSelectScreenshots: (Set<String>, Boolean) -> Unit,
+) {
+    val label = month.ifEmpty { stringResource(R.string.tool_unknown_date) }
+    val eligible = images.filter { !it.keeper }
+    val selected = eligible.count { it.selected }
+    val selectionState =
+        when {
+            selected == 0 -> ToggleableState.Off
+            selected == eligible.size -> ToggleableState.On
+            else -> ToggleableState.Indeterminate
+        }
+    val description = stringResource(R.string.tool_select_item, label)
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = MaterialTheme.shapes.large) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, Modifier.weight(1f).semantics { heading() }, style = CleanupRowTitle)
+            TriStateCheckbox(
+                selectionState,
+                {
+                    onSelectScreenshots(
+                        eligible.mapTo(HashSet()) { it.id },
+                        selectionState != ToggleableState.On,
+                    )
+                },
+                Modifier.size(48.dp).semantics { contentDescription = description },
+                enabled = !busy && eligible.isNotEmpty(),
+                colors = cleanupCheckboxColors(),
+            )
+        }
+    }
+}

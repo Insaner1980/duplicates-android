@@ -47,6 +47,7 @@ fun MediaThumbnail(
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
     fallbackIconSize: Dp = size,
+    fileName: String? = null,
 ) {
     val thumbnailSizePx = with(LocalDensity.current) { size.roundToPx() }
     Box(
@@ -54,6 +55,16 @@ fun MediaThumbnail(
         contentAlignment = Alignment.Center,
     ) {
         CategoryIcon(category, Modifier.size(fallbackIconSize))
+        if (category == UiFileCategory.DOCUMENTS &&
+            fileName?.substringAfterLast('.')?.equals("pdf", ignoreCase = true) == true
+        ) {
+            androidx.compose.material3.Text(
+                androidx.compose.ui.res
+                    .stringResource(R.string.pdf_label),
+                Modifier.align(Alignment.BottomCenter).background(MaterialTheme.colorScheme.surfaceContainer),
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
         when (category) {
             UiFileCategory.PHOTOS -> {
                 if (thumbnailModel != null) {

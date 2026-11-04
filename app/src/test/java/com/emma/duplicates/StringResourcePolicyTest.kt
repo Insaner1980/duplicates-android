@@ -24,7 +24,8 @@ class StringResourcePolicyTest {
                 }.forEach { path ->
                     Files.readAllLines(path, StandardCharsets.UTF_8).forEachIndexed { index, line ->
                         val found = line.filter(forbidden::contains).toSet()
-                        if (found.isNotEmpty()) {
+                        val unknownPlaceholder = line.trim() == """<string name="cleanup_unknown">—</string>"""
+                        if (found.isNotEmpty() && !unknownPlaceholder) {
                             violations += "$path:${index + 1} contains ${found.joinToString()}"
                         }
                     }

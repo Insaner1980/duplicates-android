@@ -25,6 +25,7 @@ import com.emma.duplicates.core.designsystem.DuplicatesTheme
 import com.emma.duplicates.core.model.CleanupTool
 import com.emma.duplicates.data.UnusedAppsResult
 import com.emma.duplicates.data.UsageAccessState
+import com.emma.duplicates.ui.tools.RootTab
 import com.emma.duplicates.ui.tools.titleResource
 import io.mockk.coEvery
 import io.mockk.every
@@ -67,14 +68,28 @@ class ToolNavigationTest {
                     nav = rememberNavController()
                     NavHost(nav, startDestination = HomeRoute) {
                         composable<HomeRoute> { Text("Start") }
-                        composable<ToolRoute> {
-                            ToolDestination(container, nav, it, mockk(relaxed = true)) { grants++ }
-                        }
-                        composable<ToolPreviewRoute> { ToolPreviewDestination(container, nav, it) }
+                        toolDestinations(container, nav, mockk(relaxed = true)) { grants++ }
                     }
                 }
             }
         }
+    }
+
+    @Test
+    fun legacyToolsRouteReturnsHome() {
+        compose.runOnIdle { nav.navigate(ToolsRoute) }
+        compose.onNodeWithText("Start").assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(nav.previousBackStackEntry)
+        }
+    }
+
+    @Test
+    fun homeTabReturnsToDashboardAfterToolNotification() {
+        compose.runOnIdle { nav.navigate(ToolRoute(CleanupTool.SCREENSHOTS.name, "missing-run")) }
+        compose.onNodeWithText(compose.activity.getString(CleanupTool.SCREENSHOTS.titleResource())).assertIsDisplayed()
+        compose.runOnIdle { nav.selectRootTab(RootTab.HOME) }
+        compose.onNodeWithText("Start").assertIsDisplayed()
     }
 
     @Test
@@ -127,8 +142,7 @@ class ToolNavigationTest {
                 compose
                     .onNodeWithContentDescription(
                         compose.activity.getString(R.string.back),
-                    ).performScrollTo()
-                    .performClick()
+                    ).performClick()
                 compose.onNodeWithText("Start").assertIsDisplayed()
             }
             compose.runOnIdle { nav.navigate(ToolPreviewRoute("missing", "missing")) }

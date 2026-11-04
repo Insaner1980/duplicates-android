@@ -11,6 +11,23 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object DisplayFormatters {
+    fun date(
+        epochMillis: Long,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): String =
+        DateTimeFormatter
+            .ofPattern(
+                "d MMM yyyy",
+                Locale.ENGLISH,
+            ).withZone(zoneId)
+            .format(Instant.ofEpochMilli(epochMillis))
+
+    fun shortDate(
+        epochMillis: Long,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): String =
+        DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH).withZone(zoneId).format(Instant.ofEpochMilli(epochMillis))
+
     private const val KILOBYTE = 1_000L
     private const val MEGABYTE = 1_000_000L
     private const val GIGABYTE = 1_000_000_000L

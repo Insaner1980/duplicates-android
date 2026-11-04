@@ -47,7 +47,6 @@ import com.emma.duplicates.ui.settings.TypesToScanScreen
 import com.emma.duplicates.ui.tools.DashboardScreen
 import com.emma.duplicates.ui.tools.RootNavigationBar
 import com.emma.duplicates.ui.tools.RootTab
-import com.emma.duplicates.ui.tools.ToolsScreen
 import kotlinx.coroutines.flow.Flow
 
 @Composable
@@ -100,9 +99,8 @@ private fun AppNavHost(
     val destination = entry?.destination
     val tab =
         when {
-            destination?.hasRoute<HomeRoute>() == true -> RootTab.HOME
             destination?.hasRoute<RecoveryRoute>() == true -> RootTab.RECOVERY
-            else -> RootTab.TOOLS
+            else -> RootTab.HOME
         }
     val showTabs =
         destination == null || destination.hasRoute<HomeRoute>() || destination.hasRoute<ToolsRoute>() ||
@@ -112,7 +110,15 @@ private fun AppNavHost(
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (showTabs) RootNavigationBar(tab, navController::selectRootTab)
+            if (showTabs) {
+                RootNavigationBar(
+                    tab,
+                    navController::selectRootTab,
+                    emphasizeSelection =
+                        destination?.hasRoute<HomeRoute>() == true ||
+                            destination?.hasRoute<RecoveryRoute>() == true,
+                )
+            }
         },
     ) { contentPadding ->
         AppNavigationGraph(
@@ -259,17 +265,17 @@ private fun ObservePlatformState(
     }
 }
 
-private fun androidx.navigation.NavGraphBuilder.toolDestinations(
+internal fun androidx.navigation.NavGraphBuilder.toolDestinations(
     container: AppContainer,
     navController: NavHostController,
     deletionAuthorizer: MediaDeletionAuthorizer,
     onOpenStorageSettings: () -> Unit,
 ) {
     composable<RecoveryRoute> {
-        RecoveryDestination(container, onBack = { navController.popBackStack() })
+        RecoveryDestination(container)
     }
     composable<ToolsRoute> {
-        ToolsScreen(navController::openTool)
+        LaunchedEffect(navController) { navController.returnHome() }
     }
 
     composable<ToolRoute> { entry ->

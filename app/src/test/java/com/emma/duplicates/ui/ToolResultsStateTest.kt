@@ -13,6 +13,22 @@ import org.junit.Test
 
 class ToolResultsStateTest {
     @Test
+    fun newScreenshotAndDownloadViewsIncludeRecentAndUnknownDates() {
+        val started = 1_800_000_000_000L
+        for (tool in listOf(CleanupTool.SCREENSHOTS, CleanupTool.OLD_DOWNLOADS)) {
+            val results =
+                ToolResults(
+                    ToolScanSession("run", tool.name, started, ToolScope(emptyList()).encode()),
+                    listOf(item("recent", 584000).copy(modifiedAt = started - 1000), item("unknown", 392000)),
+                )
+            assertEquals(
+                setOf("recent", "unknown"),
+                toolVisibleItems(tool, results, ToolControls()).map { it.id }.toSet(),
+            )
+        }
+    }
+
+    @Test
     fun filteringKeepsSelectedItemsAndStableSizeTies() {
         val small = item("b", 100_000_001).copy(selected = true)
         val big = item("a", 600_000_000)

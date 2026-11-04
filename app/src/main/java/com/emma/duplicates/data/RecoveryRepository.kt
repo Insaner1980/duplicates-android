@@ -19,8 +19,12 @@ import java.io.IOException
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.LinkOption
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
+import java.nio.file.SecureDirectoryStream
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributeView
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -49,6 +53,57 @@ class RecoveryRepository internal constructor(
 
     val files = dao.observeFiles()
     private val mutex = Mutex()
+
+    suspend fun describe(
+        records: List<RecoveryFile>,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    ): List<RecoveryEntry> =
+        withContext(ioDispatcher) {
+            mutex.withLock {
+                records.map { record ->
+                    val unavailable = RecoveryEntry(record, null, null, false)
+                    try {
+                        val payload = record.ownedPayload(roots(), available)
+                        if (payload != null && Files.isRegularFile(payload, LinkOption.NOFOLLOW_LINKS) &&
+                            Files.isReadable(payload)
+                        ) {
+                            RecoveryEntry(record, Files.size(payload), payload.toString(), true)
+                        } else {
+                            unavailable
+                        }
+                    } catch (_: IOException) {
+                        unavailable
+                    } catch (_: SecurityException) {
+                        unavailable
+                    }
+                }
+            }
+        }
+
+    suspend fun deletePermanently(
+        id: String,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    ): Boolean =
+        withContext(ioDispatcher) {
+            mutex.withLock {
+                try {
+                    val record = dao.get(id) ?: return@withLock false
+                    val payload = record.ownedPayload(roots(), available) ?: return@withLock false
+                    if (!removeOwnedPayload(
+                            payload,
+                        ) { record.ownedPayload(roots(), available) == payload }
+                    ) {
+                        return@withLock false
+                    }
+                    dao.delete(id)
+                    true
+                } catch (_: IOException) {
+                    false
+                } catch (_: SecurityException) {
+                    false
+                }
+            }
+        }
 
     suspend fun move(
         file: DeletionFile,
@@ -135,7 +190,7 @@ class RecoveryRepository internal constructor(
         withContext(ioDispatcher) {
             mutex.withLock {
                 val record = dao.get(id) ?: return@withLock RecoveryMoveState.NOT_MOVED
-                val payload = ownedPayload(record) ?: return@withLock RecoveryMoveState.UNAVAILABLE
+                val payload = record.ownedPayload(roots(), available) ?: return@withLock RecoveryMoveState.UNAVAILABLE
                 if (Files.notExists(payload, LinkOption.NOFOLLOW_LINKS)) {
                     return@withLock removeMissingRecord(id, payload)
                 }
@@ -174,7 +229,8 @@ class RecoveryRepository internal constructor(
     private fun restore(record: RecoveryFile): String? {
         return try {
             val payload =
-                ownedPayload(record)?.takeIf { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) } ?: return null
+                record.ownedPayload(roots(), available)?.takeIf { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }
+                    ?: return null
             val original = File(record.originalPath).toPath()
             val destination =
                 try {
@@ -197,7 +253,7 @@ class RecoveryRepository internal constructor(
             mutex.withLock {
                 dao.expired(now()).forEach { record ->
                     try {
-                        val payload = ownedPayload(record) ?: return@forEach
+                        val payload = record.ownedPayload(roots(), available) ?: return@forEach
                         Files.deleteIfExists(payload)
                         Files.deleteIfExists(payload.parent)
                         dao.delete(record.id)
@@ -210,19 +266,6 @@ class RecoveryRepository internal constructor(
             }
         }
 
-    private fun ownedPayload(record: RecoveryFile): Path? {
-        if (runCatching { UUID.fromString(record.id).toString() }.getOrNull() != record.id) return null
-        return roots()
-            .asSequence()
-            .filter(available)
-            .map { root ->
-                File(File(root, record.id), "payload")
-            }.firstOrNull { expected ->
-                expected.path == record.storedPath && expected.canonicalPath == expected.absolutePath &&
-                    !Files.isSymbolicLink(expected.toPath())
-            }?.toPath()
-    }
-
     private companion object {
         val RETENTION_MILLIS: Long = TimeUnit.DAYS.toMillis(30)
     }
@@ -230,8 +273,74 @@ class RecoveryRepository internal constructor(
 
 enum class RecoveryMoveState { VERIFIED, UNVERIFIED, NOT_MOVED, UNAVAILABLE }
 
+private fun SecureDirectoryStream<Path>.attributesOrNull(name: Path): BasicFileAttributes? =
+    try {
+        getFileAttributeView(name, BasicFileAttributeView::class.java, LinkOption.NOFOLLOW_LINKS).readAttributes()
+    } catch (_: NoSuchFileException) {
+        null
+    }
+
 // Android/data is a separate bind mount: atomic moves from shared storage fail with EXDEV.
 // This hidden app-specific directory stays on the shared volume and is excluded from scans.
 @Suppress("DEPRECATION", "kotlin:S5324")
 private fun recoveryRoots(context: Context): List<File> =
     context.externalMediaDirs.filterNotNull().map { File(it, ".recovery") }
+
+private fun RecoveryFile.ownedPayload(
+    roots: List<File>,
+    available: (File) -> Boolean,
+): Path? {
+    if (runCatching { UUID.fromString(id).toString() }.getOrNull() != id) return null
+    return roots
+        .asSequence()
+        .filter(available)
+        .map { root ->
+            File(File(root, id), "payload")
+        }.firstOrNull { expected ->
+            expected.path == storedPath && expected.canonicalPath == expected.absolutePath &&
+                !Files.isSymbolicLink(expected.toPath())
+        }?.toPath()
+}
+
+private fun removeOwnedPayload(
+    payload: Path,
+    stillOwned: () -> Boolean,
+): Boolean {
+    val root = payload.parent.parent
+    val identity = Files.readAttributes(root, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+    if (!identity.isDirectory || identity.isSymbolicLink || identity.fileKey() == null) return false
+    // Verify ownership after capturing identity, then compare the opened handle.
+    return stillOwned() &&
+        Files.newDirectoryStream(root).use { stream ->
+            val secure = stream as? SecureDirectoryStream<Path> ?: return@use false
+            if (secure.getFileAttributeView(BasicFileAttributeView::class.java).readAttributes().fileKey() !=
+                identity.fileKey()
+            ) {
+                return@use false
+            }
+            if (!secure.removePayloadDirectory(payload)) return@use false
+            stillOwned() &&
+                Files.readAttributes(root, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS).fileKey() ==
+                identity.fileKey() &&
+                secure.attributesOrNull(payload.parent.fileName) == null
+        }
+}
+
+private fun SecureDirectoryStream<Path>.removePayloadDirectory(payload: Path): Boolean {
+    val directory = payload.parent.fileName
+    return try {
+        val removed =
+            newDirectoryStream(directory, LinkOption.NOFOLLOW_LINKS).use { copy ->
+                val attributes = copy.attributesOrNull(payload.fileName)
+                if (attributes?.isSymbolicLink == true || attributes?.isRegularFile == false) return@use false
+                if (attributes != null) copy.deleteFile(payload.fileName)
+                if (copy.attributesOrNull(payload.fileName) != null) return@use false
+                val openedKey = copy.getFileAttributeView(BasicFileAttributeView::class.java).readAttributes().fileKey()
+                openedKey != null && attributesOrNull(directory)?.fileKey() == openedKey
+            }
+        if (removed) deleteDirectory(directory) // Never recurse into unexpected contents.
+        removed
+    } catch (_: NoSuchFileException) {
+        attributesOrNull(directory) == null
+    }
+}
