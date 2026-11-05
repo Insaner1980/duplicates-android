@@ -148,13 +148,14 @@ class ToolsLayoutTest {
     }
 
     @Test
-    fun onlyProtectedPhotoShowsKeepLabelBelowTheImageWithoutDeleteCheckbox() {
-        val state = fixture(CleanupTool.SIMILAR_PHOTOS)
+    fun protectedPhotoShowsKeptOutcomeBelowTheImageWithoutDeleteCheckbox() {
+        val base = fixture(CleanupTool.SIMILAR_PHOTOS)
+        val state = base.copy(results = base.results?.copy(items = base.visibleItems.take(2)))
         val keeper = state.visibleItems.first { it.keeper }
         composeRule.setContent { DuplicatesTheme { FixtureScreen(state) } }
         val label =
             composeRule
-                .onNodeWithText("Keep")
+                .onNodeWithText("Will be kept")
                 .assertIsDisplayed()
                 .fetchSemanticsNode()
                 .boundsInRoot
@@ -168,7 +169,7 @@ class ToolsLayoutTest {
         composeRule.onNodeWithContentDescription("Preview ${keeper.name}").assert(
             androidx.compose.ui.test.SemanticsMatcher.expectValue(
                 androidx.compose.ui.semantics.SemanticsProperties.StateDescription,
-                "Keep",
+                "Will be kept",
             ),
         )
         composeRule.onNodeWithContentDescription("Select ${keeper.name}").assertDoesNotExist()
@@ -372,6 +373,10 @@ class ToolsLayoutTest {
                 }
                 val name = if (tool == CleanupTool.DUPLICATES) "home" else tool.name.lowercase()
                 capture("$name-$width-${font.toInt()}-${if (theme) "dark" else "light"}")
+                if (tool == CleanupTool.SIMILAR_PHOTOS) {
+                    verifyPhotoOptions(current.value)
+                    verifyGroupOverview(width)
+                }
                 verifyStates(current)
                 if (tool == CleanupTool.EMPTY_FOLDERS || tool == CleanupTool.LARGE_FILES) verifyConfirmation(current)
             }
@@ -417,13 +422,16 @@ class ToolsLayoutTest {
                             {},
                             {},
                             {},
-                            { _, _ -> selections++ },
                             { previews++ },
                             {},
                             {},
                             {},
                             {},
-                            onSelectScreenshots = { ids, selected -> monthSelections += ids to selected },
+                            onSelectVisible = { ids, selected ->
+                                monthSelections += ids to selected
+                                if (ids.size == 1) selections++
+                            },
+                            onKeep = {},
                         )
                     }
                 }
@@ -445,6 +453,28 @@ class ToolsLayoutTest {
                 emptyList()
             }
         UnusedAppsScreen(UnusedAppsResult(usageState.value, apps), 90, {}, {}, {}, {}, {})
+    }
+
+    private fun verifyPhotoOptions(state: ToolScreenState) {
+        val photo = state.visibleItems.first { !it.keeper }
+        val options = hasContentDescription("Photo options for ${photo.name}")
+        composeRule.onNodeWithTag("tool-results").performScrollToNode(options)
+        composeRule.onNode(options).performClick()
+        composeRule.onNodeWithText("Keep this photo").assertIsDisplayed()
+        assertReadableText()
+        composeRule.onNodeWithText("Keep this photo").performClick()
+    }
+
+    private fun verifyGroupOverview(width: String) {
+        if (width == "landscape") {
+            composeRule.onNodeWithTag("tool-results").performScrollToNode(hasTestTag("tool-browse-groups"))
+        }
+        composeRule.onNodeWithTag("tool-browse-groups").performClick()
+        composeRule.onNodeWithText("Browse groups").assertIsDisplayed()
+        composeRule.onNodeWithTag("tool-group-list").performScrollToNode(hasText("Group 1"))
+        composeRule.onNodeWithText("Group 1").assertIsDisplayed()
+        assertReadableText()
+        composeRule.onNodeWithText("Close groups").performClick()
     }
 
     private fun verifyStates(current: androidx.compose.runtime.MutableState<ToolScreenState>) {
@@ -521,7 +551,7 @@ class ToolsLayoutTest {
         composeRule.onNode(hasText("Cancel") and dialog).assertIsDisplayed()
         composeRule
             .onNode(
-                hasText(if (directories) "Delete selected" else "Move to Recovery") and dialog,
+                hasText(if (directories) "Delete folders" else "Move to Recovery") and dialog,
             ).assertIsDisplayed()
         assertReadableText()
         composeRule.runOnIdle { current.value = base }
@@ -634,7 +664,7 @@ class ToolsLayoutTest {
     }
 
     private fun capture(name: String) {
-        val file = File("build/outputs/two-tab-ui/visual/$name.png")
+        val file = File("build/outputs/tool-review/visual/$name.png")
         requireNotNull(file.parentFile).mkdirs()
         file.outputStream().use {
             composeRule

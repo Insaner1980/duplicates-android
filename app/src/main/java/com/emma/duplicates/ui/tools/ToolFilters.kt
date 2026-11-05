@@ -28,9 +28,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.emma.duplicates.R
+import com.emma.duplicates.core.designsystem.CleanupMetadata
 import com.emma.duplicates.core.model.CleanupTool
 
 private val SIZE_CHOICES = listOf(com.emma.duplicates.core.storage.LARGE_FILE_MINIMUM, HALF_GIGABYTE, GIGABYTE)
@@ -43,7 +47,7 @@ internal fun ToolFilters(
     onControls: (ToolControls) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Column {
             Text(
                 androidx.compose.ui.res.pluralStringResource(
                     when (state.tool) {
@@ -54,11 +58,11 @@ internal fun ToolFilters(
                     state.visibleItems.size,
                     state.visibleItems.size,
                 ),
-                Modifier.align(Alignment.CenterVertically),
+                style = CleanupMetadata,
             )
-            if (state.tool == CleanupTool.OLD_DOWNLOADS || state.tool == CleanupTool.SCREENSHOTS) {
-                AgeFilter(state.controls, onControls)
-            }
+        }
+        if (state.tool == CleanupTool.OLD_DOWNLOADS || state.tool == CleanupTool.SCREENSHOTS) {
+            AgeFilter(state.controls, onControls)
         }
         if (state.tool == CleanupTool.LARGE_FILES) LargeFileFilters(state.controls, onControls)
     }
@@ -103,29 +107,37 @@ internal fun SimilarGroupFilter(
     state: ToolScreenState,
     onControls: (ToolControls) -> Unit,
 ) {
-    val count =
-        state.results
-            ?.items
-            .orEmpty()
-            .filter { it.valid }
-            .mapNotNull { it.groupId }
-            .distinct()
-            .size
+    val count = similarPhotoGroups(state.results).size
+    var showGroups by remember { mutableStateOf(false) }
+    val browse = stringResource(R.string.tool_browse_groups)
     if (count > 0) {
         val index = state.controls.group.coerceIn(0, count - 1)
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton({ onControls(state.controls.copy(group = index - 1)) }, enabled = index > 0) {
                 Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, stringResource(R.string.tool_previous_group))
             }
-            Text(
-                stringResource(R.string.tool_group, index + 1, count),
-                Modifier.weight(1f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
+            TextButton(
+                { showGroups = true },
+                Modifier.weight(1f).testTag("tool-browse-groups").semantics { contentDescription = browse },
+            ) {
+                Text(
+                    stringResource(R.string.tool_group, index + 1, count),
+                    Modifier.weight(1f, fill = false),
+                    style = CleanupMetadata,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Icon(Icons.Outlined.KeyboardArrowDown, null, tint = MaterialTheme.colorScheme.onSurface)
+            }
             IconButton({ onControls(state.controls.copy(group = index + 1)) }, enabled = index < count - 1) {
                 Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, stringResource(R.string.tool_next_group))
             }
         }
+    }
+    if (showGroups) {
+        SimilarGroupsDialog(state, { group ->
+            onControls(state.controls.copy(group = group))
+            showGroups = false
+        }, { showGroups = false })
     }
 }
 
@@ -143,7 +155,12 @@ internal fun ToolDropdown(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             TextButton({ expanded = true }) {
-                Text(label, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f, fill = false))
+                Text(
+                    label,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = CleanupMetadata,
+                )
                 Icon(Icons.Outlined.KeyboardArrowDown, null, tint = MaterialTheme.colorScheme.onSurface)
             }
         }

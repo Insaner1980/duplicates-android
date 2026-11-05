@@ -90,14 +90,11 @@ fun toolVisibleItems(
         }
 
         CleanupTool.SIMILAR_PHOTOS -> {
-            items.groupBy { it.groupId }.values.toList().let { groups ->
+            similarPhotoGroups(results).let { groups ->
                 groups
                     .getOrNull(
                         controls.group.coerceIn(0, (groups.size - 1).coerceAtLeast(0)),
                     ).orEmpty()
-                    .sortedByDescending {
-                        it.keeper
-                    }
             }
         }
 
@@ -106,3 +103,12 @@ fun toolVisibleItems(
         }
     }
 }
+
+internal fun similarPhotoGroups(results: ToolResults?): List<List<ToolItemEntity>> =
+    results
+        ?.items
+        .orEmpty()
+        .filter { it.valid && it.groupId != null }
+        .groupBy { it.groupId }
+        .values
+        .toList()

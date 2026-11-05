@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.emma.duplicates.R
 import com.emma.duplicates.core.database.ScanStatuses
 import com.emma.duplicates.core.model.CleanupTool
+import com.emma.duplicates.domain.deletion.CleanupBatch
 import com.emma.duplicates.domain.deletion.MediaDeletionAuthorizer
 import com.emma.duplicates.ui.tools.ToolControls
 import com.emma.duplicates.ui.tools.ToolOutcome
@@ -118,19 +119,19 @@ class ToolViewModel(
 
     fun stop() = container.scanScheduler.stopScan()
 
-    fun selectScreenshots(
+    fun selectVisible(
         ids: Set<String>,
         selected: Boolean,
     ) {
         val current = state.value
         val editing = local.value.busy || current.busy || current.running
-        if (tool != CleanupTool.SCREENSHOTS || editing) return
+        if (editing) return
         val session = current.results?.session ?: return
         val visibleIds = current.visibleItems.filter { !it.keeper }.mapTo(HashSet()) { it.id }
         val requested = ids.intersect(visibleIds)
         if (requested.isNotEmpty()) {
             viewModelScope.launch {
-                store.setScreenshotSelection(
+                store.setSelection(
                     session.id,
                     requested,
                     selected,
@@ -139,13 +140,13 @@ class ToolViewModel(
         }
     }
 
-    fun select(
-        id: String,
-        selected: Boolean,
-    ) {
-        if (state.value.busy || state.value.running) return
-        val session = state.value.results?.session ?: return
-        viewModelScope.launch { store.setSelected(session.id, id, selected) }
+    fun keep(id: String) {
+        val current = state.value
+        val editing = local.value.busy || current.busy || current.running
+        val target = current.visibleItems.firstOrNull { it.id == id && it.valid } ?: return
+        if (tool == CleanupTool.SIMILAR_PHOTOS && !editing) {
+            viewModelScope.launch { store.keep(target.sessionId, id) }
+        }
     }
 
     fun requestCleanup() {
@@ -160,11 +161,7 @@ class ToolViewModel(
                     local.update { it.copy(folderConfirmation = batch) }
                 } else {
                     val batch = cleanup.prepare(session.id, current.visibleItems.map { it.id }.toSet())
-                    if (batch.files.isEmpty()) {
-                        local.update { it.copy(notice = R.string.tool_changed) }
-                    } else {
-                        local.update { it.copy(fileConfirmation = batch) }
-                    }
+                    local.update { it.withPreparedCleanup(batch) }
                 }
             } catch (cancel: CancellationException) {
                 throw cancel
@@ -213,3 +210,10 @@ class ToolViewModel(
         const val STATE_TIMEOUT_MS = 5_000L
     }
 }
+
+private fun ToolScreenState.withPreparedCleanup(batch: CleanupBatch): ToolScreenState =
+    if (batch.files.isEmpty()) {
+        copy(notice = R.string.tool_changed)
+    } else {
+        copy(fileConfirmation = batch)
+    }

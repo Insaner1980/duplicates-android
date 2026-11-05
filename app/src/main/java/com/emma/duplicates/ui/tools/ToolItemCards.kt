@@ -14,16 +14,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,9 +39,12 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -42,6 +52,7 @@ import com.emma.duplicates.R
 import com.emma.duplicates.core.database.ToolItemEntity
 import com.emma.duplicates.core.designsystem.CleanupMetadata
 import com.emma.duplicates.core.designsystem.CleanupRowTitle
+import com.emma.duplicates.core.designsystem.actionTextColor
 import com.emma.duplicates.core.designsystem.cleanupCheckboxColors
 import com.emma.duplicates.core.format.DisplayFormatters
 import com.emma.duplicates.core.model.CleanupTool
@@ -134,63 +145,74 @@ internal fun ToolImageCard(
     screenshot: Boolean,
     onSelect: (Boolean) -> Unit,
     onPreview: () -> Unit,
+    onKeep: () -> Unit,
     modifier: Modifier = Modifier,
     dateLabel: String? = null,
 ) {
+    if (!screenshot) {
+        SimilarPhotoCard(item, busy, onSelect, onPreview, onKeep, modifier)
+        return
+    }
     val selection = stringResource(R.string.tool_select_item, item.name)
-    val preview = stringResource(R.string.tool_open_item, item.name)
-    val keeper = !screenshot && item.keeper
-    val keepLabel = stringResource(R.string.tool_keep)
     val sizeLabel = DisplayFormatters.size(LocalResources.current, item.sizeBytes)
     Column(modifier) {
-        Surface(
-            Modifier.fillMaxWidth().then(if (screenshot) Modifier.height(208.dp) else Modifier.aspectRatio(1f)),
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = if (keeper) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        ScreenshotPreview(item, onPreview)
+        FlowRow(Modifier.fillMaxWidth().heightIn(min = 48.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                dateLabel ?: stringResource(R.string.cleanup_unknown),
+                Modifier.align(Alignment.CenterVertically),
+                style = CleanupMetadata,
+            )
+            Text(sizeLabel, Modifier.align(Alignment.CenterVertically), style = CleanupMetadata)
+            Checkbox(
+                item.selected,
+                onSelect,
+                enabled = !busy,
+                colors = cleanupCheckboxColors(),
+                modifier = Modifier.size(48.dp).semantics { contentDescription = selection },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScreenshotPreview(
+    item: ToolItemEntity,
+    onPreview: () -> Unit,
+) {
+    val preview = stringResource(R.string.tool_open_item, item.name)
+    var failed by remember(item.canonicalPath, item.modifiedAt) { mutableStateOf(false) }
+    Surface(
+        Modifier.fillMaxWidth().height(208.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Box(
+            Modifier.fillMaxSize().clickable(onClick = onPreview).semantics { contentDescription = preview },
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .clickable(onClick = onPreview)
-                    .semantics {
-                        contentDescription = preview
-                        if (keeper) stateDescription = keepLabel
-                    }.padding(if (keeper) 2.dp else 0.dp),
-                contentAlignment = Alignment.Center,
+            Column(
+                Modifier.padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(painterResource(R.drawable.ic_category_photos), null, Modifier.size(40.dp))
-                AsyncImage(File(item.canonicalPath), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-            }
-        }
-        FlowRow(Modifier.fillMaxWidth().heightIn(min = 48.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            if (screenshot) {
-                Text(
-                    dateLabel ?: stringResource(R.string.cleanup_unknown),
-                    Modifier.align(Alignment.CenterVertically),
-                    style = CleanupMetadata,
-                )
-            }
-            if (keeper) {
-                Row(
-                    Modifier.heightIn(min = 48.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Icon(Icons.Outlined.Lock, null, Modifier.size(24.dp))
-                    Text(stringResource(R.string.tool_keep), style = CleanupMetadata)
+                if (failed) {
+                    Text(
+                        stringResource(R.string.tool_thumbnail_unavailable),
+                        style = CleanupMetadata,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
-            Text(sizeLabel, Modifier.align(Alignment.CenterVertically), style = CleanupMetadata)
-            if (!keeper) {
-                Checkbox(
-                    item.selected,
-                    onSelect,
-                    enabled = !busy,
-                    colors = cleanupCheckboxColors(),
-                    modifier = Modifier.size(48.dp).semantics { contentDescription = selection },
-                )
-            }
+            AsyncImage(
+                File(item.canonicalPath),
+                null,
+                Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+                onError = { failed = true },
+                onSuccess = { failed = false },
+            )
         }
     }
 }
@@ -235,10 +257,11 @@ internal fun relativeFolder(
             ?.firstOrNull { it.id == item.volume }
             ?.path
             .orEmpty()
-    return item.canonicalPath
-        .removePrefix(root)
-        .trimStart('/')
-        .substringBeforeLast('/', "")
+    val relative =
+        item.canonicalPath
+            .removePrefix(root)
+            .trimStart('/')
+    return if (item.directory) relative else relative.substringBeforeLast('/', "")
 }
 
 @Composable
@@ -255,14 +278,15 @@ private fun ToolFileMetadata(
                 contentDescription = "${item.name} ${item.canonicalPath}"
             },
             style = CleanupRowTitle,
-            maxLines = if (item.directory) 2 else 1,
-            overflow = if (item.directory) TextOverflow.Ellipsis else TextOverflow.MiddleEllipsis,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (!item.directory) {
                 Text(
                     DisplayFormatters.size(LocalResources.current, item.sizeBytes),
                     style = CleanupMetadata,
+                    fontWeight = if (tool == CleanupTool.LARGE_FILES) FontWeight.SemiBold else FontWeight.Normal,
                 )
             }
             Text(
@@ -270,11 +294,9 @@ private fun ToolFileMetadata(
                 Modifier.testTag("file-path-${item.id}"),
                 style = CleanupMetadata,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = if (tool == CleanupTool.OLD_DOWNLOADS) Int.MAX_VALUE else 1,
+                maxLines = if (item.directory || tool == CleanupTool.OLD_DOWNLOADS) Int.MAX_VALUE else 1,
                 overflow =
-                    if (tool ==
-                        CleanupTool.OLD_DOWNLOADS
-                    ) {
+                    if (item.directory || tool == CleanupTool.OLD_DOWNLOADS) {
                         TextOverflow.Clip
                     } else {
                         TextOverflow.StartEllipsis

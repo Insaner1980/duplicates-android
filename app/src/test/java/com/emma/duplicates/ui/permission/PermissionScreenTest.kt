@@ -19,7 +19,7 @@ class PermissionScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun explainsRequiredAccessWithoutScanReassurance() {
+    fun showsRequiredAccessAndActionWithoutInstructions() {
         composeRule.setContent {
             DuplicatesTheme {
                 PermissionScreen(
@@ -32,7 +32,7 @@ class PermissionScreenTest {
         composeRule.onNodeWithText("Storage access required").assertIsDisplayed()
         composeRule
             .onNodeWithText("Duplicates needs access to shared storage to compare files across your phone.")
-            .assertIsDisplayed()
+            .assertDoesNotExist()
         composeRule.onNodeWithText("Files stay on this phone.").assertDoesNotExist()
         composeRule.onNodeWithText("Scanning never deletes anything.").assertDoesNotExist()
         composeRule.onNodeWithText("Grant storage access").assertIsDisplayed().assertIsEnabled()

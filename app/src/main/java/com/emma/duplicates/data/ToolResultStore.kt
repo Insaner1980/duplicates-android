@@ -23,19 +23,41 @@ class ToolResultStore(
 ) {
     val dao = database.toolDao()
 
-    suspend fun setScreenshotSelection(
+    suspend fun setSelection(
         sessionId: String,
         ids: Set<String>,
         selected: Boolean,
     ) = database.withTransaction {
         val session = dao.session(sessionId) ?: return@withTransaction
-        if (!session.active || session.tool != CleanupTool.SCREENSHOTS.name) return@withTransaction
+        if (!session.active) return@withTransaction
         if (dao.pending().isNotEmpty() || database.deletionOperationDao().getPending().isNotEmpty()) {
             return@withTransaction
         }
-        val changes = dao.items(sessionId).filter { it.id in ids && it.valid && !it.keeper && it.selected != selected }
+        val items = dao.items(sessionId).filter { it.valid && !it.keeper }
+        val targets = items.filter { it.id in ids }
+        val changes =
+            if (session.tool == CleanupTool.EMPTY_FOLDERS.name && targets.size != items.size) {
+                items.filter { item ->
+                    targets.any { target ->
+                        item.matchesFolderSelection(target, selected)
+                    }
+                }
+            } else {
+                targets
+            }
         if (changes.isNotEmpty()) dao.updateItems(changes.map { it.copy(selected = selected) })
     }
+
+    private fun ToolItemEntity.matchesFolderSelection(
+        target: ToolItemEntity,
+        selected: Boolean,
+    ): Boolean =
+        volume == target.volume &&
+            if (selected) {
+                Paths.get(canonicalPath).startsWith(Paths.get(target.canonicalPath))
+            } else {
+                Paths.get(target.canonicalPath).startsWith(Paths.get(canonicalPath))
+            }
 
     fun active(tool: CleanupTool) = dao.observeActive(tool.name)
 
@@ -111,34 +133,18 @@ class ToolResultStore(
         sessionId: String,
         id: String,
         selected: Boolean,
-    ) = database.withTransaction {
-        val session = dao.session(sessionId)?.takeIf { it.active } ?: return@withTransaction
-        if (dao.pending().isNotEmpty()) return@withTransaction
-        val items = dao.items(sessionId)
-        val target = items.firstOrNull { it.id == id && it.valid && !it.keeper } ?: return@withTransaction
-        val targetPath = Paths.get(target.canonicalPath)
-        val changes =
-            if (session.tool == CleanupTool.EMPTY_FOLDERS.name) {
-                items.filter { item ->
-                    item.valid && item.volume == target.volume &&
-                        if (selected) {
-                            Paths.get(item.canonicalPath).startsWith(targetPath)
-                        } else {
-                            targetPath.startsWith(Paths.get(item.canonicalPath))
-                        }
-                }
-            } else {
-                listOf(target)
-            }
-        dao.updateItems(changes.map { it.copy(selected = selected) })
-    }
+    ) = setSelection(sessionId, setOf(id), selected)
 
     suspend fun keep(
         sessionId: String,
         id: String,
     ) = database.withTransaction {
         val session = dao.session(sessionId)?.takeIf { it.active } ?: return@withTransaction
-        if (session.tool != CleanupTool.SIMILAR_PHOTOS.name || dao.pending().isNotEmpty()) return@withTransaction
+        if (session.tool != CleanupTool.SIMILAR_PHOTOS.name || dao.pending().isNotEmpty() ||
+            database.deletionOperationDao().getPending().isNotEmpty()
+        ) {
+            return@withTransaction
+        }
         val items = dao.items(sessionId)
         val target = items.firstOrNull { it.id == id && it.valid && it.groupId != null } ?: return@withTransaction
         dao.updateItems(

@@ -58,7 +58,7 @@ class ToolResultStoreTest {
                 ),
             )
             store.setSelected("screens", "hidden", true)
-            store.setScreenshotSelection("screens", setOf("one", "two", "invalid", "keeper", "foreign"), true)
+            store.setSelection("screens", setOf("one", "two", "invalid", "keeper", "foreign"), true)
             assertEquals(
                 setOf("one", "two", "hidden"),
                 store.dao
@@ -67,7 +67,7 @@ class ToolResultStoreTest {
                     .map { it.id }
                     .toSet(),
             )
-            store.setScreenshotSelection("screens", setOf("one", "two"), false)
+            store.setSelection("screens", setOf("one", "two"), false)
             assertEquals(
                 listOf("hidden"),
                 store.dao
@@ -83,7 +83,7 @@ class ToolResultStoreTest {
             complete("screens", CleanupTool.SCREENSHOTS, listOf(item("screens", "one")))
             val session = store.dao.session("screens")!!
             store.dao.updateSession(session.copy(active = false))
-            store.setScreenshotSelection("screens", setOf("one"), true)
+            store.setSelection("screens", setOf("one"), true)
             assertFalse(
                 store.dao
                     .items("screens")
@@ -95,13 +95,64 @@ class ToolResultStoreTest {
                 com.emma.duplicates.core.database
                     .CleanupOperation("pending", "screens", CleanupTool.SCREENSHOTS.name, 1),
             )
-            store.setScreenshotSelection("screens", setOf("one"), true)
+            store.setSelection("screens", setOf("one"), true)
             assertFalse(
                 store.dao
                     .items("screens")
                     .single()
                     .selected,
             )
+        }
+
+    @Test
+    fun batchSelectionKeepsHiddenItemsAndProtectsTheNewKeeper() =
+        runTest {
+            complete(
+                "photos",
+                CleanupTool.SIMILAR_PHOTOS,
+                listOf(
+                    item("photos", "first").copy(groupId = "one", keeper = true),
+                    item("photos", "second").copy(groupId = "one"),
+                    item("photos", "third").copy(groupId = "two"),
+                ),
+            )
+            store.setSelected("photos", "third", true)
+            store.setSelection("photos", setOf("first", "second"), true)
+            assertEquals(
+                setOf("second", "third"),
+                store.dao
+                    .items("photos")
+                    .filter { it.selected }
+                    .map { it.id }
+                    .toSet(),
+            )
+            store.keep("photos", "second")
+            store.setSelection("photos", setOf("first", "second"), true)
+            val changed = store.dao.items("photos")
+            assertEquals("second", changed.single { it.keeper }.id)
+            assertFalse(changed.single { it.keeper }.selected)
+            assertEquals(setOf("first", "third"), changed.filter { it.selected }.map { it.id }.toSet())
+            store.setSelection("photos", setOf("first", "second"), false)
+            assertEquals(
+                listOf("third"),
+                store.dao
+                    .items("photos")
+                    .filter { it.selected }
+                    .map { it.id },
+            )
+        }
+
+    @Test
+    fun everyFileToolSupportsBatchSelectionAndClearing() =
+        runTest {
+            for (tool in listOf(CleanupTool.LARGE_FILES, CleanupTool.OLD_DOWNLOADS, CleanupTool.EMPTY_FOLDERS)) {
+                val id = tool.name
+                complete(id, tool, listOf(item(id, "one"), item(id, "two")))
+                store.setSelection(id, setOf("one", "two"), true)
+                assertTrue(store.dao.items(id).all { it.selected })
+                store.setSelection(id, setOf("one", "two"), false)
+                assertTrue(store.dao.items(id).none { it.selected })
+            }
         }
 
     @Test

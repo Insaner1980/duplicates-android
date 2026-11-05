@@ -29,7 +29,7 @@ class ToolStringResourcesTest {
         for (count in listOf(0, 1, 2, 90)) {
             val unit = if (count == 1) "day" else "days"
             assertEquals(
-                "$count $unit",
+                "Not used for $count $unit",
                 resources.getQuantityString(R.plurals.tool_unused_days, count, count),
             )
         }

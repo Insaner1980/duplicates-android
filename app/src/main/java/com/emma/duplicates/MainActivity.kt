@@ -1,12 +1,17 @@
 package com.emma.duplicates
 
 import android.Manifest
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -20,9 +25,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.toArgb
+import androidx.core.animation.doOnEnd
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.splashscreen.SplashScreenViewProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -87,8 +94,11 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) {
+            splashScreen.setOnExitAnimationListener(::animateSplashExit)
+        }
         notificationPermissionPending = savedInstanceState?.getBoolean(STATE_SCAN_START_PENDING) == true
         scanStartPending = notificationPermissionPending
         enableEdgeToEdge(
@@ -272,6 +282,27 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val STATE_SCAN_START_PENDING = "scan-start-pending"
+    }
+}
+
+private const val SPLASH_EXIT_SCALE = 1.08f
+private const val SPLASH_EXIT_DURATION_MILLIS = 300L
+
+private fun animateSplashExit(splash: SplashScreenViewProvider) {
+    if (!ValueAnimator.areAnimatorsEnabled()) {
+        splash.remove()
+        return
+    }
+    AnimatorSet().apply {
+        playTogether(
+            ObjectAnimator.ofFloat(splash.iconView, View.SCALE_X, 1f, SPLASH_EXIT_SCALE),
+            ObjectAnimator.ofFloat(splash.iconView, View.SCALE_Y, 1f, SPLASH_EXIT_SCALE),
+            ObjectAnimator.ofFloat(splash.view, View.ALPHA, 1f, 0f),
+        )
+        duration = SPLASH_EXIT_DURATION_MILLIS
+        interpolator = DecelerateInterpolator()
+        doOnEnd { splash.remove() }
+        start()
     }
 }
 

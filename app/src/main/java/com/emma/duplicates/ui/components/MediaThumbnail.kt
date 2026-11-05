@@ -32,6 +32,7 @@ import coil3.ImageLoader
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.video.VideoFrameDecoder
+import coil3.video.videoFramePercent
 import com.emma.duplicates.R
 import com.emma.duplicates.data.AudioAlbumArtLoader
 import com.emma.duplicates.ui.model.UiFileCategory
@@ -137,8 +138,11 @@ internal fun buildVideoThumbnailRequest(
         .Builder(context)
         .data(model)
         .size(sizePx, sizePx)
+        .videoFramePercent(VIDEO_THUMBNAIL_FRACTION)
         .decoderFactory { result, options, _ -> VideoFrameDecoder(result.source, options) }
         .build()
+
+private const val VIDEO_THUMBNAIL_FRACTION = 0.5
 
 @Composable
 private fun AudioAlbumArt(
