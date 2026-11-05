@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -89,23 +90,26 @@ fun ToolResultsScreen(
     onStop: () -> Unit,
     onGrantAccess: () -> Unit,
     onControls: (ToolControls) -> Unit,
-    onSelect: (String, Boolean) -> Unit,
     onPreview: (String) -> Unit,
     onRequestCleanup: () -> Unit,
     onConfirm: () -> Unit,
     onDismissConfirmation: () -> Unit,
     onDismissOutcome: () -> Unit,
-    onSelectScreenshots: (Set<String>, Boolean) -> Unit,
+    onSelectVisible: (Set<String>, Boolean) -> Unit,
+    onKeep: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val emptyMessage =
+        if (state.tool == CleanupTool.EMPTY_FOLDERS) R.string.tool_no_folders else R.string.tool_no_results
     BoxWithConstraints(modifier.fillMaxSize().safeDrawingPadding()) {
         val footerInList = maxHeight < 360.dp
         val columns = if (maxWidth < 360.dp || LocalDensity.current.fontScale >= LARGE_FONT_SCALE) 1 else 2
+        val stackTitle = maxWidth < 360.dp && LocalDensity.current.fontScale >= LARGE_FONT_SCALE
         val visible = state.visibleItems
         val listState = rememberLazyListState()
         LaunchedEffect(state.controls.group) { listState.scrollToItem(0) }
         Column(Modifier.fillMaxSize()) {
-            ToolHeader(state, onBack, onRefresh)
+            ToolHeader(state, onBack, onRefresh, stackTitle)
             LazyColumn(
                 Modifier.weight(1f).testTag("tool-results"),
                 state = listState,
@@ -115,23 +119,16 @@ fun ToolResultsScreen(
                     item { Column(Modifier.padding(bottom = 12.dp)) { ToolRunStatus(state, onStop, onGrantAccess) } }
                 }
                 if (state.hasAccess) {
-                    item { Column(Modifier.padding(bottom = 12.dp)) { ToolFilters(state, onControls) } }
+                    item { ToolFilters(state, onControls) }
+                    if (visible.isNotEmpty()) {
+                        item { ToolSelectionControls(state, onSelectVisible) }
+                    }
                     if (visible.isEmpty() && !state.running) {
                         item {
-                            Text(
-                                stringResource(
-                                    if (state.tool ==
-                                        CleanupTool.EMPTY_FOLDERS
-                                    ) {
-                                        R.string.tool_no_folders
-                                    } else {
-                                        R.string.tool_no_results
-                                    },
-                                ),
-                            )
+                            Text(stringResource(emptyMessage))
                         }
                     }
-                    toolItems(state, columns, onSelect, onPreview, onSelectScreenshots)
+                    toolItems(state, columns, onPreview, onSelectVisible, onKeep)
                 }
                 if (footerInList) {
                     item {
@@ -152,13 +149,13 @@ fun ToolResultsScreen(
 private fun androidx.compose.foundation.lazy.LazyListScope.toolItems(
     state: ToolScreenState,
     columns: Int,
-    onSelect: (String, Boolean) -> Unit,
     onPreview: (String) -> Unit,
-    onSelectScreenshots: (Set<String>, Boolean) -> Unit,
+    onSelectVisible: (Set<String>, Boolean) -> Unit,
+    onKeep: (String) -> Unit,
 ) {
     val visible = state.visibleItems
     if (state.tool == CleanupTool.SIMILAR_PHOTOS || state.tool == CleanupTool.SCREENSHOTS) {
-        toolImageItems(state, columns, onSelect, onPreview, onSelectScreenshots)
+        toolImageItems(state, columns, onPreview, onSelectVisible, onKeep)
     } else {
         itemsIndexed(visible, key = { _, item -> item.id }) { index, item ->
             ToolFileRow(
@@ -166,7 +163,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.toolItems(
                 state.tool,
                 relativeFolder(item, state),
                 state.busy || state.running,
-                { onSelect(item.id, it) },
+                { onSelectVisible(setOf(item.id), it) },
                 { onPreview(item.id) },
                 first = index == 0,
                 last = index == visible.lastIndex,
@@ -178,9 +175,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.toolItems(
 private fun androidx.compose.foundation.lazy.LazyListScope.toolImageItems(
     state: ToolScreenState,
     columns: Int,
-    onSelect: (String, Boolean) -> Unit,
     onPreview: (String) -> Unit,
-    onSelectScreenshots: (Set<String>, Boolean) -> Unit,
+    onSelectVisible: (Set<String>, Boolean) -> Unit,
+    onKeep: (String) -> Unit,
 ) {
     val visible = state.visibleItems
     val groups =
@@ -194,23 +191,25 @@ private fun androidx.compose.foundation.lazy.LazyListScope.toolImageItems(
     groups.forEach { (month, images) ->
         if (state.tool == CleanupTool.SCREENSHOTS) {
             item(key = "month:$month") {
-                ScreenshotMonthHeader(month, images, state.busy || state.running, onSelectScreenshots)
+                ScreenshotMonthHeader(month, images, state.busy || state.running, onSelectVisible)
             }
         }
         items(images.chunked(columns), key = { row -> row.first().id }) { row ->
-            Row(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                Modifier.height(IntrinsicSize.Min).padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 row.forEach { item ->
                     ToolImageCard(
                         item,
                         state.busy || state.running,
                         state.tool == CleanupTool.SCREENSHOTS,
-                        { onSelect(item.id, it) },
+                        { onSelectVisible(setOf(item.id), it) },
                         { onPreview(item.id) },
+                        { onKeep(item.id) },
                         Modifier.weight(1f),
                         dateLabel =
-                            if (month.isEmpty()) {
-                                null
-                            } else {
+                            month.takeIf { it.isNotEmpty() }?.let {
                                 DisplayFormatters.shortDate(
                                     item.modifiedAt,
                                     scanZone(state),
@@ -283,7 +282,7 @@ private fun ToolFooter(
     state: ToolScreenState,
     onCleanup: () -> Unit,
 ) {
-    if (!state.hasAccess) return
+    if (!state.hasAccess || state.selected.isEmpty()) return
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column(
             Modifier.fillMaxWidth().testTag("tool-footer").padding(horizontal = 16.dp, vertical = 8.dp),
@@ -336,15 +335,11 @@ private fun CleanupButton(
         compact = true,
     ) {
         Text(
-            stringResource(
-                if (state.tool ==
-                    CleanupTool.EMPTY_FOLDERS
-                ) {
-                    R.string.tool_delete_folders
-                } else {
-                    R.string.tool_move
-                },
-            ),
+            if (state.tool == CleanupTool.EMPTY_FOLDERS) {
+                pluralStringResource(R.plurals.tool_delete_folder_count, state.selected.size, state.selected.size)
+            } else {
+                stringResource(R.string.tool_move)
+            },
         )
     }
 }
@@ -417,12 +412,14 @@ private fun ToolHeader(
     state: ToolScreenState,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    stackTitle: Boolean,
 ) {
     DetailHeader(
         state.tool.titleResource(),
         onBack,
         Modifier.padding(horizontal = 16.dp).heightIn(min = 56.dp),
         titleStyle = CleanupTitle,
+        stackTitle = stackTitle,
     ) {
         IconButton(onClick = onRefresh, enabled = !state.busy && !state.running && state.hasAccess) {
             Icon(Icons.Outlined.Refresh, stringResource(R.string.refresh))
@@ -443,7 +440,7 @@ private fun ScreenshotMonthHeader(
     month: String,
     images: List<ToolItemEntity>,
     busy: Boolean,
-    onSelectScreenshots: (Set<String>, Boolean) -> Unit,
+    onSelectVisible: (Set<String>, Boolean) -> Unit,
 ) {
     val label = month.ifEmpty { stringResource(R.string.tool_unknown_date) }
     val eligible = images.filter { !it.keeper }
@@ -464,7 +461,7 @@ private fun ScreenshotMonthHeader(
             TriStateCheckbox(
                 selectionState,
                 {
-                    onSelectScreenshots(
+                    onSelectVisible(
                         eligible.mapTo(HashSet()) { it.id },
                         selectionState != ToggleableState.On,
                     )

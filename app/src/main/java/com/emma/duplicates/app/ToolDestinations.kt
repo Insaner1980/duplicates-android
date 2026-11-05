@@ -84,7 +84,6 @@ private fun FileToolDestination(
             model::stop,
             onGrantAccess,
             model::controls,
-            model::select,
             { id ->
                 val item = state.results?.items?.firstOrNull { it.id == id }
                 if (item?.directory == true) {
@@ -97,7 +96,8 @@ private fun FileToolDestination(
             model::confirmCleanup,
             model::dismissConfirmation,
             model::dismissOutcome,
-            model::selectScreenshots,
+            model::selectVisible,
+            model::keep,
         )
         state.results?.items?.firstOrNull { it.id == folderDetail }?.let { item ->
             AlertDialog(onDismissRequest = {

@@ -119,14 +119,14 @@ class ToolViewModelTest {
                 )
             saved["months"] = 6
             val model = model(CleanupTool.SCREENSHOTS)
-            model.selectScreenshots(setOf("old", "recent", "foreign"), true)
+            model.selectVisible(setOf("old", "recent", "foreign"), true)
             runCurrent()
-            coVerify(exactly = 1) { store.setScreenshotSelection("run", setOf("old"), true) }
+            coVerify(exactly = 1) { store.setSelection("run", setOf("old"), true) }
             activeTool.value = ToolRoute(CleanupTool.SCREENSHOTS.name)
             runCurrent()
-            model.selectScreenshots(setOf("old"), false)
+            model.selectVisible(setOf("old"), false)
             runCurrent()
-            coVerify(exactly = 0) { store.setScreenshotSelection(any(), any(), false) }
+            coVerify(exactly = 0) { store.setSelection(any(), any(), false) }
         }
 
     @Test
@@ -146,6 +146,40 @@ class ToolViewModelTest {
                         .state.value.controls.months,
                 )
             }
+        }
+
+    @Test
+    fun batchSelectionRespectsSizeFilterAndCannotSelectAnotherGroupOrKeeper() =
+        runTest(main.dispatcher) {
+            active.value = ToolResults(session, listOf(item, item.copy(id = "small", sizeBytes = 10)))
+            val files = model()
+            files.selectVisible(setOf("file", "small", "foreign"), true)
+            runCurrent()
+            coVerify(exactly = 1) { store.setSelection("run", setOf("file"), true) }
+            active.value =
+                ToolResults(
+                    session.copy(tool = CleanupTool.SIMILAR_PHOTOS.name),
+                    listOf(
+                        item.copy(id = "keeper", groupId = "first", keeper = true),
+                        item.copy(id = "other", groupId = "first"),
+                        item.copy(id = "hidden", groupId = "second"),
+                    ),
+                )
+            val photos = model(CleanupTool.SIMILAR_PHOTOS)
+            photos.selectVisible(setOf("keeper", "other", "hidden"), true)
+            photos.keep("hidden")
+            photos.keep("other")
+            runCurrent()
+            coVerify(exactly = 1) { store.setSelection("run", setOf("other"), true) }
+            coVerify(exactly = 0) { store.keep("run", "hidden") }
+            coVerify(exactly = 1) { store.keep("run", "other") }
+            activeTool.value = ToolRoute(CleanupTool.SIMILAR_PHOTOS.name)
+            runCurrent()
+            photos.keep("keeper")
+            photos.selectVisible(setOf("other"), false)
+            runCurrent()
+            coVerify(exactly = 0) { store.keep("run", "keeper") }
+            coVerify(exactly = 0) { store.setSelection("run", any(), false) }
         }
 
     @Test
@@ -256,21 +290,21 @@ class ToolViewModelTest {
             val model = model()
             activeTool.value = ToolRoute(CleanupTool.LARGE_FILES.name, "scan")
             runCurrent()
-            model.select("file", false)
+            model.selectVisible(setOf("file"), false)
             model.requestCleanup()
-            coVerify(exactly = 0) { store.setSelected(any(), any(), any()) }
+            coVerify(exactly = 0) { store.setSelection(any(), any(), any()) }
             coVerify(exactly = 0) { cleanup.prepare(any(), any()) }
             activeTool.value = null
             runCurrent()
-            model.select("file", false)
+            model.selectVisible(setOf("file"), false)
             runCurrent()
-            coVerify { store.setSelected("run", "file", false) }
+            coVerify { store.setSelection("run", setOf("file"), false) }
             val pending = CompletableDeferred<CleanupBatch>()
             coEvery { cleanup.prepare(any(), any()) } coAnswers { pending.await() }
             model.requestCleanup()
             runCurrent()
             model.requestCleanup()
-            model.select("file", true)
+            model.selectVisible(setOf("file"), true)
             model.refresh()
             coVerify(exactly = 1) { cleanup.prepare(any(), any()) }
             coVerify(exactly = 0) { scheduler.startTool(any(), any(), any()) }

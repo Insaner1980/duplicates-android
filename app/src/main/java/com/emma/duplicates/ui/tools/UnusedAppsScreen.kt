@@ -32,7 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -68,12 +70,17 @@ fun UnusedAppsScreen(
     onDetails: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val windowSize = LocalWindowInfo.current.containerSize
     Column(modifier.fillMaxSize().safeDrawingPadding()) {
         DetailHeader(
             R.string.unused_apps,
             onBack,
             Modifier.padding(horizontal = 16.dp).heightIn(min = 56.dp),
             titleStyle = CleanupTitle,
+            stackTitle =
+                with(LocalDensity.current) {
+                    windowSize.width.toDp() < 360.dp && fontScale >= LARGE_FONT_SCALE
+                },
         ) {
             IconButton(onRefresh, enabled = state.state != UsageAccessState.LOADING) {
                 Icon(Icons.Outlined.Refresh, stringResource(R.string.refresh))
@@ -81,43 +88,38 @@ fun UnusedAppsScreen(
         }
         LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
             item {
-                val choices = UNUSED_DAYS
-                ToolDropdown(
-                    pluralStringResource(R.plurals.tool_unused_days, days, days),
-                    choices.map {
-                        pluralStringResource(R.plurals.tool_unused_days, it, it)
-                    },
-                ) { onDays(choices[it]) }
-                when (state.state) {
-                    UsageAccessState.LOADING -> {
-                        LinearProgressIndicator(Modifier.fillMaxWidth())
-                    }
+                Column(Modifier.padding(bottom = 12.dp)) {
+                    ToolDropdown(
+                        pluralStringResource(R.plurals.tool_unused_days, days, days),
+                        UNUSED_DAYS.map { pluralStringResource(R.plurals.tool_unused_days, it, it) },
+                    ) { onDays(UNUSED_DAYS[it]) }
+                    when (state.state) {
+                        UsageAccessState.LOADING -> {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                        }
 
-                    UsageAccessState.NOT_GRANTED, UsageAccessState.REVOKED -> {
-                        Text(
-                            stringResource(
-                                if (state.state ==
-                                    UsageAccessState.REVOKED
-                                ) {
+                        UsageAccessState.NOT_GRANTED, UsageAccessState.REVOKED -> {
+                            val message =
+                                if (state.state == UsageAccessState.REVOKED) {
                                     R.string.tool_usage_revoked
                                 } else {
                                     R.string.tool_usage_access
-                                },
-                            ),
-                        )
-                        PrimaryActionButton(onGrant) { Text(stringResource(R.string.tool_grant_access)) }
-                    }
+                                }
+                            Text(stringResource(message))
+                            PrimaryActionButton(onGrant) { Text(stringResource(R.string.tool_grant_access)) }
+                        }
 
-                    UsageAccessState.UNAVAILABLE -> {
-                        Text(stringResource(R.string.tool_usage_unavailable))
-                    }
+                        UsageAccessState.UNAVAILABLE -> {
+                            Text(stringResource(R.string.tool_usage_unavailable))
+                        }
 
-                    UsageAccessState.EMPTY -> {
-                        Text(stringResource(R.string.tool_no_apps))
-                    }
+                        UsageAccessState.EMPTY -> {
+                            Text(stringResource(R.string.tool_no_apps))
+                        }
 
-                    UsageAccessState.RESULTS -> {
-                        Unit
+                        UsageAccessState.RESULTS -> {
+                            // Results are rendered by the app rows below.
+                        }
                     }
                 }
             }
@@ -146,7 +148,7 @@ private fun UnusedAppCard(
     ) {
         Column {
             Row(
-                Modifier.heightIn(min = 88.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier.heightIn(min = 72.dp).padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -165,14 +167,12 @@ private fun UnusedAppCard(
                                 ?: stringResource(R.string.cleanup_unknown),
                             style = CleanupMetadata,
                         )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(painterResource(R.drawable.ic_clock), null, Modifier.size(16.dp))
-                            Text(DisplayFormatters.date(app.lastUsed), style = CleanupMetadata)
-                        }
                     }
+                    Text(
+                        stringResource(R.string.tool_last_used, DisplayFormatters.date(app.lastUsed)),
+                        style = CleanupMetadata,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Icon(painterResource(R.drawable.ic_chevron_right), null, Modifier.size(24.dp))
             }

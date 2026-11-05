@@ -36,13 +36,29 @@
         <item quantity="other">%1$d selected outside this view</item>
     </plurals>
     <string name="tool_select_item">Select %1$s</string>
+    <string name="tool_select_all">Select all %1$d</string>
+    <string name="tool_select_others">Select others in this group</string>
+    <string name="tool_clear_selection">Clear selection</string>
+    <string name="tool_clear_group">Clear this group</string>
+    <string name="tool_thumbnail_unavailable">Preview unavailable</string>
+    <string name="tool_keep_photo">Keep this photo</string>
+    <string name="tool_keep_photo_description">Keep %1$s</string>
+    <string name="tool_photo_options">Photo options for %1$s</string>
+    <string name="tool_selected_for_recovery">Selected for Recovery</string>
+    <string name="tool_browse_groups">Browse groups</string>
+    <string name="tool_group_number">Group %1$d</string>
+    <string name="tool_close_groups">Close groups</string>
     <string name="tool_open_item">Preview %1$s</string>
     <string name="tool_move">Move to Recovery</string>
-    <string name="tool_delete_folders">Delete selected</string>
+    <string name="tool_delete_folders">Delete folders</string>
+    <plurals name="tool_delete_folder_count">
+        <item quantity="one">Delete %1$d folder</item>
+        <item quantity="other">Delete %1$d folders</item>
+    </plurals>
     <string name="tool_delete_folders_title">Delete empty folders?</string>
     <plurals name="tool_delete_folders_confirmation">
-        <item quantity="one">%1$d folder</item>
-        <item quantity="other">%1$d folders</item>
+        <item quantity="one">%1$d folder will be permanently deleted.</item>
+        <item quantity="other">%1$d folders will be permanently deleted.</item>
     </plurals>
     <string name="tool_folder_outcome">Deleted %1$d, failed %2$d</string>
     <plurals name="tool_confirm_move">
@@ -61,7 +77,7 @@
     <string name="tool_unknown">Unknown</string>
     <string name="tool_unknown_date">Unknown date</string>
     <string name="tool_keep">Keep</string>
-    <string name="tool_group">%1$d / %2$d</string>
+    <string name="tool_group">Group %1$d of %2$d</string>
     <string name="tool_previous_group">Previous group</string>
     <string name="tool_next_group">Next group</string>
     <string name="tool_used">%1$s used</string>
@@ -75,9 +91,10 @@
     <string name="tool_usage_unavailable">Usage data unavailable</string>
     <string name="tool_no_apps">No apps</string>
     <plurals name="tool_unused_days">
-        <item quantity="one">%1$d day</item>
-        <item quantity="other">%1$d days</item>
+        <item quantity="one">Not used for %1$d day</item>
+        <item quantity="other">Not used for %1$d days</item>
     </plurals>
+    <string name="tool_last_used">Last used %1$s</string>
     <string name="tool_app_details_for">Open app details for %1$s</string>
     <string name="tool_app_unavailable">App unavailable</string>
     <string name="recovery_restore">Restore</string>

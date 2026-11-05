@@ -117,7 +117,10 @@ class RecoveryScreenTest {
         }
     }
 
-    private fun checkLayout(width: String) {
+    private fun forEachAppearance(
+        createState: () -> RecoveryUiState = ::fixture,
+        assertions: (Boolean, Float) -> Unit,
+    ) {
         val font = mutableFloatStateOf(1f)
         val dark = mutableStateOf(false)
         show(font, dark)
@@ -126,40 +129,46 @@ class RecoveryScreenTest {
                 composeRule.runOnIdle {
                     dark.value = theme
                     font.floatValue = scale
-                    state.value = fixture()
+                    state.value = createState()
                 }
-                if (width ==
-                    "landscape"
-                ) {
-                    composeRule.onNodeWithTag("recovery-list").performScrollToNode(hasTestTag("recovery-restore"))
-                }
-                composeRule.onNodeWithTag("recovery-restore").assertIsDisplayed().performClick()
-                if (width ==
-                    "landscape"
-                ) {
-                    composeRule.onNodeWithTag("recovery-list").performScrollToNode(hasTestTag("recovery-delete"))
-                }
-                composeRule.onNodeWithTag("recovery-delete").assertIsDisplayed()
-                if (width ==
-                    "landscape"
-                ) {
-                    composeRule.onNodeWithTag("recovery-list").performScrollToNode(hasTestTag("recovery-row-one"))
-                }
-                val themeName = if (theme) "dark" else "light"
-                val file =
-                    File(
-                        "build/outputs/two-tab-ui/visual/recovery-$width-${scale.toInt()}-$themeName.png",
-                    )
-                file.parentFile!!.mkdirs()
-                file.outputStream().use {
-                    composeRule
-                        .onRoot()
-                        .captureToImage()
-                        .asAndroidBitmap()
-                        .compress(Bitmap.CompressFormat.PNG, 100, it)
-                }
-                assertReadableText()
+                assertions(theme, scale)
             }
+        }
+    }
+
+    private fun checkLayout(width: String) {
+        forEachAppearance { theme, scale ->
+            if (width ==
+                "landscape"
+            ) {
+                composeRule.onNodeWithTag("recovery-list").performScrollToNode(hasTestTag("recovery-restore"))
+            }
+            composeRule.onNodeWithTag("recovery-restore").assertIsDisplayed().performClick()
+            if (width ==
+                "landscape"
+            ) {
+                composeRule.onNodeWithTag("recovery-list").performScrollToNode(hasTestTag("recovery-delete"))
+            }
+            composeRule.onNodeWithTag("recovery-delete").assertIsDisplayed()
+            if (width ==
+                "landscape"
+            ) {
+                composeRule.onNodeWithTag("recovery-list").performScrollToNode(hasTestTag("recovery-row-one"))
+            }
+            val themeName = if (theme) "dark" else "light"
+            val file =
+                File(
+                    "build/outputs/two-tab-ui/visual/recovery-$width-${scale.toInt()}-$themeName.png",
+                )
+            file.parentFile!!.mkdirs()
+            file.outputStream().use {
+                composeRule
+                    .onRoot()
+                    .captureToImage()
+                    .asAndroidBitmap()
+                    .compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+            assertReadableText()
         }
         assertEquals(4, restored)
     }
@@ -199,25 +208,17 @@ class RecoveryScreenTest {
             (1..12).map {
                 "/storage/emulated/0/Pictures/Camera/Photo-$it.jpg.restored-93e6b89a-6ab6-4fb2-928c-25218c616840"
             }
-        val font = mutableFloatStateOf(1f)
-        val dark = mutableStateOf(false)
-        show(font, dark)
-        for (theme in listOf(false, true)) {
-            for (scale in listOf(1f, 2f)) {
-                composeRule.runOnIdle {
-                    dark.value = theme
-                    font.floatValue = scale
-                    state.value = fixture().copy(outcome = RecoveryOutcome(RecoveryAction.RESTORE, 12, 1, paths))
-                }
-                composeRule.onNodeWithText("Restored 12, failed 1").assertIsDisplayed()
-                composeRule
-                    .onNodeWithTag("recovery-restored-paths")
-                    .assertTextEquals(paths.joinToString("\n\n"))
-                    .performSemanticsAction(SemanticsActions.ScrollBy) { scroll -> assertTrue(scroll(0f, 10_000f)) }
-                assertReadableText()
-                composeRule.onNodeWithText("OK").assertIsDisplayed().performClick()
-                composeRule.onNodeWithTag("recovery-restored-paths").assertDoesNotExist()
-            }
+        forEachAppearance(
+            createState = { fixture().copy(outcome = RecoveryOutcome(RecoveryAction.RESTORE, 12, 1, paths)) },
+        ) { _, _ ->
+            composeRule.onNodeWithText("Restored 12, failed 1").assertIsDisplayed()
+            composeRule
+                .onNodeWithTag("recovery-restored-paths")
+                .assertTextEquals(paths.joinToString("\n\n"))
+                .performSemanticsAction(SemanticsActions.ScrollBy) { scroll -> assertTrue(scroll(0f, 10_000f)) }
+            assertReadableText()
+            composeRule.onNodeWithText("OK").assertIsDisplayed().performClick()
+            composeRule.onNodeWithTag("recovery-restored-paths").assertDoesNotExist()
         }
     }
 

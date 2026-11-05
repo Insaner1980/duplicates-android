@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.verticalScroll
@@ -36,31 +37,31 @@ fun DetailHeader(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     titleStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleLarge,
+    stackTitle: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
-    Row(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.Center,
     ) {
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier.size(48.dp),
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = stringResource(R.string.back),
-            )
+            IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.back))
+            }
+            if (stackTitle) {
+                Spacer(Modifier.weight(1f))
+            } else {
+                Text(stringResource(titleRes), Modifier.weight(1f).semantics { heading() }, style = titleStyle)
+            }
+            actions()
         }
-        Text(
-            text = stringResource(titleRes),
-            style = titleStyle,
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .semantics { heading() },
-        )
-        actions()
+        if (stackTitle) {
+            Text(stringResource(titleRes), Modifier.fillMaxWidth().semantics { heading() }, style = titleStyle)
+        }
     }
 }
 

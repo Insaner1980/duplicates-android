@@ -1,12 +1,17 @@
 package com.emma.duplicates
 
 import android.Manifest
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -20,9 +25,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.toArgb
+import androidx.core.animation.doOnEnd
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.splashscreen.SplashScreenViewProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -50,6 +57,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var container: AppContainer
     private var scanStartPending by mutableStateOf(false)
     private var notificationPermissionPending = false
+    private var systemBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
     private val deletionAuthorizer: AndroidMediaDeletionAuthorizer by viewModels {
         ViewModelFactory {
             AndroidMediaDeletionAuthorizer(applicationContext.contentResolver)
@@ -87,8 +95,13 @@ class MainActivity : ComponentActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) {
+            splashScreen.setOnExitAnimationListener { splash ->
+                animateSplashExit(splash) { systemBarStyle }
+            }
+        }
         notificationPermissionPending = savedInstanceState?.getBoolean(STATE_SCAN_START_PENDING) == true
         scanStartPending = notificationPermissionPending
         enableEdgeToEdge(
@@ -114,13 +127,13 @@ class MainActivity : ComponentActivity() {
                     androidx.compose.material3.MaterialTheme.colorScheme.background
                         .toArgb()
                 SideEffect {
-                    val barStyle =
+                    systemBarStyle =
                         if (darkTheme) {
                             SystemBarStyle.dark(Color.TRANSPARENT)
                         } else {
                             SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                         }
-                    enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+                    enableEdgeToEdge(statusBarStyle = systemBarStyle, navigationBarStyle = systemBarStyle)
                     window.setBackgroundDrawable(background.toDrawable())
                 }
                 AppNavigation(
@@ -272,6 +285,36 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val STATE_SCAN_START_PENDING = "scan-start-pending"
+    }
+}
+
+private const val SPLASH_EXIT_SCALE = 1.08f
+private const val SPLASH_EXIT_DURATION_MILLIS = 300L
+
+internal fun ComponentActivity.animateSplashExit(
+    splash: SplashScreenViewProvider,
+    currentBarStyle: () -> SystemBarStyle,
+) {
+    fun removeSplash() {
+        splash.remove()
+        // Android 12 restores XML theme flags when the splash is removed.
+        val style = currentBarStyle()
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+    }
+    if (!ValueAnimator.areAnimatorsEnabled()) {
+        removeSplash()
+        return
+    }
+    AnimatorSet().apply {
+        playTogether(
+            ObjectAnimator.ofFloat(splash.iconView, View.SCALE_X, 1f, SPLASH_EXIT_SCALE),
+            ObjectAnimator.ofFloat(splash.iconView, View.SCALE_Y, 1f, SPLASH_EXIT_SCALE),
+            ObjectAnimator.ofFloat(splash.view, View.ALPHA, 1f, 0f),
+        )
+        duration = SPLASH_EXIT_DURATION_MILLIS
+        interpolator = DecelerateInterpolator()
+        doOnEnd { removeSplash() }
+        start()
     }
 }
 

@@ -28,11 +28,6 @@ fun PermissionScreen(
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.semantics { heading() },
         )
-        Text(
-            text = stringResource(R.string.storage_access_explanation),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         Spacer(Modifier.height(4.dp))
         PrimaryActionButton(
             onClick = onGrantAccess,

@@ -287,7 +287,7 @@ public fun com.emma.duplicates.ui.components.ConfirmationDialog(title: kotlin.St
     - destructive: STABLE (primitive type)
 
 @Composable
-public fun com.emma.duplicates.ui.components.DetailHeader(titleRes: kotlin.Int, onBack: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, titleStyle: androidx.compose.ui.text.TextStyle, actions: @[Composable] @[ExtensionFunctionType] androidx.compose.runtime.internal.ComposableFunction1<androidx.compose.foundation.layout.RowScope, kotlin.Unit>): kotlin.Unit
+public fun com.emma.duplicates.ui.components.DetailHeader(titleRes: kotlin.Int, onBack: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, titleStyle: androidx.compose.ui.text.TextStyle, stackTitle: kotlin.Boolean, actions: @[Composable] @[ExtensionFunctionType] androidx.compose.runtime.internal.ComposableFunction1<androidx.compose.foundation.layout.RowScope, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -295,6 +295,7 @@ public fun com.emma.duplicates.ui.components.DetailHeader(titleRes: kotlin.Int, 
     - onBack: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
     - titleStyle: STABLE (marked @Stable or @Immutable)
+    - stackTitle: STABLE (primitive type)
     - actions: STABLE (composable function type)
 
 @Composable
@@ -1074,14 +1075,22 @@ public fun com.emma.duplicates.ui.tools.RootNavigationBar(selected: com.emma.dup
     - emphasizeSelection: STABLE (primitive type)
 
 @Composable
-private fun com.emma.duplicates.ui.tools.ScreenshotMonthHeader(month: kotlin.String, images: kotlin.collections.List<com.emma.duplicates.core.database.ToolItemEntity>, busy: kotlin.Boolean, onSelectScreenshots: kotlin.Function2<kotlin.collections.Set<kotlin.String>, kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.tools.ScreenshotMonthHeader(month: kotlin.String, images: kotlin.collections.List<com.emma.duplicates.core.database.ToolItemEntity>, busy: kotlin.Boolean, onSelectVisible: kotlin.Function2<kotlin.collections.Set<kotlin.String>, kotlin.Boolean, kotlin.Unit>): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - month: STABLE (String is immutable)
     - images: RUNTIME (requires runtime check)
     - busy: STABLE (primitive type)
-    - onSelectScreenshots: STABLE (function type)
+    - onSelectVisible: STABLE (function type)
+
+@Composable
+private fun com.emma.duplicates.ui.tools.ScreenshotPreview(item: com.emma.duplicates.core.database.ToolItemEntity, onPreview: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - item: STABLE (class with no mutable properties)
+    - onPreview: STABLE (function type)
 
 @Composable
 private fun com.emma.duplicates.ui.tools.SelectionSummary(state: com.emma.duplicates.ui.tools.ToolScreenState, modifier: androidx.compose.ui.Modifier): kotlin.Unit
@@ -1098,6 +1107,56 @@ internal fun com.emma.duplicates.ui.tools.SimilarGroupFilter(state: com.emma.dup
   params:
     - state: RUNTIME (requires runtime check)
     - onControls: STABLE (function type)
+
+@Composable
+private fun com.emma.duplicates.ui.tools.SimilarGroupRow(group: kotlin.collections.List<com.emma.duplicates.core.database.ToolItemEntity>, index: kotlin.Int, current: kotlin.Boolean, onClick: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - group: RUNTIME (requires runtime check)
+    - index: STABLE (primitive type)
+    - current: STABLE (primitive type)
+    - onClick: STABLE (function type)
+
+@Composable
+internal fun com.emma.duplicates.ui.tools.SimilarGroupsDialog(state: com.emma.duplicates.ui.tools.ToolScreenState, onGroup: kotlin.Function1<kotlin.Int, kotlin.Unit>, onDismiss: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - state: RUNTIME (requires runtime check)
+    - onGroup: STABLE (function type)
+    - onDismiss: STABLE (function type)
+
+@Composable
+internal fun com.emma.duplicates.ui.tools.SimilarPhotoCard(item: com.emma.duplicates.core.database.ToolItemEntity, busy: kotlin.Boolean, onSelect: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onPreview: kotlin.Function0<kotlin.Unit>, onKeep: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - item: STABLE (class with no mutable properties)
+    - busy: STABLE (primitive type)
+    - onSelect: STABLE (function type)
+    - onPreview: STABLE (function type)
+    - onKeep: STABLE (function type)
+    - modifier: STABLE (marked @Stable or @Immutable)
+
+@Composable
+private fun com.emma.duplicates.ui.tools.SimilarPhotoOptions(item: com.emma.duplicates.core.database.ToolItemEntity, busy: kotlin.Boolean, onKeep: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - item: STABLE (class with no mutable properties)
+    - busy: STABLE (primitive type)
+    - onKeep: STABLE (function type)
+
+@Composable
+private fun com.emma.duplicates.ui.tools.SimilarPhotoSelection(item: com.emma.duplicates.core.database.ToolItemEntity, status: kotlin.String, busy: kotlin.Boolean, onSelect: kotlin.Function1<kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - item: STABLE (class with no mutable properties)
+    - status: STABLE (String is immutable)
+    - busy: STABLE (primitive type)
+    - onSelect: STABLE (function type)
 
 @Composable
 private fun com.emma.duplicates.ui.tools.StorageCategories(usage: com.emma.duplicates.data.StorageUsage, session: com.emma.duplicates.core.database.ToolScanSession): kotlin.Unit
@@ -1190,16 +1249,17 @@ private fun com.emma.duplicates.ui.tools.ToolFooter(state: com.emma.duplicates.u
     - onCleanup: STABLE (function type)
 
 @Composable
-private fun com.emma.duplicates.ui.tools.ToolHeader(state: com.emma.duplicates.ui.tools.ToolScreenState, onBack: kotlin.Function0<kotlin.Unit>, onRefresh: kotlin.Function0<kotlin.Unit>): kotlin.Unit
+private fun com.emma.duplicates.ui.tools.ToolHeader(state: com.emma.duplicates.ui.tools.ToolScreenState, onBack: kotlin.Function0<kotlin.Unit>, onRefresh: kotlin.Function0<kotlin.Unit>, stackTitle: kotlin.Boolean): kotlin.Unit
   skippable: true
   restartable: true
   params:
     - state: RUNTIME (requires runtime check)
     - onBack: STABLE (function type)
     - onRefresh: STABLE (function type)
+    - stackTitle: STABLE (primitive type)
 
 @Composable
-internal fun com.emma.duplicates.ui.tools.ToolImageCard(item: com.emma.duplicates.core.database.ToolItemEntity, busy: kotlin.Boolean, screenshot: kotlin.Boolean, onSelect: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onPreview: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, dateLabel: kotlin.String?): kotlin.Unit
+internal fun com.emma.duplicates.ui.tools.ToolImageCard(item: com.emma.duplicates.core.database.ToolItemEntity, busy: kotlin.Boolean, screenshot: kotlin.Boolean, onSelect: kotlin.Function1<kotlin.Boolean, kotlin.Unit>, onPreview: kotlin.Function0<kotlin.Unit>, onKeep: kotlin.Function0<kotlin.Unit>, modifier: androidx.compose.ui.Modifier, dateLabel: kotlin.String?): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -1208,6 +1268,7 @@ internal fun com.emma.duplicates.ui.tools.ToolImageCard(item: com.emma.duplicate
     - screenshot: STABLE (primitive type)
     - onSelect: STABLE (function type)
     - onPreview: STABLE (function type)
+    - onKeep: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
     - dateLabel: STABLE (class with no mutable properties)
 
@@ -1219,7 +1280,7 @@ private fun com.emma.duplicates.ui.tools.ToolList(onOpenTool: kotlin.Function1<c
     - onOpenTool: STABLE (function type)
 
 @Composable
-public fun com.emma.duplicates.ui.tools.ToolResultsScreen(state: com.emma.duplicates.ui.tools.ToolScreenState, onBack: kotlin.Function0<kotlin.Unit>, onRefresh: kotlin.Function0<kotlin.Unit>, onStop: kotlin.Function0<kotlin.Unit>, onGrantAccess: kotlin.Function0<kotlin.Unit>, onControls: kotlin.Function1<com.emma.duplicates.ui.tools.ToolControls, kotlin.Unit>, onSelect: kotlin.Function2<kotlin.String, kotlin.Boolean, kotlin.Unit>, onPreview: kotlin.Function1<kotlin.String, kotlin.Unit>, onRequestCleanup: kotlin.Function0<kotlin.Unit>, onConfirm: kotlin.Function0<kotlin.Unit>, onDismissConfirmation: kotlin.Function0<kotlin.Unit>, onDismissOutcome: kotlin.Function0<kotlin.Unit>, onSelectScreenshots: kotlin.Function2<kotlin.collections.Set<kotlin.String>, kotlin.Boolean, kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
+public fun com.emma.duplicates.ui.tools.ToolResultsScreen(state: com.emma.duplicates.ui.tools.ToolScreenState, onBack: kotlin.Function0<kotlin.Unit>, onRefresh: kotlin.Function0<kotlin.Unit>, onStop: kotlin.Function0<kotlin.Unit>, onGrantAccess: kotlin.Function0<kotlin.Unit>, onControls: kotlin.Function1<com.emma.duplicates.ui.tools.ToolControls, kotlin.Unit>, onPreview: kotlin.Function1<kotlin.String, kotlin.Unit>, onRequestCleanup: kotlin.Function0<kotlin.Unit>, onConfirm: kotlin.Function0<kotlin.Unit>, onDismissConfirmation: kotlin.Function0<kotlin.Unit>, onDismissOutcome: kotlin.Function0<kotlin.Unit>, onSelectVisible: kotlin.Function2<kotlin.collections.Set<kotlin.String>, kotlin.Boolean, kotlin.Unit>, onKeep: kotlin.Function1<kotlin.String, kotlin.Unit>, modifier: androidx.compose.ui.Modifier): kotlin.Unit
   skippable: true
   restartable: true
   params:
@@ -1229,13 +1290,13 @@ public fun com.emma.duplicates.ui.tools.ToolResultsScreen(state: com.emma.duplic
     - onStop: STABLE (function type)
     - onGrantAccess: STABLE (function type)
     - onControls: STABLE (function type)
-    - onSelect: STABLE (function type)
     - onPreview: STABLE (function type)
     - onRequestCleanup: STABLE (function type)
     - onConfirm: STABLE (function type)
     - onDismissConfirmation: STABLE (function type)
     - onDismissOutcome: STABLE (function type)
-    - onSelectScreenshots: STABLE (function type)
+    - onSelectVisible: STABLE (function type)
+    - onKeep: STABLE (function type)
     - modifier: STABLE (marked @Stable or @Immutable)
 
 @Composable
@@ -1246,6 +1307,14 @@ internal fun com.emma.duplicates.ui.tools.ToolRunStatus(state: com.emma.duplicat
     - state: RUNTIME (requires runtime check)
     - onStop: STABLE (function type)
     - onGrantAccess: STABLE (function type)
+
+@Composable
+internal fun com.emma.duplicates.ui.tools.ToolSelectionControls(state: com.emma.duplicates.ui.tools.ToolScreenState, onSelectVisible: kotlin.Function2<kotlin.collections.Set<kotlin.String>, kotlin.Boolean, kotlin.Unit>): kotlin.Unit
+  skippable: true
+  restartable: true
+  params:
+    - state: RUNTIME (requires runtime check)
+    - onSelectVisible: STABLE (function type)
 
 @Composable
 private fun com.emma.duplicates.ui.tools.UnusedAppCard(app: com.emma.duplicates.data.UnusedApp, onDetails: kotlin.Function1<kotlin.String, kotlin.Unit>, first: kotlin.Boolean, last: kotlin.Boolean): kotlin.Unit

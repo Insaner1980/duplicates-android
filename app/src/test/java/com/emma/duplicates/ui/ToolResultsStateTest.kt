@@ -5,13 +5,36 @@ import com.emma.duplicates.core.database.ToolResults
 import com.emma.duplicates.core.database.ToolScanSession
 import com.emma.duplicates.core.model.CleanupTool
 import com.emma.duplicates.core.model.ToolScope
+import com.emma.duplicates.core.model.ToolVolume
 import com.emma.duplicates.ui.tools.ToolControls
+import com.emma.duplicates.ui.tools.ToolScreenState
+import com.emma.duplicates.ui.tools.relativeFolder
 import com.emma.duplicates.ui.tools.toolVisibleItems
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ToolResultsStateTest {
+    @Test
+    fun folderLocationIncludesTheFolderItselfInsteadOfOnlyItsParent() {
+        val folder = item("photos", 0).copy(canonicalPath = "/storage/DCIM/Google Photos", directory = true)
+        val state =
+            ToolScreenState(
+                CleanupTool.EMPTY_FOLDERS,
+                ToolResults(
+                    ToolScanSession(
+                        "run",
+                        CleanupTool.EMPTY_FOLDERS.name,
+                        1L,
+                        ToolScope(listOf(ToolVolume("primary", "/storage"))).encode(),
+                    ),
+                    listOf(folder),
+                ),
+            )
+        assertEquals("DCIM/Google Photos", relativeFolder(folder, state))
+        assertEquals("DCIM", relativeFolder(folder.copy(directory = false), state))
+    }
+
     @Test
     fun newScreenshotAndDownloadViewsIncludeRecentAndUnknownDates() {
         val started = 1_800_000_000_000L
