@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var container: AppContainer
     private var scanStartPending by mutableStateOf(false)
     private var notificationPermissionPending = false
+    private var systemBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
     private val deletionAuthorizer: AndroidMediaDeletionAuthorizer by viewModels {
         ViewModelFactory {
             AndroidMediaDeletionAuthorizer(applicationContext.contentResolver)
@@ -97,7 +98,9 @@ class MainActivity : ComponentActivity() {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) {
-            splashScreen.setOnExitAnimationListener(::animateSplashExit)
+            splashScreen.setOnExitAnimationListener { splash ->
+                animateSplashExit(splash) { systemBarStyle }
+            }
         }
         notificationPermissionPending = savedInstanceState?.getBoolean(STATE_SCAN_START_PENDING) == true
         scanStartPending = notificationPermissionPending
@@ -124,13 +127,13 @@ class MainActivity : ComponentActivity() {
                     androidx.compose.material3.MaterialTheme.colorScheme.background
                         .toArgb()
                 SideEffect {
-                    val barStyle =
+                    systemBarStyle =
                         if (darkTheme) {
                             SystemBarStyle.dark(Color.TRANSPARENT)
                         } else {
                             SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                         }
-                    enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+                    enableEdgeToEdge(statusBarStyle = systemBarStyle, navigationBarStyle = systemBarStyle)
                     window.setBackgroundDrawable(background.toDrawable())
                 }
                 AppNavigation(
@@ -288,9 +291,18 @@ class MainActivity : ComponentActivity() {
 private const val SPLASH_EXIT_SCALE = 1.08f
 private const val SPLASH_EXIT_DURATION_MILLIS = 300L
 
-private fun animateSplashExit(splash: SplashScreenViewProvider) {
-    if (!ValueAnimator.areAnimatorsEnabled()) {
+internal fun ComponentActivity.animateSplashExit(
+    splash: SplashScreenViewProvider,
+    currentBarStyle: () -> SystemBarStyle,
+) {
+    fun removeSplash() {
         splash.remove()
+        // Android 12 restores XML theme flags when the splash is removed.
+        val style = currentBarStyle()
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+    }
+    if (!ValueAnimator.areAnimatorsEnabled()) {
+        removeSplash()
         return
     }
     AnimatorSet().apply {
@@ -301,7 +313,7 @@ private fun animateSplashExit(splash: SplashScreenViewProvider) {
         )
         duration = SPLASH_EXIT_DURATION_MILLIS
         interpolator = DecelerateInterpolator()
-        doOnEnd { splash.remove() }
+        doOnEnd { removeSplash() }
         start()
     }
 }
